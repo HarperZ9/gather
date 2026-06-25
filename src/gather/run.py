@@ -53,13 +53,15 @@ class RunRecord:
     seal: str
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "started_at": self.started_at, "targets": [list(t) for t in self.targets],
             "scope": list(self.scope), "gathered": self.gathered, "kept": self.kept,
             "dropped": self.dropped, "synthesized": self.synthesized, "digested": self.digested,
-            "origins": list(self.origins),
             "digest_seal": self.digest_seal, "stored": self.stored, "seal": self.seal,
         }
+        if self.origins:  # omit when empty, so a no-provider run serializes exactly as before origins existed
+            d["origins"] = list(self.origins)
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> RunRecord:
@@ -85,15 +87,34 @@ def _record_fields(
     gathered: int, kept: int, dropped: int, synthesized: bool, digested: int,
     origins: tuple[dict, ...], digest_seal: str, stored: dict | None,
 ) -> dict:
-    return {
+    # A field is folded into the seal only when it carries a value: an empty/Null seam contributes
+    # nothing, so adding a seam (origins) does not perturb the seals records written before it had.
+    fields = {
         "started_at": started_at, "targets": [list(t) for t in targets], "scope": list(scope),
         "gathered": gathered, "kept": kept, "dropped": dropped, "synthesized": synthesized,
-        "digested": digested, "origins": list(origins), "digest_seal": digest_seal, "stored": stored,
+        "digested": digested, "digest_seal": digest_seal, "stored": stored,
     }
+    if origins:
+        fields["origins"] = list(origins)
+    return fields
 
 
 def _seal_record(fields: dict) -> str:
     return hashlib.sha256(json.dumps(fields, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _origin_entry(provider: ProvenanceProvider, it: Item) -> dict:
+    """One sealed origin record: the item's receipt identity plus the provider's verdict. Keyed by
+    the full identity (source/ref/method/sha256), so a verdict joins back to exactly one digest
+    receipt. The provider is an external seam, so a verdict that raises degrades to an error rather
+    than aborting the run (matching the subprocess provider's own report-not-raise contract)."""
+    p = it.provenance
+    try:
+        verdict = provider.origin(it)
+    except Exception as exc:  # noqa: BLE001 - a provider is an untrusted seam; never let it abort a run
+        verdict = {"error": f"provenance provider raised: {str(exc)[:120]}"}
+    return {"id": it.id, "source": p.source, "ref": p.ref, "method": p.method,
+            "sha256": p.sha256, "origin": verdict}
 
 
 def _dedup_by_receipt(items: list[Item]) -> list[Item]:
@@ -164,10 +185,7 @@ def gather_run(
     # compose an external origin verdict per item, if a provenance organ is wired in (Null does none)
     origins: tuple[dict, ...] = ()
     if provenance is not None:
-        origins = tuple(
-            {"id": it.id, "sha256": it.provenance.sha256, "origin": provenance.origin(it)}
-            for it in final
-        )
+        origins = tuple(_origin_entry(provenance, it) for it in final)
 
     seal = digest(final).seal
     stored = store.add(final) if store is not None else None
