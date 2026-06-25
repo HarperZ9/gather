@@ -20,10 +20,15 @@ that index, refine, and the crucible consume.
 
 The aim is to pull information from anywhere, including the extremely difficult: gated APIs,
 auth and paywalls, JavaScript-walled pages, scanned PDFs, audio, obscure formats, and
-information that is not sitting in one place but has to be synthesized from fragments. One
-adapter ships today (video, below); the rest is the design the adapter seam is built for,
-on the roadmap. What ships first is the accountability that has to be right before any of
-the harder sources are safe to trust.
+information that is not sitting in one place but has to be synthesized from fragments. Four
+adapters ship today (video, web, feed, docs); the harder sources are the design the adapter
+seam is built for, on the roadmap. What shipped first is the accountability that has to be
+right before any of the harder sources are safe to trust.
+
+The shipped web adapter is honest about its reach: it reads the static HTML a server
+returns and does not run JavaScript, so a client-rendered page yields only its shell, and
+the receipt's `http-get` method says exactly that. A browser-backed adapter for JS-walled
+pages is a separate, later edge, kept out of the core so the core stays dependency-free.
 
 That accountability is one rule: the receipt records how each item was obtained. A
 transcript read from captions, a page read through a browser, text recognized from a scan,
@@ -89,13 +94,16 @@ witnessed digest: 3 receipts, seal 22b3603535ea..., verified True
 after tampering one receipt, digest verifies: False  <- caught
 ```
 
-The `gather` CLI does the same over real files, and `gather video` fetches a live one.
-Live intake needs the `yt-dlp` tool on PATH (the external tool the video adapter shells
-out to; not a Python dependency):
+The `gather` CLI fetches live from each adapter, every command taking the same `--scope`
+and `--json`. The web, feed, and docs adapters are pure standard library; only `video`
+needs the external `yt-dlp` tool on PATH (not a Python dependency):
 
 ```bash
-gather parse harvested/<id>.info.json --vtt harvested/<id>.en.vtt --scope "rubik,group theory"
+gather docs ./research-notes --scope "rubik,group theory"   # local files, offline
+gather web  "https://example.com/article"                   # static page, readable text
+gather feed "https://example.com/feed.xml" --json           # RSS or Atom
 gather video "https://youtu.be/<id>" --comments --scope "rubik,group theory"
+gather parse harvested/<id>.info.json --vtt harvested/<id>.en.vtt --auto-captions
 ```
 
 ## What's here
@@ -105,18 +113,30 @@ gather video "https://youtu.be/<id>" --comments --scope "rubik,group theory"
 - `gather.scope`: the scope-to-telos filter, deterministic and order-preserving.
 - `gather.digest`: the witnessed, provenance-stamped digest with a re-checkable seal (folds in `method` and `derived_from`).
 - `gather.derive`: the derive seam, building a derived item with `derived_from`; a `Synthesizer` seam whose `NullSynthesizer` default compiles verbatim (never fabricates a synthesis).
-- `gather.video`: the first adapter, video intake via `yt-dlp`. Its parsing is pure and tested; the fetch is the impure shell.
-- `gather.cli`: a `gather` command (`parse` offline, `video` live).
+- `gather.net`: the single network primitive (`http_get` + pure `decode_body`). HTTP access lives here and in adapter fetches, nowhere else.
+- `gather.video`: video intake via `yt-dlp`. Pure parsing, impure shell.
+- `gather.web`: static web pages via http(s); pure HTML-to-text, no JavaScript.
+- `gather.feed`: RSS and Atom feeds; pure parser handles both.
+- `gather.docs`: local text files or a directory of them; the impure edge is the filesystem.
+- `gather.cli`: a `gather` command (`parse`/`docs` offline, `web`/`feed`/`video` live).
 
 The core is pure standard library. A source adapter may pull in whatever its source
 demands, isolated behind the `Source` shape.
 
 ## Roadmap
 
-- **P1 (here).** One real, tested tool with a clean adapter interface: the video adapter, the provenance receipt, the scope filter, the witnessed digest, the catalog.
-- **P2.** More adapters behind the same shape: arXiv and papers, code libraries, and the hard ones, gated APIs with isolated credentials, JavaScript-walled pages, PDFs and scans (OCR), audio (transcription), and synthesis adapters that derive a fact from fragments and record `method=synthesized` with what they derived it from.
-- **P3.** Storage organization and management over the ingested corpus.
-- **P4.** Scope-to-telos filtering deepened, and the witnessed digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
+Shipped:
+
+- The provenance receipt, the scope filter, the witnessed digest with a re-checkable seal, the catalog.
+- Adapters behind one `Source` shape: video (`yt-dlp`), web (static http), feed (RSS/Atom), docs (local files).
+- The derive seam: the `Synthesizer` shape with an honest compiling default; a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
+
+Next:
+
+- More adapters behind the same shape: arXiv and papers, the hard ones (gated APIs with isolated credentials, JavaScript-walled pages via a browser edge, PDFs and scans via OCR, audio via transcription).
+- Storage organization and management over the ingested corpus, content-addressed and re-verifiable.
+- A witnessed gather run that orchestrates sources, scope, synthesis, digest, and storage with one re-checkable record.
+- Scope-to-telos filtering deepened, and the digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
 
 ## License
 
