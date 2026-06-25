@@ -13,18 +13,19 @@ adapters and the network/credentials edges are imported from their submodules wh
 from gather.derive import NullSynthesizer, Synthesizer, derive, synthesize_item
 from gather.digest import Digest, digest, digest_of_receipts, verify_digest
 from gather.item import Item, Provenance, content_hash, make_item
+from gather.provenance import NullProvenanceProvider, ProvenanceProvider
 from gather.recall import Query, recall, recall_audited
 from gather.run import RunRecord, gather_run, verify_record
 from gather.scope import filter_scope, in_scope
 from gather.source import Catalog, Source
 from gather.store import Corpus
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 __all__ = [
-    "Catalog", "Corpus", "Digest", "Item", "NullSynthesizer", "Provenance", "Query",
-    "RunRecord", "Source", "Synthesizer", "content_hash", "derive", "digest",
-    "digest_of_receipts", "filter_scope", "gather_run", "in_scope", "make_item",
-    "recall", "recall_audited", "synthesize_item", "verify_digest", "verify_record",
-    "__version__",
+    "Catalog", "Corpus", "Digest", "Item", "NullProvenanceProvider", "NullSynthesizer",
+    "Provenance", "ProvenanceProvider", "Query", "RunRecord", "Source", "Synthesizer",
+    "content_hash", "derive", "digest", "digest_of_receipts", "filter_scope", "gather_run",
+    "in_scope", "make_item", "recall", "recall_audited", "synthesize_item", "verify_digest",
+    "verify_record", "__version__",
 ]
