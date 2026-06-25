@@ -91,6 +91,13 @@ def _build_source(name: str, opts: dict):
     if name == "pdf":
         from gather.pdf import PdfSource
         return PdfSource()
+    if name == "api":
+        from gather.api import ApiSource
+        return ApiSource(
+            auth_env=opts.get("auth_env", "GATHER_API_TOKEN"),
+            items_key=opts.get("items_key"), id_key=opts.get("id_key", "id"),
+            title_key=opts.get("title_key", "title"), text_key=opts.get("text_key"),
+        )
     raise ValueError(f"unknown source: {name!r}")
 
 
@@ -249,6 +256,13 @@ def _cmd_pdf(args) -> int:
     return _fetch_and_emit(lambda: PdfSource().fetch(args.path), args, fail="read failed")
 
 
+def _cmd_api(args) -> int:
+    from gather.api import ApiSource
+    return _fetch_and_emit(
+        lambda: ApiSource(auth_env=args.auth_env, items_key=args.items_key,
+                          text_key=args.text_key).fetch(args.url), args)
+
+
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
     p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
@@ -299,6 +313,14 @@ def build_parser() -> argparse.ArgumentParser:
     pdf.add_argument("path")
     _add_common(pdf)
     pdf.set_defaults(func=_cmd_pdf)
+
+    api = sub.add_parser("api", help="fetch a JSON API with a bearer token from the environment")
+    api.add_argument("url")
+    api.add_argument("--auth-env", default="GATHER_API_TOKEN", help="env var holding the bearer token")
+    api.add_argument("--items-key", default=None, help="key of the records array in the JSON response")
+    api.add_argument("--text-key", default=None, help="record field to use as item text (else the whole record)")
+    _add_common(api)
+    api.set_defaults(func=_cmd_api)
 
     run = sub.add_parser("run", help="run a multi-source gather session from a JSON config")
     run.add_argument("config", help="path to a JSON config: {jobs:[{source,target}], scope, store, synthesize}")
