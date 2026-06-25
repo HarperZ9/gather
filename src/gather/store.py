@@ -49,6 +49,7 @@ class Corpus:
         self._root = root
         self._objects = os.path.join(root, "objects")
         self._catalog = os.path.join(root, "catalog.jsonl")
+        self._runs = os.path.join(root, "runs.jsonl")
         self._fsync = fsync
 
     def _object_path(self, sha: str) -> str:
@@ -130,20 +131,38 @@ class Corpus:
             "fetched_at": p.fetched_at, "meta": it.meta,
         }
 
-    def rows(self) -> Iterator[dict]:
-        """Stream the catalog rows, one at a time. A malformed line raises a located ValueError
+    @staticmethod
+    def _stream_jsonl(path: str, what: str) -> Iterator[dict]:
+        """Stream a JSONL file one row at a time. A malformed line raises a located ValueError
         rather than a silent skip (an accountable store surfaces corruption, it does not hide it)."""
-        if not os.path.exists(self._catalog):
+        if not os.path.exists(path):
             return
-        with open(self._catalog, encoding="utf-8") as cat:
-            for n, line in enumerate(cat, 1):
+        with open(path, encoding="utf-8") as f:
+            for n, line in enumerate(f, 1):
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     yield json.loads(line)
                 except json.JSONDecodeError as exc:
-                    raise ValueError(f"corpus catalog line {n} is not valid JSON: {exc}") from exc
+                    raise ValueError(f"corpus {what} line {n} is not valid JSON: {exc}") from exc
+
+    def rows(self) -> Iterator[dict]:
+        """Stream the catalog rows (one receipt per distinct item), one at a time."""
+        yield from self._stream_jsonl(self._catalog, "catalog")
+
+    def add_record(self, record: dict) -> None:
+        """Append one witnessed run record to the durable run history (runs.jsonl)."""
+        os.makedirs(self._root, exist_ok=True)
+        with open(self._runs, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+            f.flush()
+            if self._fsync:
+                os.fsync(f.fileno())
+
+    def runs(self) -> Iterator[dict]:
+        """Stream the run history: one witnessed RunRecord (as a dict) per gather session."""
+        yield from self._stream_jsonl(self._runs, "runs")
 
     def load_item(self, row: dict) -> Item:
         """Reconstruct a full Item (body read from its object) from a catalog row. Note JSON's
