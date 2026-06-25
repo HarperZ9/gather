@@ -48,18 +48,29 @@ def _seal(receipts: list[dict]) -> str:
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
+_FIELDS = ("kind", "id", "title", "source", "ref", "method", "sha256")
+
+
+def _receipt(i: Item) -> dict:
+    return {
+        "kind": i.kind, "id": i.id, "title": i.title,
+        "source": i.provenance.source, "ref": i.provenance.ref,
+        "method": i.provenance.method, "sha256": i.provenance.sha256,
+        "derived_from": list(i.provenance.derived_from),
+    }
+
+
 def digest(items: list[Item]) -> Digest:
     """Fold a set of ingested items into a witnessed digest."""
-    receipts = [
-        {
-            "kind": i.kind, "id": i.id, "title": i.title,
-            "source": i.provenance.source, "ref": i.provenance.ref,
-            "method": i.provenance.method, "sha256": i.provenance.sha256,
-            "derived_from": list(i.provenance.derived_from),
-        }
-        for i in items
-    ]
-    return Digest(receipts=tuple(receipts), seal=_seal(receipts))
+    return digest_of_receipts([_receipt(i) for i in items])
+
+
+def digest_of_receipts(receipts: list[dict]) -> Digest:
+    """Fold receipt dicts (e.g. stored catalog rows) into a witnessed digest, without needing
+    the item bodies. Each input must carry the receipt fields; extra keys (fetched_at, meta)
+    are ignored, and derived_from defaults to empty."""
+    clean = [{**{k: r[k] for k in _FIELDS}, "derived_from": list(r.get("derived_from") or [])} for r in receipts]
+    return Digest(receipts=tuple(clean), seal=_seal(clean))
 
 
 def verify_digest(d: Digest) -> bool:

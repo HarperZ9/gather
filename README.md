@@ -120,7 +120,8 @@ gather parse harvested/<id>.info.json --vtt harvested/<id>.en.vtt --auto-caption
 - `gather.docs`: local text files or a directory of them; the impure edge is the filesystem.
 - `gather.arxiv`: papers from the arXiv API by id or query; pure parser, the Item carries the abstract and metadata.
 - `gather.pdf`: text from a local PDF via `pdftotext` (an external tool, not a dependency); a best-effort reading, labelled as such.
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live).
+- `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash; the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT).
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live), every command takes `--store DIR`; plus `corpus list/verify/digest`.
 
 The core is pure standard library. A source adapter may pull in whatever its source
 demands, isolated behind the `Source` shape.
@@ -132,11 +133,11 @@ Shipped:
 - The provenance receipt, the scope filter, the witnessed digest with a re-checkable seal, the catalog.
 - Adapters behind one `Source` shape: video (`yt-dlp`), web (static http), feed (RSS/Atom), docs (local files), arXiv (papers), PDF (`pdftotext`).
 - The derive seam: the `Synthesizer` shape with an honest compiling default; a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
+- A durable, content-addressed corpus (`--store DIR`): bodies deduped by hash, the catalog streamed, and `corpus verify` re-hashing every stored body against its receipt.
 
 Next:
 
 - The hard sources behind the same shape: gated APIs with isolated credentials, JavaScript-walled pages via a browser edge, scanned PDFs via OCR, audio via transcription.
-- Storage organization and management over the ingested corpus, content-addressed and re-verifiable.
 - A witnessed gather run that orchestrates sources, scope, synthesis, digest, and storage with one re-checkable record.
 - Scope-to-telos filtering deepened, and the digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
 
