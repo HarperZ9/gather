@@ -13,6 +13,12 @@ class Source(Protocol):
     tool, or credentials, but it hides all of that behind this one shape, so the rest
     of Gather stays clean and the awkwardness of a source is an adapter problem, not a
     system problem. Gather never imports an adapter's internals, only this shape.
+
+    ``fetch(target)`` is the RETRIEVAL seam: one string in, items out, each fingerprinting
+    the content it retrieved. Synthesis (deriving a fact from several inputs) does not fit
+    that shape and is deliberately not here in P1; it needs a separate ``derive(inputs)``
+    seam whose items carry ``method="synthesized"`` and ``derived_from`` set to their input
+    refs (the ``Provenance.derived_from`` field is already in place). That arrives in P2.
     """
 
     name: str
@@ -41,7 +47,8 @@ class Catalog:
             {
                 "kind": i.kind, "id": i.id, "title": i.title,
                 "source": i.provenance.source, "ref": i.provenance.ref,
-                "sha256": i.provenance.sha256, "chars": len(i.text),
+                "method": i.provenance.method, "sha256": i.provenance.sha256,
+                "derived_from": list(i.provenance.derived_from), "chars": len(i.text),
             }
             for i in self._items
         ]
