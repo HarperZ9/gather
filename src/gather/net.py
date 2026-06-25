@@ -80,6 +80,7 @@ def http_get(
     timeout: float = 20.0,
     user_agent: str = DEFAULT_UA,
     max_bytes: int = DEFAULT_MAX_BYTES,
+    headers: dict[str, str] | None = None,
 ) -> tuple[bytes, str]:
     """GET a URL and return ``(body, content_type)``. The single network edge (urllib).
 
@@ -87,7 +88,9 @@ def http_get(
     isolated-impure-edge discipline. The scheme allowlist (http/https only) and a
     private/loopback/link-local host block are enforced on the initial URL AND on every
     redirect hop, so the guard cannot be slipped by a redirect inward (the cloud-metadata
-    SSRF). The body is capped at ``max_bytes``; a response that exceeds it is truncated and a
+    SSRF). Optional ``headers`` (e.g. an Authorization header) are sent but never logged: only
+    the URL is, and on truncation only its first 60 chars, so put secrets in a header, not the
+    URL. The body is capped at ``max_bytes``; a response that exceeds it is truncated and a
     warning is written to stderr so a short read is never mistaken for a complete one. Needs
     network; the pure ``decode_body`` and the ``_host_is_private`` check are tested directly.
     """
@@ -97,7 +100,10 @@ def http_get(
     if _host_is_private(urllib.parse.urlsplit(url).hostname or ""):
         raise ValueError(f"refused: host resolves to a private or loopback address: {url[:60]!r}")
     opener = urllib.request.build_opener(_SafeRedirect)
-    req = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    hdrs = {"User-Agent": user_agent}
+    if headers:
+        hdrs.update(headers)
+    req = urllib.request.Request(url, headers=hdrs)
     with opener.open(req, timeout=timeout) as resp:
         raw = resp.read(max_bytes + 1)
         ctype = resp.headers.get("Content-Type", "") or ""

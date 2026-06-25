@@ -4,6 +4,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
+from gather.method import consistent, directness
+
 
 def content_hash(text: str) -> str:
     """The sha256 of a piece of content: a receipt's fingerprint. Pure and deterministic."""
@@ -79,11 +81,21 @@ def make_item(
 ) -> Item:
     """Build an Item with its provenance receipt computed from the content.
 
-    For a derived item, pass ``derived_from`` with the refs the inference was built from;
-    the receipt's sha256 still fingerprints this item's own ``text`` (the inference).
+    For a derived item, pass ``derived_from`` with the inputs the inference was built from;
+    the receipt's sha256 still fingerprints this item's own ``text`` (the inference). The method
+    ladder is enforced here: a derived method (compiled/synthesized) must carry ``derived_from``
+    and a direct method (a fetch/read) must not, so a fetched item cannot be dressed up as an
+    inference or vice versa. An unregistered method makes no claim and is allowed either way.
     """
+    derived_from = tuple(derived_from)
+    if not consistent(method, bool(derived_from)):
+        raise ValueError(
+            f"method {method!r} is {directness(method)} but derived_from is "
+            f"{'set' if derived_from else 'empty'}: a direct fetch carries no inputs and a "
+            f"derived item must record them"
+        )
     prov = Provenance(
         source=source, ref=ref, method=method, fetched_at=fetched_at,
-        sha256=content_hash(text), derived_from=tuple(derived_from),
+        sha256=content_hash(text), derived_from=derived_from,
     )
     return Item(kind=kind, id=id, title=title, text=text, provenance=prov, meta=meta or {})

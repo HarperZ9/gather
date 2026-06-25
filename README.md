@@ -128,7 +128,10 @@ against its receipt and exits non-zero if anything is missing or corrupt.
 - `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash while every distinct receipt is kept (no provenance dropped); the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT); the run history is kept too.
 - `gather.run`: the witnessed gather session. `gather_run` orchestrates fetch, scope, optional synthesis, digest, and store into one re-checkable `RunRecord` (its own seal plus the items' digest seal); the scope and synthesizer are composition seams that default to Null so the run stands alone.
 - `gather.recall`: a `Query` over a stored corpus (substring scope terms, plus source/kind/method filters: OR within a filter, AND across) returning reconstructed items that are re-verified (missing or corrupt bodies are skipped and reported), so downstream organs draw scoped, trustworthy subsets.
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
+- `gather.credentials`: the one place secrets enter, read from the environment by name, never logged, never put in a receipt or a URL.
+- `gather.api`: an authenticated JSON-API adapter, the worked example of the credentials pattern (token from env, sent as a header, never witnessed).
+- `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
 
 The core is pure standard library. A source adapter may pull in whatever its source
 demands, isolated behind the `Source` shape.
@@ -138,16 +141,16 @@ demands, isolated behind the `Source` shape.
 Shipped:
 
 - The provenance receipt, the scope filter, the witnessed digest with a re-checkable seal, the catalog.
-- Adapters behind one `Source` shape: video (`yt-dlp`), web (static http), feed (RSS/Atom), docs (local files), arXiv (papers), PDF (`pdftotext`).
+- Adapters behind one `Source` shape: video (`yt-dlp`), web (static http), feed (RSS/Atom), docs (local files), arXiv (papers), PDF (`pdftotext`), authenticated JSON APIs (env-isolated credentials).
 - The derive seam: the `Synthesizer` shape with an honest compiling default; a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
 - A durable, content-addressed corpus (`--store DIR`): bodies deduped by hash, the catalog streamed, and `corpus verify` re-hashing every stored body against its receipt.
 - A witnessed gather run (`gather run config.json`): orchestrates many sources, scope, and optional synthesis into one re-checkable record, kept in the corpus run history.
 - Recall over the corpus (`gather corpus search`): query by scope terms and source/kind/method, returning re-verifiable items and a scoped digest.
+- Isolated credentials (env-only, never witnessed) with an authenticated-API adapter, and the method ladder enforced at construction (a fetch cannot claim inputs, a synthesis cannot lack them).
 
 Next:
 
-- The hard sources behind the same shape: gated APIs with isolated credentials, JavaScript-walled pages via a browser edge, scanned PDFs via OCR, audio via transcription.
-- Credentials isolation (env-only, never logged) with an authenticated-API example adapter, and method-directness enforced at construction.
+- More hard sources behind the same shape: JavaScript-walled pages via a browser edge, scanned PDFs via OCR, audio via transcription.
 - The digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
 
 ## License
