@@ -8,7 +8,8 @@ from gather.net import decode_body, http_get
 
 _SKIP = {"script", "style", "noscript", "template", "svg"}
 _BLOCK = {
-    "p", "div", "br", "li", "tr", "section", "article", "header", "footer",
+    "p", "div", "br", "li", "tr", "td", "th", "dd", "dt", "dl",
+    "section", "article", "header", "footer", "main", "aside", "nav",
     "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "table", "blockquote", "pre",
 }
 
@@ -64,11 +65,20 @@ def html_to_title_text(html: str) -> tuple[str, str]:
     A static-HTML reader: it sees what the server sent. It does not run JavaScript, so a
     page whose content is rendered client-side yields only its shell. That limit is real and
     is why the receipt's method is "http-get" (a raw fetch), not a claim of a rendered page.
+
+    Entities are decoded (``convert_charrefs``), so the extracted text is plain text: an
+    ``&lt;p&gt;`` in the source becomes the literal characters ``<p>``. It is therefore not
+    safe to re-parse the output as HTML; it is final, human-readable text, not markup.
     """
     p = _HTMLText()
     p.feed(html)
     p.close()
     return p.title, p.text
+
+
+def text_from_html(html: str) -> str:
+    """Just the readable text of an HTML fragment (no title). Pure; used for feed bodies."""
+    return html_to_title_text(html)[1]
 
 
 def parse_web(html: str, url: str, *, fetched_at: float, method: str = "http-get") -> Item:
@@ -92,11 +102,12 @@ class WebSource:
 
     name = "web"
 
-    def __init__(self, *, clock=time.time, timeout: float = 20.0) -> None:
+    def __init__(self, *, clock=time.time, timeout: float = 20.0, max_bytes: int = 5_000_000) -> None:
         self._clock = clock
         self._timeout = timeout
+        self._max_bytes = max_bytes
 
     def fetch(self, target: str) -> list[Item]:
-        body, ctype = http_get(target, timeout=self._timeout)
+        body, ctype = http_get(target, timeout=self._timeout, max_bytes=self._max_bytes)
         html = decode_body(body, ctype)
         return [parse_web(html, target, fetched_at=float(self._clock()))]
