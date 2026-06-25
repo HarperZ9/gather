@@ -50,13 +50,16 @@ source content. The digest seal folds in `method` and `derived_from` alongside t
 relabelling an inference as a direct fetch, or quietly rewriting what it was built from,
 breaks the seal exactly as altering the content does.
 
-The honesty is mechanical, not a promise. The `method="synthesized"` label is reachable
+The honesty is mechanical where it can be. The `method="synthesized"` label is reachable
 only through the `Synthesizer` seam: the bare `gather.derive` builder defaults to `compiled`
-and refuses to stamp `synthesized` at all, so an inferred claim can only come from a model
-actually plugged into the seam (`synthesize_item` stamps the result with the synthesizer's
-own method). With no model wired in, the default `NullSynthesizer` performs a deterministic,
-extractive *compilation*: it assembles inputs verbatim, labels them `compiled`, and invents
-nothing. So Gather never labels something a synthesis unless a model performed one.
+and refuses to stamp `synthesized` at all, so a bare call can never forge a synthesis. With no
+edge wired in, the default `NullSynthesizer` performs a deterministic, extractive *compilation*:
+it assembles inputs verbatim, labels them `compiled`, invents nothing. What the seam attests is
+that the configured edge produced the text; that the edge is actually a model is the operator's
+responsibility, the same trust as choosing the browser binary or the API token (point the seam at
+`cat` and you get a verbatim echo labelled `synthesized`). And `derived_from` records the inputs
+supplied to the edge, an upper bound: a model may ignore some or generate beyond them, so it
+attests availability, not use.
 
 ## The discipline
 
@@ -143,6 +146,7 @@ Write a corpus from one process at a time: the dedup is single-writer.
 - `gather.browser`: JavaScript-rendered pages via a headless browser; the `browser-extract` method records that JS was run.
 - `gather.ocr`: text from a scanned image via `tesseract`; a machine reading, labelled `ocr`.
 - `gather.transcribe`: a transcript from audio via a Whisper-style CLI; a machine transcription, labelled `transcribe`.
+- `gather.model`: the real model edge for the synthesizer seam; shells to a model CLI (prompt on stdin), stamping a genuine `synthesized` inference, `derived_from` set.
 - `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
 - `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
 - `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
@@ -159,7 +163,7 @@ Shipped:
 
 - The provenance receipt, the scope filter, the witnessed digest with a re-checkable seal, the catalog.
 - Adapters behind one `Source` shape: video (`yt-dlp`), web (static http), feed (RSS/Atom), docs (local files), arXiv (papers), PDF (`pdftotext`), authenticated JSON APIs (env-isolated credentials).
-- The derive seam: the `Synthesizer` shape with an honest compiling default; a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
+- The derive seam: the `Synthesizer` shape with an honest compiling default and a real model edge (`gather.model`); a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
 - A durable, content-addressed corpus (`--store DIR`): bodies deduped by hash, the catalog streamed, and `corpus verify` re-hashing every stored body against its receipt.
 - A witnessed gather run (`gather run config.json`): orchestrates many sources, scope, and optional synthesis into one re-checkable record, kept in the corpus run history.
 - Recall over the corpus (`gather corpus search`): query by scope terms and source/kind/method, returning re-verifiable items and a scoped digest.
@@ -168,7 +172,7 @@ Shipped:
 
 Next:
 
-- A model-backed synthesizer through the existing seam, and the digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
+- The digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item; corpus indexing so recall need not read every body.
 
 ## License
 
