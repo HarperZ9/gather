@@ -93,3 +93,19 @@ def test_recall_skips_and_reports_a_corrupt_body(tmp_path):
     items, skipped = recall_audited(c, Query())
     assert "b" not in {i.id for i in items}              # a tampered body is never returned
     assert [s["id"] for s in skipped] == ["b"] and skipped[0]["status"] == "CORRUPT"
+
+
+def test_recall_reports_a_non_hex_sha_as_corrupt_agreeing_with_verify(tmp_path):
+    # a tampered (non-hex) sha must get the same verdict from recall and from corpus verify
+    import json as _json
+
+    c = Corpus(str(tmp_path), fsync=False)
+    c.add([_it("a", "alpha")])
+    with open(c._catalog, encoding="utf-8") as f:
+        row = _json.loads(f.readline())
+    row["sha256"] = "../../etc/passwd"
+    with open(c._catalog, "w", encoding="utf-8") as f:
+        f.write(_json.dumps(row) + "\n")
+    recall_status = recall_audited(c, Query())[1][0]["status"]
+    verify_status = c.verify()[0]["status"]
+    assert recall_status == verify_status == "CORRUPT"   # both agree: tampering, not absence

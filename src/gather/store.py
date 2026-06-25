@@ -53,7 +53,8 @@ class Corpus:
         self._fsync = fsync
 
     def _object_path(self, sha: str) -> str:
-        return os.path.join(self._objects, _check_sha(sha)[:2], sha[2:])
+        v = _check_sha(sha)  # validate once, then build both path parts from the validated value
+        return os.path.join(self._objects, v[:2], v[2:])
 
     def _write_object(self, text: str) -> tuple[str, bool]:
         """Write a body addressed by its hash. Returns ``(sha, is_new)``; an existing body is a
@@ -84,7 +85,9 @@ class Corpus:
 
         Every distinct receipt is appended (so provenance is never dropped); a body already
         present is reused, and an item whose whole receipt already exists is deduped. ``meta`` must
-        be JSON-serializable. Scans the existing catalog once to dedup; single-writer.
+        be JSON-serializable. Each call scans the existing catalog once to dedup against it, so the
+        cost is O(catalog size) per call (O(K x N) over K incremental adds); for a bulk load, batch
+        items into one ``add``. Memory stays flat (the catalog streams). Single-writer.
         """
         os.makedirs(self._root, exist_ok=True)
         seen = {self._key(r) for r in self.rows()}

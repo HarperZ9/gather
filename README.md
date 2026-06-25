@@ -90,10 +90,13 @@ parsed 3 items from one video, each with a receipt:
   comment    c1  sha256=301cf39d5091...  verify=True
 
 scope to ['tile','monotile']: kept 3, dropped 0
-witnessed digest: 3 receipts, seal 22b3603535ea..., verified True
+witnessed digest: 3 receipts, seal 7da7dc456b11..., verified True
 
 after tampering one receipt, digest verifies: False  <- caught
 ```
+
+(The hash and seal prefixes above are illustrative; the load-bearing facts are the `verify`
+results, which the test suite pins.)
 
 The `gather` CLI fetches live from each adapter, every command taking the same `--scope`
 and `--json`. The web, feed, and docs adapters are pure standard library; only `video`
@@ -109,8 +112,10 @@ gather corpus verify ./corpus                               # re-hash every stor
 ```
 
 Any command takes `--store DIR` to persist what it gathered into a content-addressed corpus,
-and `gather corpus list|verify|digest DIR` inspects it. `verify` re-hashes every stored body
-against its receipt and exits non-zero if anything is missing or corrupt.
+and `gather corpus list|verify|digest|search DIR` inspects it. `verify` re-hashes every stored
+body against its receipt and exits non-zero if anything is missing or corrupt. `search` matches
+its terms as case-insensitive substrings of title and body (so `art` also matches `cartesian`).
+Write a corpus from one process at a time: the dedup is single-writer.
 
 ## What's here
 
@@ -119,7 +124,7 @@ against its receipt and exits non-zero if anything is missing or corrupt.
 - `gather.scope`: the scope-to-telos filter, deterministic and order-preserving.
 - `gather.digest`: the witnessed, provenance-stamped digest with a re-checkable seal (folds in `method` and `derived_from`).
 - `gather.derive`: the derive seam, building a derived item with `derived_from`; a `Synthesizer` seam whose `NullSynthesizer` default compiles verbatim (never fabricates a synthesis).
-- `gather.net`: the single network primitive (`http_get` + pure `decode_body`). HTTP access lives here and in adapter fetches, nowhere else.
+- `gather.net`: the single network transport (`http_get`, urllib.request, + pure `decode_body`). HTTP transport lives here and in adapter fetches, nowhere else; pure URL string-building (urllib.parse) may live in an adapter.
 - `gather.video`: video intake via `yt-dlp`. Pure parsing, impure shell.
 - `gather.web`: static web pages via http(s); pure HTML-to-text, no JavaScript.
 - `gather.feed`: RSS and Atom feeds; pure parser handles both.
@@ -133,6 +138,7 @@ against its receipt and exits non-zero if anything is missing or corrupt.
 - `gather.api`: an authenticated JSON-API adapter, the worked example of the credentials pattern (token from env, sent as a header, never witnessed).
 - `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
 - `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
+- `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
 
 The core is pure standard library. A source adapter may pull in whatever its source
 demands, isolated behind the `Source` shape.
