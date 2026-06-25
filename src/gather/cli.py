@@ -12,20 +12,24 @@ def _scope(args) -> list[str]:
     return [t.strip() for t in args.scope.split(",") if t.strip()] if args.scope else []
 
 
-def _emit(items, scope, as_json) -> int:
+def _emit(items, scope, as_json, store=None) -> int:
     from gather.digest import digest, verify_digest
     from gather.scope import filter_scope
     from gather.source import Catalog
 
     kept, dropped = filter_scope(items, scope)
     d = digest(kept)
+    stored = None
+    if store:
+        from gather.store import Corpus
+        stored = Corpus(store).add(kept)
     if as_json:
         cat = Catalog()
         cat.add(kept)
-        print(json.dumps(
-            {"catalog": cat.rows(), "digest": json.loads(d.to_json()), "dropped": dropped},
-            indent=2, ensure_ascii=False,
-        ))
+        out = {"catalog": cat.rows(), "digest": json.loads(d.to_json()), "dropped": dropped}
+        if stored is not None:
+            out["stored"] = stored
+        print(json.dumps(out, indent=2, ensure_ascii=False))
         return 0
     note = f", dropped {dropped} out of scope" if scope else ""
     print(f"gathered {len(kept)} item(s){note}")
@@ -36,6 +40,8 @@ def _emit(items, scope, as_json) -> int:
     for i in kept:
         print(f"  {i.kind:<10} {i.id:<16} {i.title[:50]}")
     print(f"digest seal: {d.seal[:16]}... | verified: {verify_digest(d)}")
+    if stored is not None:
+        print(f"stored to {store}: {stored['added']} added, {stored['deduped']} deduped")
     return 0
 
 
@@ -49,7 +55,7 @@ def _cmd_parse(args) -> int:
         with open(args.vtt, encoding="utf-8") as f:
             vtt = f.read()
     items = parse_video(info_json, vtt, fetched_at=time.time(), auto_captions=args.auto_captions)
-    return _emit(items, _scope(args), args.json)
+    return _emit(items, _scope(args), args.json, store=args.store)
 
 
 def _fetch_and_emit(fetch, args, fail: str = "fetch failed") -> int:
@@ -58,7 +64,42 @@ def _fetch_and_emit(fetch, args, fail: str = "fetch failed") -> int:
     except Exception as exc:
         print(f"{fail}: {exc}", file=sys.stderr)
         return 1
-    return _emit(items, _scope(args), args.json)
+    return _emit(items, _scope(args), args.json, store=args.store)
+
+
+def _cmd_corpus(args) -> int:
+    from gather.digest import verify_digest
+    from gather.store import Corpus
+
+    c = Corpus(args.dir)
+    if args.action == "list":
+        rows = list(c.rows())
+        if args.json:
+            print(json.dumps(rows, indent=2, ensure_ascii=False))
+        else:
+            for r in rows:
+                print(f"  {r['kind']:<10} {r['id']:<20} {r['method']:<16} {r['title'][:40]}")
+            print(f"{len(rows)} item(s) in {args.dir}")
+        return 0
+    if args.action == "verify":
+        results = c.verify()
+        bad = [r for r in results if r["status"] != "MATCH"]
+        if args.json:
+            print(json.dumps(results, indent=2, ensure_ascii=False))
+        else:
+            counts: dict[str, int] = {}
+            for r in results:
+                counts[r["status"]] = counts.get(r["status"], 0) + 1
+            print(f"verified {len(results)} item(s): {dict(sorted(counts.items()))}")
+            for r in bad:
+                print(f"  {r['status']:<8} {r['id']} {r['sha256'][:12]}")
+        return 1 if bad else 0
+    d = c.digest()  # action == "digest"
+    if args.json:
+        print(d.to_json())
+    else:
+        print(f"corpus digest: {len(d.receipts)} receipts, seal {d.seal[:16]}..., verified {verify_digest(d)}")
+    return 0
 
 
 def _cmd_video(args) -> int:
@@ -94,6 +135,7 @@ def _cmd_pdf(args) -> int:
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
     p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
+    p.add_argument("--store", default=None, metavar="DIR", help="persist gathered items into a corpus at DIR")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -140,6 +182,12 @@ def build_parser() -> argparse.ArgumentParser:
     pdf.add_argument("path")
     _add_common(pdf)
     pdf.set_defaults(func=_cmd_pdf)
+
+    corpus = sub.add_parser("corpus", help="inspect a stored corpus: list, verify, or digest it")
+    corpus.add_argument("action", choices=["list", "verify", "digest"])
+    corpus.add_argument("dir", help="the corpus directory (created by --store)")
+    corpus.add_argument("--json", action="store_true", help="emit as JSON")
+    corpus.set_defaults(func=_cmd_corpus)
 
     return parser
 
