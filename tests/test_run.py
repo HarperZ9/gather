@@ -122,6 +122,15 @@ def test_synth_item_admitted_on_input_provenance_even_if_out_of_scope():
     assert record.digested == 2
 
 
+def test_run_dedups_duplicate_receipts_so_run_seal_equals_corpus_seal(tmp_path):
+    # a source that lists the same item twice: the run must seal what the corpus stores
+    src = FakeSource("web", [_it("a", "alpha"), _it("b", "beta"), _it("a", "alpha")])  # 'a' twice, identical
+    store = Corpus(str(tmp_path), fsync=False)
+    record, items = gather_run([(src, "t")], clock=_clock, store=store)
+    assert record.digested == 2 == len({i.id for i in items})   # the duplicate was dropped before sealing
+    assert store.digest().seal == record.digest_seal            # run seal matches the stored corpus
+
+
 def test_run_multiple_sources_collects_all():
     s1 = FakeSource("web", [_it("a", "alpha")])
     s2 = FakeSource("feed", [_it("b", "beta", source="feed")])

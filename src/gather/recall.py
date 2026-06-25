@@ -61,8 +61,11 @@ def recall_audited(corpus: CorpusLike, query: Query, *, limit: int | None = None
             continue
         try:
             item = corpus.load_item(row)
-        except (FileNotFoundError, ValueError):
+        except FileNotFoundError:
             skipped.append({"id": row.get("id", ""), "sha256": row.get("sha256", ""), "status": MISSING})
+            continue
+        except ValueError:  # a non-hex / malformed sha is tampering, not absence (agrees with verify())
+            skipped.append({"id": row.get("id", ""), "sha256": row.get("sha256", ""), "status": CORRUPT})
             continue
         if query.terms and not in_scope(item, query.terms):
             continue

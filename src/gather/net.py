@@ -58,11 +58,18 @@ def _host_is_private(host: str) -> bool:
     return False
 
 
-class _SafeRedirect(urllib.request.HTTPRedirectHandler):
-    """Re-applies the scheme allowlist and the private-host block to every redirect hop.
+_SENSITIVE_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization"})
 
-    Without this, the initial-URL scheme check buys nothing: a public URL that redirects to
+
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    """Re-applies the scheme allowlist and the private-host block to every redirect hop, and
+    strips credentials when a redirect crosses origins.
+
+    Without the first, the initial-URL scheme check buys nothing: a public URL that redirects to
     ``http://169.254.169.254/`` (cloud metadata) or a loopback/private host would be followed.
+    Without the second, urllib would forward an Authorization header to whatever host a redirect
+    names, so a compromised or open-redirecting endpoint could harvest a bearer token (the
+    CVE-2018-18074 class). Credentials are dropped on a host change or an https-to-http downgrade.
     """
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
@@ -71,7 +78,14 @@ class _SafeRedirect(urllib.request.HTTPRedirectHandler):
             raise urllib.error.HTTPError(newurl, code, f"refused redirect to non-http(s): {newurl[:60]!r}", headers, fp)
         if _host_is_private(urllib.parse.urlsplit(target).hostname or ""):
             raise urllib.error.HTTPError(newurl, code, f"refused redirect to private host: {newurl[:60]!r}", headers, fp)
-        return super().redirect_request(req, fp, code, msg, headers, target)
+        new = super().redirect_request(req, fp, code, msg, headers, target)
+        if new is not None:
+            old_u, new_u = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(target)
+            cross_origin = old_u.hostname != new_u.hostname or (old_u.scheme == "https" and new_u.scheme != "https")
+            if cross_origin:
+                for key in [k for k in new.headers if k.lower() in _SENSITIVE_HEADERS]:
+                    del new.headers[key]
+        return new
 
 
 def http_get(
@@ -97,12 +111,16 @@ def http_get(
     url = url.strip()
     if not url.lower().startswith(("http://", "https://")):
         raise ValueError(f"only http/https URLs are fetched, got: {url[:60]!r}")
+    hdrs = {"User-Agent": user_agent}
+    if headers:
+        routing = {k for k in headers if k.lower() == "host" or k.lower().startswith(("x-forwarded", "forwarded"))}
+        if routing:
+            # a Host/forwarding header could steer a proxy to a target the URL-based guard never saw
+            raise ValueError(f"routing headers are not allowed (they can desync the host guard): {sorted(routing)}")
+        hdrs.update(headers)
     if _host_is_private(urllib.parse.urlsplit(url).hostname or ""):
         raise ValueError(f"refused: host resolves to a private or loopback address: {url[:60]!r}")
     opener = urllib.request.build_opener(_SafeRedirect)
-    hdrs = {"User-Agent": user_agent}
-    if headers:
-        hdrs.update(headers)
     req = urllib.request.Request(url, headers=hdrs)
     with opener.open(req, timeout=timeout) as resp:
         raw = resp.read(max_bytes + 1)

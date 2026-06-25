@@ -39,3 +39,37 @@ def test_http_get_refuses_private_hosts_before_connecting():
     for bad in ("http://127.0.0.1/x", "http://169.254.169.254/latest/meta-data/", "http://10.0.0.5/"):
         with pytest.raises(ValueError):
             http_get(bad)
+
+
+def test_http_get_refuses_routing_headers():
+    # a Host / forwarding header could desync the URL-based host guard; reject before any request
+    for bad in ({"Host": "internal"}, {"X-Forwarded-For": "10.0.0.1"}, {"Forwarded": "for=1.2.3.4"}):
+        with pytest.raises(ValueError, match="routing headers"):
+            http_get("http://example.com/", headers=bad)
+
+
+def test_redirect_strips_credentials_on_cross_origin(monkeypatch):
+    import urllib.request
+
+    import gather.net as net
+
+    monkeypatch.setattr(net, "_host_is_private", lambda h: False)  # isolate the strip logic from DNS
+    handler = net._SafeRedirect()
+    req = urllib.request.Request("https://api.example/data", headers={"Authorization": "Bearer secret"})
+    # a cross-origin redirect (different host) must not carry the Authorization header
+    new = handler.redirect_request(req, None, 302, "Found", {}, "https://evil.example/collect")
+    assert new is not None
+    assert not any(k.lower() == "authorization" for k in new.headers)
+
+
+def test_redirect_keeps_credentials_on_same_host(monkeypatch):
+    import urllib.request
+
+    import gather.net as net
+
+    monkeypatch.setattr(net, "_host_is_private", lambda h: False)
+    handler = net._SafeRedirect()
+    req = urllib.request.Request("https://api.example/data", headers={"Authorization": "Bearer secret"})
+    new = handler.redirect_request(req, None, 302, "Found", {}, "https://api.example/v2/data")
+    assert new is not None
+    assert any(k.lower() == "authorization" for k in new.headers)  # same origin: header preserved

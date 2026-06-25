@@ -151,6 +151,9 @@ def cmd_run(args) -> int:
             if "source" not in j or "target" not in j:
                 raise ValueError(f"each job needs 'source' and 'target': {j}")
             jobs.append((_build_source(j["source"], j), j["target"]))
+        scope = cfg.get("scope", [])
+        if not isinstance(scope, list):
+            raise ValueError("'scope' must be a list of strings")  # a bare string would become char terms
         store = Corpus(cfg["store"]) if cfg.get("store") else None
         synthesizer = NullSynthesizer() if cfg.get("synthesize") else None
     except FileNotFoundError:
@@ -161,7 +164,7 @@ def cmd_run(args) -> int:
         return 1
     try:
         record, _items = gather_run(
-            jobs, clock=time.time, scope=cfg.get("scope", []), store=store,
+            jobs, clock=time.time, scope=scope, store=store,
             synthesizer=synthesizer, synth_prompt=cfg.get("synth_prompt", ""),
         )
     except Exception as exc:
@@ -232,7 +235,14 @@ def cmd_corpus(args) -> int:
         history = list(c.runs())
         if args.verify:
             from gather.run import RunRecord, verify_record
-            checked = [(r.get("digest_seal", "")[:12], verify_record(RunRecord.from_dict(r))) for r in history]
+
+            def _check(r: dict) -> bool:
+                try:
+                    return verify_record(RunRecord.from_dict(r))
+                except ValueError:
+                    return False  # a malformed record fails the check rather than crashing the command
+
+            checked = [(r.get("digest_seal", "")[:12], _check(r)) for r in history]
             bad = [s for s, ok in checked if not ok]
             if args.json:
                 print(json.dumps([{"digest_seal": s, "verified": ok} for s, ok in checked], indent=2))

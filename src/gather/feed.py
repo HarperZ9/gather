@@ -82,11 +82,14 @@ def parse_feed(xml: str | bytes, url: str, *, fetched_at: float, method: str = "
         link = _entry_link(entry)
         guid = _child_text(entry, {"guid", "id"})
         body = _entry_body(entry)
+        eid = guid or link or title
+        if not eid:
+            continue  # an entry with no guid, link, or title has no identity; skip it (as arxiv does)
         when = _child_text(entry, {"pubDate", "updated", "published"})
         meta = {k: v for k, v in (("feed", feed_title), ("date", when)) if v}
         items.append(
             make_item(
-                kind="feed-entry", id=guid or link or title, title=title,
+                kind="feed-entry", id=eid, title=title,
                 text=body or title, source="feed", ref=link or guid or url,
                 method=method, fetched_at=fetched_at, meta=meta,
             )

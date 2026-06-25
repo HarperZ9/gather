@@ -30,21 +30,25 @@ def _seal(receipts: list[dict]) -> str:
     """A deterministic fingerprint over the receipts, recomputable from the record.
 
     The receipts are sorted, so the seal depends on what was gathered, not on the order it
-    happened to arrive. Within each receipt the seal folds in every field the digest
-    carries: content hash, kind, id, title, source, ref, method, and derived_from. So
-    relabelling how an item was obtained (passing a synthesis off as a direct fetch),
-    rewriting a title, or changing what an inference was built from all break the seal
-    exactly as tampering with the content does. ``derived_from`` is kept in its original
-    order, not sorted, so reordering the inputs of an inference is itself detected.
+    happened to arrive. Each receipt is canonicalized as a named-key JSON object (not a
+    positional array), so the mapping from receipt to bytes is unambiguous and no permutation
+    of field values can collide. The seal folds in every field the digest carries: content
+    hash, kind, id, title, source, ref, method, and derived_from. So relabelling how an item
+    was obtained (passing a synthesis off as a direct fetch), rewriting a title, or changing
+    what an inference was built from all break the seal exactly as tampering with the content
+    does. ``derived_from`` is kept in its original order, so reordering an inference's inputs
+    is itself detected.
     """
-    canon = json.dumps(
-        sorted(
-            [r["sha256"], r["kind"], r["id"], r["title"], r["source"], r["ref"], r["method"],
-             list(r.get("derived_from") or [])]
-            for r in receipts
-        ),
-        ensure_ascii=False,
-    )
+    objs = [
+        {
+            "sha256": r["sha256"], "kind": r["kind"], "id": r["id"], "title": r["title"],
+            "source": r["source"], "ref": r["ref"], "method": r["method"],
+            "derived_from": list(r.get("derived_from") or []),
+        }
+        for r in receipts
+    ]
+    objs.sort(key=lambda d: json.dumps(d, sort_keys=True, ensure_ascii=False))
+    canon = json.dumps(objs, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
