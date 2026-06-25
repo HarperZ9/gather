@@ -127,7 +127,8 @@ against its receipt and exits non-zero if anything is missing or corrupt.
 - `gather.pdf`: text from a local PDF via `pdftotext` (an external tool, not a dependency); a best-effort reading, labelled as such.
 - `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash while every distinct receipt is kept (no provenance dropped); the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT); the run history is kept too.
 - `gather.run`: the witnessed gather session. `gather_run` orchestrates fetch, scope, optional synthesis, digest, and store into one re-checkable `RunRecord` (its own seal plus the items' digest seal); the scope and synthesizer are composition seams that default to Null so the run stands alone.
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs`.
+- `gather.recall`: a `Query` over a stored corpus (substring scope terms, plus source/kind/method filters: OR within a filter, AND across) returning reconstructed items that are re-verified (missing or corrupt bodies are skipped and reported), so downstream organs draw scoped, trustworthy subsets.
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
 
 The core is pure standard library. A source adapter may pull in whatever its source
 demands, isolated behind the `Source` shape.
@@ -141,12 +142,13 @@ Shipped:
 - The derive seam: the `Synthesizer` shape with an honest compiling default; a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
 - A durable, content-addressed corpus (`--store DIR`): bodies deduped by hash, the catalog streamed, and `corpus verify` re-hashing every stored body against its receipt.
 - A witnessed gather run (`gather run config.json`): orchestrates many sources, scope, and optional synthesis into one re-checkable record, kept in the corpus run history.
+- Recall over the corpus (`gather corpus search`): query by scope terms and source/kind/method, returning re-verifiable items and a scoped digest.
 
 Next:
 
 - The hard sources behind the same shape: gated APIs with isolated credentials, JavaScript-walled pages via a browser edge, scanned PDFs via OCR, audio via transcription.
-- Recall and query over a stored corpus (by scope, source, kind, method), so downstream organs draw from it.
-- Scope-to-telos filtering deepened, and the digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
+- Credentials isolation (env-only, never logged) with an authenticated-API example adapter, and method-directness enforced at construction.
+- The digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
 
 ## License
 
