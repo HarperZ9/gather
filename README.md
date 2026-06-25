@@ -100,11 +100,16 @@ needs the external `yt-dlp` tool on PATH (not a Python dependency):
 
 ```bash
 gather docs ./research-notes --scope "rubik,group theory"   # local files, offline
-gather web  "https://example.com/article"                   # static page, readable text
+gather web  "https://example.com/article" --store ./corpus  # static page, kept in a corpus
 gather feed "https://example.com/feed.xml" --json           # RSS or Atom
+gather arxiv "aperiodic monotile" --store ./corpus          # papers (abstracts + metadata)
 gather video "https://youtu.be/<id>" --comments --scope "rubik,group theory"
-gather parse harvested/<id>.info.json --vtt harvested/<id>.en.vtt --auto-captions
+gather corpus verify ./corpus                               # re-hash every stored body
 ```
+
+Any command takes `--store DIR` to persist what it gathered into a content-addressed corpus,
+and `gather corpus list|verify|digest DIR` inspects it. `verify` re-hashes every stored body
+against its receipt and exits non-zero if anything is missing or corrupt.
 
 ## What's here
 
@@ -120,7 +125,7 @@ gather parse harvested/<id>.info.json --vtt harvested/<id>.en.vtt --auto-caption
 - `gather.docs`: local text files or a directory of them; the impure edge is the filesystem.
 - `gather.arxiv`: papers from the arXiv API by id or query; pure parser, the Item carries the abstract and metadata.
 - `gather.pdf`: text from a local PDF via `pdftotext` (an external tool, not a dependency); a best-effort reading, labelled as such.
-- `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash; the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT).
+- `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash while every distinct receipt is kept (no provenance dropped); the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT).
 - `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live), every command takes `--store DIR`; plus `corpus list/verify/digest`.
 
 The core is pure standard library. A source adapter may pull in whatever its source
