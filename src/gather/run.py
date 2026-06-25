@@ -10,6 +10,7 @@ from typing import Protocol
 from gather.derive import Synthesizer, synthesize_item
 from gather.digest import digest
 from gather.item import Item
+from gather.provenance import ProvenanceProvider
 from gather.scope import filter_scope
 from gather.source import Source
 
@@ -46,6 +47,7 @@ class RunRecord:
     dropped: int        # items filtered out of scope
     synthesized: bool   # whether one synthesized item was appended
     digested: int       # items folded into the digest and stored: kept plus the synthesis if any
+    origins: tuple[dict, ...]  # per-item external origin verdicts (empty unless a ProvenanceProvider ran)
     digest_seal: str
     stored: dict | None
     seal: str
@@ -55,6 +57,7 @@ class RunRecord:
             "started_at": self.started_at, "targets": [list(t) for t in self.targets],
             "scope": list(self.scope), "gathered": self.gathered, "kept": self.kept,
             "dropped": self.dropped, "synthesized": self.synthesized, "digested": self.digested,
+            "origins": list(self.origins),
             "digest_seal": self.digest_seal, "stored": self.stored, "seal": self.seal,
         }
 
@@ -70,6 +73,7 @@ class RunRecord:
                 scope=tuple(d["scope"]),
                 gathered=d["gathered"], kept=d["kept"], dropped=d["dropped"],
                 synthesized=d["synthesized"], digested=d["digested"],
+                origins=tuple(d.get("origins") or ()),
                 digest_seal=d["digest_seal"], stored=d["stored"], seal=d["seal"],
             )
         except (KeyError, TypeError) as exc:
@@ -79,12 +83,12 @@ class RunRecord:
 def _record_fields(
     started_at: float, targets: tuple[tuple[str, str], ...], scope: tuple[str, ...],
     gathered: int, kept: int, dropped: int, synthesized: bool, digested: int,
-    digest_seal: str, stored: dict | None,
+    origins: tuple[dict, ...], digest_seal: str, stored: dict | None,
 ) -> dict:
     return {
         "started_at": started_at, "targets": [list(t) for t in targets], "scope": list(scope),
         "gathered": gathered, "kept": kept, "dropped": dropped, "synthesized": synthesized,
-        "digested": digested, "digest_seal": digest_seal, "stored": stored,
+        "digested": digested, "origins": list(origins), "digest_seal": digest_seal, "stored": stored,
     }
 
 
@@ -116,6 +120,7 @@ def gather_run(
     synth_prompt: str = "",
     synth_ref: str = "synthesis",
     store: StoreLike | None = None,
+    provenance: ProvenanceProvider | None = None,
 ) -> tuple[RunRecord, list[Item]]:
     """Orchestrate one gather session and return its witnessed record and the digested items.
 
@@ -156,16 +161,24 @@ def gather_run(
     # seal of what the corpus stores (a source that lists the same item twice would otherwise diverge)
     final = _dedup_by_receipt(final)
 
+    # compose an external origin verdict per item, if a provenance organ is wired in (Null does none)
+    origins: tuple[dict, ...] = ()
+    if provenance is not None:
+        origins = tuple(
+            {"id": it.id, "sha256": it.provenance.sha256, "origin": provenance.origin(it)}
+            for it in final
+        )
+
     seal = digest(final).seal
     stored = store.add(final) if store is not None else None
 
     targets_t = tuple(targets)
     fields = _record_fields(started, targets_t, scope, len(all_items), len(kept), dropped,
-                            synthesized, len(final), seal, stored)
+                            synthesized, len(final), origins, seal, stored)
     record = RunRecord(
         started_at=started, targets=targets_t, scope=scope, gathered=len(all_items),
         kept=len(kept), dropped=dropped, synthesized=synthesized, digested=len(final),
-        digest_seal=seal, stored=stored, seal=_seal_record(fields),
+        origins=origins, digest_seal=seal, stored=stored, seal=_seal_record(fields),
     )
     if store is not None:
         store.add_record(record.to_dict())
@@ -177,6 +190,7 @@ def verify_record(record: RunRecord) -> bool:
     altered). Works on a record reconstructed from disk via RunRecord.from_dict too."""
     fields = _record_fields(
         record.started_at, record.targets, record.scope, record.gathered, record.kept,
-        record.dropped, record.synthesized, record.digested, record.digest_seal, record.stored,
+        record.dropped, record.synthesized, record.digested, record.origins,
+        record.digest_seal, record.stored,
     )
     return _seal_record(fields) == record.seal

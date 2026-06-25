@@ -139,6 +139,11 @@ the impure edge.
 
 Gather composes with the rest of the constellation through clean protocol seams, it does not
 absorb or get absorbed. The digest is the contract downstream organs (index, refine, the crucible)
-consume. The scope, synthesizer, and store are seams that default to a Null so Gather stands alone.
+consume. The scope, synthesizer, store, and provenance providers are seams that default to a Null so
+Gather stands alone. The `ProvenanceProvider` seam is the composition with an external provenance
+organ: it answers a question Gather's own content receipt cannot (is the content forged, a
+re-encode, authentic), and a run folds each item's external origin verdict into its witnessed record
+(the sealed `origins` field), so a downstream reader sees both that the content is unaltered and
+where it came from.
 This is why Gather is deliberately impure and is **not** part of index, which is zero-dependency,
 offline, and deterministic and would forfeit exactly that if it grew a scraper.
