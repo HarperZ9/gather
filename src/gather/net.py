@@ -128,7 +128,7 @@ def http_get(
             # a Host/forwarding header could steer a proxy to a target the URL-based guard never saw
             raise ValueError(f"routing headers are not allowed (they can desync the host guard): {sorted(routing)}")
         hdrs.update(headers)
-    validate_public_http_url(url)  # scheme allowlist + private-host block (does the DNS lookup)
+    url = validate_public_http_url(url)  # scheme allowlist + private-host block (does the DNS lookup)
     opener = urllib.request.build_opener(_SafeRedirect)
     req = urllib.request.Request(url, headers=hdrs)
     with opener.open(req, timeout=timeout) as resp:

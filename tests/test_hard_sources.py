@@ -15,9 +15,22 @@ def test_parse_browser_marks_javascript_was_run():
 
 
 def test_browser_refuses_non_http_and_private_hosts():
-    for bad in ("file:///etc/passwd", "http://127.0.0.1/", "http://169.254.169.254/"):
+    for bad in ("file:///etc/passwd", "data:text/html,x", "javascript:1", "http://127.0.0.1/",
+                "http://169.254.169.254/"):
         with pytest.raises(ValueError):
             BrowserSource().fetch(bad)
+
+
+def test_browser_guard_runs_before_the_subprocess(monkeypatch):
+    # the security property is order: a blocked URL must raise the guard's ValueError, never spawn
+    import gather.browser as browser_mod
+
+    def _boom(*a, **k):
+        raise AssertionError("subprocess must not run for a blocked URL")
+
+    monkeypatch.setattr(browser_mod.subprocess, "run", _boom)
+    with pytest.raises(ValueError):
+        BrowserSource().fetch("http://169.254.169.254/latest/meta-data/")
 
 
 def test_ocr_item_is_receipted_as_a_machine_reading():
