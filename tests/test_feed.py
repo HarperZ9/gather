@@ -44,6 +44,44 @@ def test_parse_feed_handles_atom_and_prefers_alternate_link():
     assert e.meta.get("feed") == "My Atom"
 
 
+def test_parse_feed_does_not_double_count_nested_entries():
+    # an entry nested inside an Atom <source> is metadata, not a post, and must not be emitted
+    atom = """<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Agg</title>
+<entry><title>Real</title><id>r1</id>
+<source><title>Origin</title><entry><title>Ghost</title><id>g1</id></entry></source>
+</entry></feed>"""
+    assert [i.title for i in parse_feed(atom, "u", fetched_at=1.0)] == ["Real"]
+
+
+def test_parse_feed_handles_rss_1_0_rdf_items_at_root():
+    rdf = """<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/">
+<channel><title>RDF Feed</title></channel>
+<item><title>RDF Item</title><link>http://x/1</link></item>
+</rdf:RDF>"""
+    # in RSS 1.0 the item is a direct child of the root, not under channel
+    assert [i.title for i in parse_feed(rdf, "u", fetched_at=1.0)] == ["RDF Item"]
+
+
+def test_parse_feed_strips_html_in_atom_content():
+    atom = """<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<entry><title>E</title><id>e</id>
+<content type="html">&lt;p&gt;hello &lt;b&gt;world&lt;/b&gt;&lt;/p&gt;</content></entry>
+</feed>"""
+    assert parse_feed(atom, "u", fetched_at=1.0)[0].text == "hello world"  # tags stripped, not left raw
+
+
+def test_parse_feed_accepts_bytes_with_encoding_declaration():
+    # a real feed begins with an XML encoding declaration; parsing a decoded str would raise,
+    # so feeds are parsed from bytes and ElementTree honors the declared encoding
+    rss = ('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>'
+           '<title>B</title><item><title>Café</title><link>http://x/1</link></item>'
+           '</channel></rss>').encode("utf-8")
+    assert parse_feed(rss, "u", fetched_at=1.0)[0].title == "Café"
+
+
 def test_parse_feed_rejects_malformed_xml():
     with pytest.raises(ValueError):
         parse_feed("<rss><broken", "u", fetched_at=1.0)

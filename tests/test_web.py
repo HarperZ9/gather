@@ -21,6 +21,20 @@ def test_html_block_elements_become_line_breaks():
     assert "Heading" in lines and "First para." in lines  # not run together on one line
 
 
+def test_table_cells_do_not_run_together():
+    _, text = html_to_title_text("<table><tr><td>alpha</td><td>beta</td></tr></table>")
+    assert "alphabeta" not in text          # cells separated, not concatenated
+    assert "alpha" in text and "beta" in text
+
+
+def test_unclosed_skip_tag_drops_following_text_intentionally():
+    # an unclosed <script> leaves the parser skipping: text before is kept, after is dropped.
+    # documents the known limitation (truncated/malformed pages) instead of failing silently.
+    _, text = html_to_title_text("<body><p>before</p><script>var secret=1;")
+    assert "before" in text
+    assert "var secret" not in text         # script body never leaks into the text
+
+
 def test_parse_web_builds_a_receipted_webpage_item():
     it = parse_web(HTML, "https://example.com/p", fetched_at=1.0)
     assert it.kind == "webpage" and it.provenance.source == "web"

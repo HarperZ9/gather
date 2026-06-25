@@ -22,8 +22,11 @@ class DocsSource:
     The impure edge here is the filesystem, not the network. ``fetch(path)`` reads one file
     (any extension) or, for a directory, every text file under it (by extension), each into a
     document Item with a provenance receipt. Deterministic: directory entries are sorted, so
-    the same tree yields the same order. Files that cannot be decoded as UTF-8 are read with
-    replacement rather than skipped silently.
+    the same tree yields the same order. Symlinked directories are not descended into (no walk
+    loops), and a file's ``ref`` records its resolved real path, so a symlinked source is
+    attributed to where it actually lives. Files that cannot be decoded as UTF-8 are read with
+    replacement rather than skipped silently: the receipt then faithfully fingerprints text
+    that is itself an imperfect reading of a non-text file, so point this at text.
     """
 
     name = "docs"
@@ -51,4 +54,4 @@ class DocsSource:
     def _read(self, path: str, *, name: str, at: float) -> Item:
         with open(path, encoding="utf-8", errors="replace") as f:
             text = f.read()
-        return document_item(name, text, fetched_at=at, ref=os.path.abspath(path))
+        return document_item(name, text, fetched_at=at, ref=os.path.realpath(path))
