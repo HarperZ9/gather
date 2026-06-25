@@ -198,17 +198,21 @@ class Corpus:
         ``status`` of MATCH, MISSING, or CORRUPT. Reads bodies one at a time (never all at once)."""
         results = []
         for row in self.rows():
-            sha = row["sha256"]
+            rid = row.get("id", "")
+            sha = row.get("sha256")
+            if not isinstance(sha, str) or not sha:
+                results.append({"id": rid, "sha256": sha or "", "status": CORRUPT})  # a row missing its
+                continue                                                              # hash is corrupt, not a crash
             try:
                 path = self._object_path(sha)
             except ValueError:
-                results.append({"id": row.get("id", ""), "sha256": sha, "status": CORRUPT})
+                results.append({"id": rid, "sha256": sha, "status": CORRUPT})
                 continue
             if not os.path.exists(path):
                 status = MISSING
             else:
                 status = MATCH if content_hash(self.read_text(sha)) == sha else CORRUPT
-            results.append({"id": row["id"], "sha256": sha, "status": status})
+            results.append({"id": rid, "sha256": sha, "status": status})
         return results
 
     def digest(self) -> Digest:
@@ -273,6 +277,10 @@ class Corpus:
         orphans = self.orphan_objects()  # raises on a malformed catalog -> nothing removed
         removed_paths: list[str] = []
         if apply:
+            if orphans and next(self.rows(), None) is None:
+                # an empty/absent catalog with bodies present (a torn write) would mark EVERY body an
+                # orphan; refuse rather than delete the lot. Restore or verify the catalog first.
+                raise ValueError("catalog has no rows but objects exist; refusing to prune (verify the catalog)")
             for path in orphans:
                 os.remove(path)
                 removed_paths.append(path)

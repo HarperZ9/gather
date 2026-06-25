@@ -3,9 +3,26 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## 1.5.0
+
+Organic completion. A final multi-lens whole-system review (correctness, security, docs) across
+all post-1.0 growth, its findings fixed. No new adapters; the milestone is that the organ is
+complete and its accountability claims hold end to end.
+
+- Security: the video edge passes its target after `--` (the last argv-injection gap closed, uniform
+  with the other tool edges); `decode_body` falls back to utf-8 on a malformed charset; XML-safety
+  regression tests pin that the feed/arxiv parsers do not resolve external entities (XXE) and fail
+  fast on an entity-expansion blowup.
+- Corruption survival: `corpus verify` reports a field-missing row as CORRUPT instead of crashing,
+  and `recall` skips it as CORRUPT, so one malformed line never hides the rest; the `corpus` command
+  surfaces a malformed catalog as a clean error, not a traceback.
+- `corpus prune` refuses to delete when the catalog is empty but bodies exist (a torn-write state),
+  rather than removing every body.
+
 ## 1.4.0
 
-The last roadmap item: the digest composed with an external origin verdict.
+The last committed roadmap item: the digest composed with an external origin verdict. (Remaining
+items, e.g. corpus indexing, are optional scale work, not missing function.)
 
 - `gather.provenance`: the `ProvenanceProvider` seam, which composes an EXTERNAL origin verdict for
   an item (is it forged, a re-encode, authentic) beyond Gather's own content receipt. The default

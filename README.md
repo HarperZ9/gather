@@ -105,9 +105,11 @@ after tampering one receipt, digest verifies: False  <- caught
 (The hash and seal prefixes above are illustrative; the load-bearing facts are the `verify`
 results, which the test suite pins.)
 
-The `gather` CLI fetches live from each adapter, every command taking the same `--scope`
-and `--json`. The web, feed, and docs adapters are pure standard library; only `video`
-needs the external `yt-dlp` tool on PATH (not a Python dependency):
+The `gather` CLI fetches live from each adapter; every fetch command takes the same `--scope`,
+`--json`, and `--store` (the `run` and `corpus` commands are driven by a config file and
+sub-actions instead). Of the commands shown here, web/feed/docs are pure standard library and only
+`video` needs an external tool (`yt-dlp`); the harder adapters (pdf, browser, ocr, transcribe) each
+shell out to their own external tool, never a Python dependency, as the module list notes:
 
 ```bash
 gather docs ./research-notes --scope "rubik,group theory"   # local files, offline
@@ -173,7 +175,11 @@ Shipped:
 - The hard sources behind the same seam, as isolated external-tool edges: JavaScript pages (headless browser), scanned images (OCR), and audio (transcription).
 - A real model edge for the synthesizer seam, and a provenance-composition seam that folds an external origin verdict per item into the witnessed run.
 
-Next:
+Gather reached its organic completion at 1.5.0: every planned source and seam is shipped, and the
+accountability claims hold end to end across a final whole-system review. The item below is a scale
+optimization, not missing function.
+
+Possible future work (not required for the completion milestone):
 
 - Corpus indexing so recall need not read every body at large scale.
 
