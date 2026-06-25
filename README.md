@@ -78,6 +78,17 @@ attests availability, not use.
   (which is zero-dependency, offline, and deterministic, and would forfeit exactly that
   if it grew a scraper). It composes through the digest seam, the way Forum does.
 
+## Install
+
+```bash
+pip install gather-engine
+```
+
+The distribution is `gather-engine`; it installs the `gather` command and the `gather` package
+(`import gather`). The core is pure standard library; a few adapters call an external tool
+(`yt-dlp`, `pdftotext`, a headless `chromium`, `tesseract`, `whisper`), which you install only if
+you use that adapter.
+
 ## Watch it work
 
 `examples/demo.py` parses an already-harvested video (a yt-dlp `info.json` plus its `.vtt`
