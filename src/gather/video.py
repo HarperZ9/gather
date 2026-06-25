@@ -15,17 +15,20 @@ from gather.item import Item, make_item
 _VTT_TAG = re.compile(r"<[^>]+>")
 
 
-def transcript_from_vtt(vtt: str) -> str:
-    """Plain text from a WebVTT caption file.
+def transcript_from_vtt(vtt: str, *, auto: bool = False) -> str:
+    """Plain text from a yt-dlp-style WebVTT caption file.
 
-    Drops the header, NOTE blocks, cue-timing lines, and inline tags (including the
-    inline timestamp tags that YouTube auto-captions carry), and decodes HTML entities.
-    It then collapses the rolling-window duplication auto-captions produce: when a line
-    is a prefix-extension of the previous emitted line (the same caption still scrolling
-    in) the previous line is replaced rather than appended, and an exact consecutive
-    duplicate is dropped. Best-effort for auto-captions; manual subtitles pass through
-    cleanly. Pure and deterministic. One honest caveat: a line genuinely repeated back to
-    back, or one line that is a true prefix of the next distinct line, is also collapsed.
+    Drops the header, NOTE blocks, cue-timing lines, and inline tags (including the inline
+    timestamp tags auto-captions carry), decodes HTML entities, and always drops exact
+    consecutive duplicate lines (auto-captions re-show the previous line on every cue).
+
+    ``auto`` controls the one lossy step. Auto-captions also grow a line across cues, each
+    cue re-emitting the previous line and extending it; when ``auto`` is set, such a line
+    replaces its predecessor instead of laddering. It defaults False so manual subtitles
+    pass through untouched: a manual cue that legitimately begins with the previous line is
+    preserved, not merged. The prefix-growth collapse is deliberately conservative: it does
+    not stitch a head-dropping sliding window (where the start of the line scrolls off),
+    which is rare in yt-dlp output and would still ladder. Pure and deterministic.
     """
     out: list[str] = []
     in_note = False
@@ -46,8 +49,8 @@ def transcript_from_vtt(vtt: str) -> str:
         line = html.unescape(_VTT_TAG.sub("", line)).strip()
         if not line:
             continue
-        if out and line.startswith(out[-1]):
-            out[-1] = line  # same caption still rolling in: replace, do not ladder
+        if auto and out and line.startswith(out[-1]):
+            out[-1] = line  # auto-caption still rolling the same line in: replace, do not ladder
         elif not out or out[-1] != line:
             out.append(line)
     return "\n".join(out)
@@ -60,13 +63,15 @@ def parse_video(
     fetched_at: float,
     method: str = "yt-dlp",
     transcript_method: str | None = None,
+    auto_captions: bool = False,
 ) -> list[Item]:
     """Turn a yt-dlp info.json (and optional .vtt captions) into Items. Pure: no network.
 
     Produces a metadata Item, a transcript Item when captions are present, and a comment
-    Item per comment yt-dlp captured. ``method`` stamps the metadata and comments;
-    ``transcript_method`` stamps the transcript (default ``method``) so an auto-caption
-    transcript can record that it is machine transcription, not a manual one. Each item
+    Item per comment yt-dlp captured. ``method`` stamps the metadata and comments. Set
+    ``auto_captions`` when the captions are machine-generated: it both collapses their
+    rolling-window growth and, unless ``transcript_method`` overrides it, stamps the
+    transcript ``auto-caption`` so it is never recorded as a manual transcript. Each item
     gets a provenance receipt. Raises ValueError on malformed yt-dlp JSON.
     """
     try:
@@ -93,10 +98,12 @@ def parse_video(
         )
     ]
     if vtt:
+        tmethod = transcript_method or ("auto-caption" if auto_captions else method)
         items.append(
             make_item(
-                kind="transcript", id=vid, title=title, text=transcript_from_vtt(vtt),
-                source="video", ref=vid, method=transcript_method or method, fetched_at=fetched_at,
+                kind="transcript", id=vid, title=title,
+                text=transcript_from_vtt(vtt, auto=auto_captions),
+                source="video", ref=vid, method=tmethod, fetched_at=fetched_at,
                 meta={"uploader": uploader},
             )
         )
@@ -145,10 +152,9 @@ class VideoSource:
         if proc.returncode != 0:
             raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()[:200]}")
         vtt, is_auto = self._fetch_captions(target)
-        transcript_method = "auto-caption" if is_auto else self._yt_dlp
         return parse_video(
             proc.stdout, vtt, fetched_at=float(self._clock()), method=self._yt_dlp,
-            transcript_method=transcript_method,
+            auto_captions=is_auto,
         )
 
     def _fetch_captions(self, target: str) -> tuple[str | None, bool]:

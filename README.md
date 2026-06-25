@@ -41,12 +41,13 @@ source content. The digest seal folds in `method` and `derived_from` alongside t
 relabelling an inference as a direct fetch, or quietly rewriting what it was built from,
 breaks the seal exactly as altering the content does.
 
-The honesty is mechanical, not a promise: `gather.derive` builds a derived item, and its
-`Synthesizer` seam stamps each result with that synthesizer's own `method`. With no model
-wired in, the default `NullSynthesizer` performs a deterministic, extractive *compilation*
-(it assembles inputs verbatim and labels them `compiled`) and invents nothing. A real
-abstractive *synthesis* (a new inferred claim, `method="synthesized"`) only happens when a
-model is plugged into the seam. Gather cannot dress up a synthesis it did not perform.
+The honesty is mechanical, not a promise. The `method="synthesized"` label is reachable
+only through the `Synthesizer` seam: the bare `gather.derive` builder defaults to `compiled`
+and refuses to stamp `synthesized` at all, so an inferred claim can only come from a model
+actually plugged into the seam (`synthesize_item` stamps the result with the synthesizer's
+own method). With no model wired in, the default `NullSynthesizer` performs a deterministic,
+extractive *compilation*: it assembles inputs verbatim, labels them `compiled`, and invents
+nothing. So Gather never labels something a synthesis unless a model performed one.
 
 ## The discipline
 
@@ -83,7 +84,7 @@ parsed 3 items from one video, each with a receipt:
   comment    c1  sha256=301cf39d5091...  verify=True
 
 scope to ['tile','monotile']: kept 3, dropped 0
-witnessed digest: 3 receipts, seal 6a13c30fa999..., verified True
+witnessed digest: 3 receipts, seal 22b3603535ea..., verified True
 
 after tampering one receipt, digest verifies: False  <- caught
 ```
