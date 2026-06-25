@@ -52,15 +52,38 @@ def _cmd_parse(args) -> int:
     return _emit(items, _scope(args), args.json)
 
 
-def _cmd_video(args) -> int:
-    from gather.video import VideoSource
-
+def _fetch_and_emit(fetch, args, fail: str = "fetch failed") -> int:
     try:
-        items = VideoSource(with_comments=args.comments).fetch(args.url)
+        items = fetch()
     except Exception as exc:
-        print(f"fetch failed: {exc}", file=sys.stderr)
+        print(f"{fail}: {exc}", file=sys.stderr)
         return 1
     return _emit(items, _scope(args), args.json)
+
+
+def _cmd_video(args) -> int:
+    from gather.video import VideoSource
+    return _fetch_and_emit(lambda: VideoSource(with_comments=args.comments).fetch(args.url), args)
+
+
+def _cmd_web(args) -> int:
+    from gather.web import WebSource
+    return _fetch_and_emit(lambda: WebSource().fetch(args.url), args)
+
+
+def _cmd_feed(args) -> int:
+    from gather.feed import FeedSource
+    return _fetch_and_emit(lambda: FeedSource().fetch(args.url), args)
+
+
+def _cmd_docs(args) -> int:
+    from gather.docs import DocsSource
+    return _fetch_and_emit(lambda: DocsSource().fetch(args.path), args, fail="read failed")
+
+
+def _add_common(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
+    p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -73,16 +96,29 @@ def build_parser() -> argparse.ArgumentParser:
     parse.add_argument("--vtt", default=None, help="path to a .vtt captions file")
     parse.add_argument("--auto-captions", action="store_true",
                        help="captions are machine-generated: collapse rolling-window growth, stamp auto-caption")
-    parse.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
-    parse.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
+    _add_common(parse)
     parse.set_defaults(func=_cmd_parse)
 
     video = sub.add_parser("video", help="fetch a video via yt-dlp (needs yt-dlp on PATH and network)")
     video.add_argument("url")
     video.add_argument("--comments", action="store_true", help="also gather comments")
-    video.add_argument("--scope", default=None, help="comma-separated scope terms")
-    video.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
+    _add_common(video)
     video.set_defaults(func=_cmd_video)
+
+    web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")
+    web.add_argument("url")
+    _add_common(web)
+    web.set_defaults(func=_cmd_web)
+
+    feed = sub.add_parser("feed", help="fetch an RSS or Atom feed via http(s)")
+    feed.add_argument("url")
+    _add_common(feed)
+    feed.set_defaults(func=_cmd_feed)
+
+    docs = sub.add_parser("docs", help="read a local text file or a directory of them, offline")
+    docs.add_argument("path")
+    _add_common(docs)
+    docs.set_defaults(func=_cmd_docs)
 
     return parser
 
