@@ -19,6 +19,13 @@ def test_build_prompt_includes_instruction_and_bounded_inputs():
     assert "alph" in p and "alpha body" not in p   # each input is bounded to max_chars
 
 
+def test_build_prompt_caps_the_number_of_inputs_and_notes_the_omission():
+    p = build_prompt([_it(str(i), f"body{i}") for i in range(10)], "go", max_inputs=3)
+    assert "body0" in p and "body2" in p
+    assert "body3" not in p                  # beyond the cap
+    assert "7 more input(s) omitted" in p    # the omission is stated, never silent
+
+
 def test_subprocess_synthesizer_requires_a_command():
     with pytest.raises(ValueError):
         SubprocessSynthesizer([])
