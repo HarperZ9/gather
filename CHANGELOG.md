@@ -7,8 +7,10 @@ built behind a feature branch and reviewed before merge.
 
 - Operating a corpus over time: `corpus stats` (a read-only summary, item and distinct-body counts
   by source/kind/method) and `corpus prune` (find, and with `--apply` delete, orphan object files
-  left by a crash between a body write and its catalog row). Prune is report-only by default and
-  aborts on a malformed catalog, so it never deletes a referenced body.
+  left by a crash between a body write and its catalog row). Prune is report-only by default, aborts
+  on a malformed catalog, skips `.tmp` staging files (which may be a concurrent write), returns the
+  list of deleted paths as an audit trail, and must run with no concurrent writer. It never deletes
+  a referenced body.
 
 ## 1.2.0
 
