@@ -23,15 +23,22 @@ def _arxiv_id(id_url: str) -> str:
     return id_url.rsplit("/", 1)[-1]
 
 
+def is_arxiv_id(target: str) -> bool:
+    """True if ``target`` is a bare arXiv id (new-style ``2301.12345`` or old ``hep-th/9901001``)
+    rather than a free-text query. The single classifier deciding id-fetch vs search."""
+    return bool(_ARXIV_ID.match(target.strip()))
+
+
 def arxiv_query_url(target: str, *, max_results: int = 10) -> str:
     """Build the arXiv API URL for a target. Pure and deterministic.
 
     A bare arXiv id (``2301.12345``, optionally versioned, or an old ``cs.AI/0601001``) is
     fetched by id; anything else is treated as a free-text search over all fields, returning
-    up to ``max_results`` by relevance.
+    up to ``max_results`` by relevance. Every value is urlencoded, so a query cannot break out
+    of the query string.
     """
     target = target.strip()
-    if _ARXIV_ID.match(target):
+    if is_arxiv_id(target):
         params = {"id_list": target, "max_results": "1"}
     else:
         params = {
@@ -46,8 +53,9 @@ def parse_arxiv(xml: str | bytes, *, fetched_at: float, method: str = "arxiv-api
 
     Each Item's text is the ABSTRACT, not the full paper (the API returns abstracts); the PDF
     link is recorded in ``meta`` for the separate full-text adapter, so an abstract is never
-    mistaken for the paper. Authors, categories, primary category, publication date, and DOI
-    are carried in ``meta``. Raises ValueError on malformed XML.
+    mistaken for the paper. Authors, categories (which include the primary), primary category,
+    publication date, and DOI are carried in ``meta``. An entry without an id is skipped (real
+    arXiv always sends one). Raises ValueError on malformed XML.
     """
     try:
         root = ET.fromstring(xml)
@@ -81,6 +89,8 @@ def parse_arxiv(xml: str | bytes, *, fetched_at: float, method: str = "arxiv-api
                 pdf = ch.get("href") or pdf
             elif n == "doi":
                 doi = (ch.text or "").strip()
+        if not id_url:
+            continue  # an entry with no id has no identity; real arXiv always sends one
         meta: dict[str, object] = {}
         for key, val in (("authors", authors), ("published", published), ("primary_category", primary),
                          ("categories", cats), ("pdf", pdf), ("doi", doi)):
@@ -88,8 +98,8 @@ def parse_arxiv(xml: str | bytes, *, fetched_at: float, method: str = "arxiv-api
                 meta[key] = val
         items.append(
             make_item(
-                kind="paper", id=_arxiv_id(id_url) or id_url, title=title, text=abstract,
-                source="arxiv", ref=id_url or _arxiv_id(id_url), method=method,
+                kind="paper", id=_arxiv_id(id_url), title=title, text=abstract,
+                source="arxiv", ref=id_url, method=method,
                 fetched_at=fetched_at, meta=meta,
             )
         )
@@ -112,6 +122,9 @@ class ArxivSource:
         self._max_results = max_results
 
     def fetch(self, target: str) -> list[Item]:
+        by_id = is_arxiv_id(target)
         url = arxiv_query_url(target, max_results=self._max_results)
         body, _ = http_get(url, timeout=self._timeout)
-        return parse_arxiv(body, fetched_at=float(self._clock()))
+        # the receipt records HOW the paper was found: a direct id lookup, or a relevance search
+        method = "arxiv-api-id" if by_id else "arxiv-api-search"
+        return parse_arxiv(body, fetched_at=float(self._clock()), method=method)

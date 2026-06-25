@@ -1,6 +1,6 @@
 import pytest
 
-from gather.arxiv import arxiv_query_url, parse_arxiv
+from gather.arxiv import arxiv_query_url, is_arxiv_id, parse_arxiv
 
 ARXIV_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
@@ -39,11 +39,37 @@ def test_parse_arxiv_extracts_paper_fields():
     assert p.verify()
 
 
-def test_arxiv_query_url_distinguishes_an_id_from_a_search():
+@pytest.mark.parametrize("target", [
+    "2301.12345",       # new-style 5-digit
+    "2301.12345v2",     # versioned
+    "0704.0001",        # earliest new-style, 4-digit sequence
+    "1501.00001",       # post-2015 5-digit
+    "math.CO/0601001",  # old-style with subclass
+    "hep-th/9901001",   # old-style, no subclass
+    "cs.AI/0601001",
+    "  2301.12345  ",   # surrounding whitespace tolerated
+])
+def test_is_arxiv_id_accepts_real_ids(target):
+    assert is_arxiv_id(target) is True
+
+
+@pytest.mark.parametrize("target", [
+    "aperiodic monotile",   # plain query
+    "2301.123456",          # 6-digit sequence is not a current arXiv id
+    "tiling",
+    "group theory survey",
+    "",
+])
+def test_is_arxiv_id_rejects_queries(target):
+    assert is_arxiv_id(target) is False
+
+
+def test_arxiv_query_url_routes_id_vs_search_and_urlencodes():
     assert "id_list=2301.12345" in arxiv_query_url("2301.12345")
-    assert "id_list=2301.12345v2" in arxiv_query_url("2301.12345v2")
-    u = arxiv_query_url("aperiodic monotile")
-    assert "search_query=all" in u and "aperiodic" in u and "id_list" not in u
+    assert "id_list=hep-th%2F9901001" in arxiv_query_url("hep-th/9901001")  # slash encoded, no injection
+    u = arxiv_query_url("tiling & groups")
+    assert "search_query=all" in u and "id_list" not in u
+    assert "%26" in u  # the literal & is percent-encoded, it cannot start a new query param
 
 
 def test_parse_arxiv_rejects_malformed_xml():

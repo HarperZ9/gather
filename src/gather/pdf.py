@@ -37,7 +37,7 @@ class PdfSource:
         if not os.path.isfile(target):
             raise FileNotFoundError(f"no such file: {target}")
         proc = subprocess.run(
-            [self._pdftotext, "-q", "-enc", "UTF-8", target, "-"],
+            [self._pdftotext, "-q", "-enc", "UTF-8", "--", target, "-"],
             capture_output=True, timeout=self._timeout,
         )
         if proc.returncode != 0:
