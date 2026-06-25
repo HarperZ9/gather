@@ -68,8 +68,14 @@ def digest(items: list[Item]) -> Digest:
 def digest_of_receipts(receipts: list[dict]) -> Digest:
     """Fold receipt dicts (e.g. stored catalog rows) into a witnessed digest, without needing
     the item bodies. Each input must carry the receipt fields; extra keys (fetched_at, meta)
-    are ignored, and derived_from defaults to empty."""
-    clean = [{**{k: r[k] for k in _FIELDS}, "derived_from": list(r.get("derived_from") or [])} for r in receipts]
+    are ignored, and derived_from defaults to empty. A row missing a field raises a clear
+    ValueError (rows can come from disk, so the failure must be diagnosable, not a bare KeyError)."""
+    clean = []
+    for r in receipts:
+        missing = [k for k in _FIELDS if k not in r]
+        if missing:
+            raise ValueError(f"receipt missing required field(s) {missing}")
+        clean.append({**{k: r[k] for k in _FIELDS}, "derived_from": list(r.get("derived_from") or [])})
     return Digest(receipts=tuple(clean), seal=_seal(clean))
 
 
