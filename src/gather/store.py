@@ -15,6 +15,15 @@ CORRUPT = "CORRUPT"    # the stored body no longer hashes to its receipt
 _HEX = set("0123456789abcdef")
 
 
+def _field(row: dict, key: str) -> Any:
+    """Read a required field from a catalog row, raising a clear ValueError (not a bare KeyError)
+    if it is missing, since rows come from disk and can be hand-edited or an older schema."""
+    try:
+        return row[key]
+    except KeyError as exc:
+        raise ValueError(f"catalog row missing field {key!r}") from exc
+
+
 def _check_sha(sha: str) -> str:
     """A content hash is exactly 64 lowercase hex chars. Reject anything else BEFORE it is used
     to build a filesystem path, so a tampered catalog cannot drive a path-traversal read."""
@@ -206,3 +215,66 @@ class Corpus:
         """Fold the whole corpus catalog into one witnessed digest, from the rows alone. Equals a
         live ``digest(items)`` when the corpus holds exactly those distinct items."""
         return digest_of_receipts(list(self.rows()))
+
+    def stats(self) -> dict:
+        """A read-only summary of the catalog: item count, distinct bodies, and counts by source,
+        kind, and method. Streams the catalog; reads no bodies."""
+        by_source: dict[str, int] = {}
+        by_kind: dict[str, int] = {}
+        by_method: dict[str, int] = {}
+        shas: set[str] = set()
+        items = 0
+        for r in self.rows():
+            items += 1
+            shas.add(_field(r, "sha256"))
+            for table, key in ((by_source, "source"), (by_kind, "kind"), (by_method, "method")):
+                val = _field(r, key)
+                table[val] = table.get(val, 0) + 1
+        return {
+            "items": items, "distinct_bodies": len(shas),
+            "by_source": dict(sorted(by_source.items())),
+            "by_kind": dict(sorted(by_kind.items())),
+            "by_method": dict(sorted(by_method.items())),
+        }
+
+    def orphan_objects(self) -> list[str]:
+        """Object files (committed, not staging) on disk not referenced by any catalog row: the
+        leftover body from a crash between writing a body and appending its row. Read-only. Reads
+        the catalog to learn what is referenced, so a malformed catalog raises before anything is
+        judged an orphan (it must not mistake a live object for a leftover). ``.tmp`` staging files
+        are skipped on purpose: one may be an in-flight write from a concurrent ``add`` and is not
+        prune's to touch."""
+        referenced = {_field(r, "sha256") for r in self.rows()}
+        orphans: list[str] = []
+        if not os.path.isdir(self._objects):
+            return orphans
+        for shard in sorted(os.listdir(self._objects)):
+            shard_dir = os.path.join(self._objects, shard)
+            if not os.path.isdir(shard_dir):
+                continue
+            for name in sorted(os.listdir(shard_dir)):
+                if name.endswith(".tmp"):
+                    continue  # a write-staging file; never prune it (could be an in-flight add)
+                if shard + name not in referenced:
+                    orphans.append(os.path.join(shard_dir, name))
+        return orphans
+
+    def prune(self, *, apply: bool = False) -> dict:
+        """Report orphan object files; with ``apply=True``, delete them. Returns
+        ``{orphans, removed, removed_paths, applied}`` (``removed_paths`` is the list of files
+        deleted, an audit trail for the destructive op). Default is report-only (fail-safe): nothing
+        is deleted unless ``apply`` is set, and a malformed catalog aborts before any deletion.
+
+        Run prune with NO concurrent writer to the corpus: it reads the catalog then deletes, so a
+        body written by another process after that read would look unreferenced. Not atomic: if a
+        delete raises mid-way, ``removed_paths`` (had it returned) would be partial, so a raise
+        means some prefix of the orphans was removed.
+        """
+        orphans = self.orphan_objects()  # raises on a malformed catalog -> nothing removed
+        removed_paths: list[str] = []
+        if apply:
+            for path in orphans:
+                os.remove(path)
+                removed_paths.append(path)
+        return {"orphans": len(orphans), "removed": len(removed_paths),
+                "removed_paths": removed_paths, "applied": apply}

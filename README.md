@@ -122,7 +122,8 @@ Any command takes `--store DIR` to persist what it gathered into a content-addre
 and `gather corpus list|verify|digest|search DIR` inspects it. `verify` re-hashes every stored
 body against its receipt and exits non-zero if anything is missing or corrupt. `search` matches
 its terms as case-insensitive substrings of title and body (so `art` also matches `cartesian`).
-Write a corpus from one process at a time: the dedup is single-writer.
+Write a corpus from one process at a time: the dedup is single-writer, and `prune` (which reads
+the catalog then deletes unreferenced objects) must likewise run with no concurrent writer.
 
 ## What's here
 
@@ -148,7 +149,7 @@ Write a corpus from one process at a time: the dedup is single-writer.
 - `gather.transcribe`: a transcript from audio via a Whisper-style CLI; a machine transcription, labelled `transcribe`.
 - `gather.model`: the real model edge for the synthesizer seam; shells to a model CLI (prompt on stdin), stamping a genuine `synthesized` inference, `derived_from` set.
 - `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api`/`browser`/`ocr`/`transcribe` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search/stats/prune`.
 - `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
 
 The core is pure standard library. A source adapter may pull in whatever its source

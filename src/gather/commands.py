@@ -297,6 +297,25 @@ def cmd_corpus(args) -> int:
                       f" seal {r['digest_seal'][:12]}{syn}")
             print(f"{len(history)} run(s) in {args.dir}")
         return 0
+    if args.action == "stats":
+        s = c.stats()
+        if args.json:
+            print(json.dumps(s, indent=2, ensure_ascii=False))
+        else:
+            print(f"{s['items']} item(s), {s['distinct_bodies']} distinct bodies in {args.dir}")
+            print("by source:", s["by_source"])
+            print("by kind:  ", s["by_kind"])
+            print("by method:", s["by_method"])
+        return 0
+    if args.action == "prune":
+        res = c.prune(apply=args.apply)
+        if args.json:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        elif args.apply:
+            print(f"removed {res['removed']} orphan object(s)")
+        else:
+            print(f"{res['orphans']} orphan object(s); run with --apply to remove")
+        return 0
     d = c.digest()  # action == "digest"
     if args.json:
         print(d.to_json())
