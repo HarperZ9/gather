@@ -38,11 +38,12 @@ class SubprocessProvenanceProvider:
     unprovable item does not abort a whole run. fetch-time only; needs the tool on PATH.
     """
 
-    def __init__(self, command: list[str], *, timeout: float = 60.0) -> None:
+    def __init__(self, command: list[str], *, timeout: float = 60.0, max_output_bytes: int = 65536) -> None:
         if not command:
             raise ValueError("SubprocessProvenanceProvider needs a non-empty command")
         self._command = list(command)
         self._timeout = timeout
+        self._max_output_bytes = max_output_bytes
 
     def origin(self, item: Item) -> dict:
         p = item.provenance
@@ -58,9 +59,14 @@ class SubprocessProvenanceProvider:
             return {"error": f"provenance tool did not run: {str(exc)[:120]}"}
         if proc.returncode != 0:
             return {"error": f"provenance tool failed: {proc.stderr.decode('utf-8', 'replace').strip()[:120]}"}
-        out = proc.stdout.decode("utf-8", "replace").strip()
+        if len(proc.stdout) > self._max_output_bytes:
+            # this is the boundary where the other side may be hostile; a giant verdict is refused,
+            # not buffered into the run record (which would bloat it and the sealed history forever)
+            return {"error": f"provenance verdict exceeded {self._max_output_bytes} bytes"}
         try:
-            verdict = json.loads(out)
+            verdict = json.loads(proc.stdout.decode("utf-8", "replace").strip())
         except json.JSONDecodeError:
             return {"error": "provenance tool output was not JSON"}
+        # a non-dict JSON value (a bare string/number) is wrapped under "verdict" so the result is
+        # always a dict; a downstream reader reads {"verdict": ...} as "the tool returned a scalar"
         return verdict if isinstance(verdict, dict) else {"verdict": verdict}
