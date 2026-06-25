@@ -8,8 +8,12 @@ import time
 from gather import __version__
 
 
+def _split(s) -> list[str]:
+    return [t.strip() for t in s.split(",") if t.strip()] if s else []
+
+
 def _scope(args) -> list[str]:
-    return [t.strip() for t in args.scope.split(",") if t.strip()] if args.scope else []
+    return _split(args.scope)
 
 
 def _emit(items, scope, as_json, store=None) -> int:
@@ -162,6 +166,25 @@ def _cmd_corpus(args) -> int:
             for r in bad:
                 print(f"  {r['status']:<8} {r['id']} {r['sha256'][:12]}")
         return 1 if bad else 0
+    if args.action == "search":
+        from gather.digest import digest, verify_digest
+        from gather.recall import Query, recall
+        from gather.source import Catalog
+
+        q = Query(terms=tuple(_split(args.terms)), sources=tuple(_split(args.source)),
+                  kinds=tuple(_split(args.kind)), methods=tuple(_split(args.method)))
+        items = recall(c, q, limit=args.limit)
+        d = digest(items)
+        if args.json:
+            cat = Catalog()
+            cat.add(items)
+            print(json.dumps({"catalog": cat.rows(), "digest": json.loads(d.to_json())},
+                             indent=2, ensure_ascii=False))
+        else:
+            for i in items:
+                print(f"  {i.kind:<10} {i.id:<20} {i.provenance.source:<8} {i.title[:36]}")
+            print(f"{len(items)} match(es); digest seal {d.seal[:16]}... verified {verify_digest(d)}")
+        return 0
     if args.action == "runs":
         history = list(c.runs())
         if args.verify:
@@ -279,10 +302,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.set_defaults(func=_cmd_run)
 
     corpus = sub.add_parser("corpus", help="inspect a stored corpus: list, verify, digest, or runs")
-    corpus.add_argument("action", choices=["list", "verify", "digest", "runs"])
+    corpus.add_argument("action", choices=["list", "verify", "digest", "runs", "search"])
     corpus.add_argument("dir", help="the corpus directory (created by --store)")
     corpus.add_argument("--json", action="store_true", help="emit as JSON")
     corpus.add_argument("--verify", action="store_true", help="with runs: re-check each record's seal")
+    corpus.add_argument("--terms", default=None, help="with search: scope keywords (match title+body)")
+    corpus.add_argument("--source", default=None, help="with search: filter to these sources (comma-sep)")
+    corpus.add_argument("--kind", default=None, help="with search: filter to these kinds (comma-sep)")
+    corpus.add_argument("--method", default=None, help="with search: filter to these methods (comma-sep)")
+    corpus.add_argument("--limit", type=int, default=None, help="with search: cap the number of matches")
     corpus.set_defaults(func=_cmd_corpus)
 
     return parser
