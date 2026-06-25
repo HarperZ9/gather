@@ -122,7 +122,8 @@ Any command takes `--store DIR` to persist what it gathered into a content-addre
 and `gather corpus list|verify|digest|search DIR` inspects it. `verify` re-hashes every stored
 body against its receipt and exits non-zero if anything is missing or corrupt. `search` matches
 its terms as case-insensitive substrings of title and body (so `art` also matches `cartesian`).
-Write a corpus from one process at a time: the dedup is single-writer.
+Write a corpus from one process at a time: the dedup is single-writer, and `prune` (which reads
+the catalog then deletes unreferenced objects) must likewise run with no concurrent writer.
 
 ## What's here
 
