@@ -17,8 +17,11 @@ def require_secret(name: str) -> str:
     request header (see gather.api), so the secret never reaches a URL, a receipt, or the disk.
     """
     value = os.environ.get(name)
-    if not value:
+    if not value or not value.strip():
         raise MissingCredential(f"missing required credential in environment: {name}")
+    if "\r" in value or "\n" in value:
+        # a stray newline (e.g. from `export TOKEN=$(cat file)`) would corrupt or inject a header
+        raise MissingCredential(f"credential in environment variable {name} contains a newline")
     return value
 
 

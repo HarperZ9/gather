@@ -37,8 +37,10 @@ def parse_api(
     """Turn a JSON API response into one Item per record. Pure: no network.
 
     Each record becomes an Item whose text is the record's ``text_key`` field if given, else the
-    record serialized as canonical JSON (so the receipt fingerprints the exact record). The id and
-    title are read from ``id_key`` / ``title_key`` when present. ``ref`` is the request URL. No
+    record serialized as canonical JSON (so the receipt fingerprints the exact record). A non-string
+    ``text_key`` field is itself serialized as canonical JSON, never a Python repr, so the receipt
+    always fingerprints JSON. The id and title are read from ``id_key`` / ``title_key`` when present;
+    id uniqueness across records is the API's responsibility. ``ref`` is the request URL. No
     credential is ever placed in an Item or its receipt. Raises ValueError on malformed JSON.
     """
     try:
@@ -47,7 +49,11 @@ def parse_api(
         raise ValueError(f"not valid API JSON: {exc}") from exc
     items: list[Item] = []
     for i, rec in enumerate(_records(data, items_key)):
-        text = str(rec.get(text_key, "")) if text_key else json.dumps(rec, sort_keys=True, ensure_ascii=False)
+        if text_key:
+            field = rec.get(text_key, "")
+            text = field if isinstance(field, str) else json.dumps(field, sort_keys=True, ensure_ascii=False)
+        else:
+            text = json.dumps(rec, sort_keys=True, ensure_ascii=False)
         rid = str(rec.get(id_key, i))
         items.append(
             make_item(
@@ -93,6 +99,9 @@ class ApiSource:
 
     def fetch(self, target: str) -> list[Item]:
         token = require_secret(self._auth_env)
+        if token in target:
+            # the URL is witnessed in the receipt's ref; the secret must travel in the header only
+            raise ValueError("the credential must not appear in the URL (ref is witnessed); it is sent as a header")
         body, ctype = http_get(
             target, timeout=self._timeout,
             headers={"Authorization": f"{self._auth_scheme} {token}"},

@@ -152,8 +152,9 @@ class VideoSource:
         if proc.returncode != 0:
             raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()[:200]}")
         vtt, is_auto = self._fetch_captions(target)
+        # the method records HOW (the yt-dlp tool), a stable label, not the configured binary path
         return parse_video(
-            proc.stdout, vtt, fetched_at=float(self._clock()), method=self._yt_dlp,
+            proc.stdout, vtt, fetched_at=float(self._clock()), method="yt-dlp",
             auto_captions=is_auto,
         )
 
