@@ -8,7 +8,6 @@ from gather.commands import (
     cmd_api,
     cmd_arxiv,
     cmd_browser,
-    cmd_corpus,
     cmd_docs,
     cmd_feed,
     cmd_ocr,
@@ -19,6 +18,7 @@ from gather.commands import (
     cmd_video,
     cmd_web,
 )
+from gather.corpus_cmd import cmd_corpus
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
