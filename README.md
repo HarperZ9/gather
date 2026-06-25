@@ -79,7 +79,8 @@ witnessed digest, then tampers with one receipt to show the seal catch it. All o
 install, nothing downloaded:
 
 ```bash
-python examples/demo.py
+python examples/demo.py        # one video parsed, scoped, digested, then a receipt catches tampering
+python examples/pipeline.py    # the whole organ: run -> store -> verify -> recall, offline
 ```
 
 ```
@@ -135,6 +136,9 @@ against its receipt and exits non-zero if anything is missing or corrupt.
 
 The core is pure standard library. A source adapter may pull in whatever its source
 demands, isolated behind the `Source` shape.
+
+[ARCHITECTURE.md](ARCHITECTURE.md) is the design map (the seams, the receipt, the corpus, the
+run, the threat model); [CHANGELOG.md](CHANGELOG.md) is the version history.
 
 ## Roadmap
 
