@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gather"
-version = "0.3.0"
+version = "0.4.0"
 description = "An accountable research-intake organ: ingest from scattered sources behind clean adapters, with a provenance receipt on every item and a witnessed digest out"
 readme = "README.md"
 requires-python = ">=3.11"

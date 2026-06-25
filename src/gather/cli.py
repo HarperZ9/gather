@@ -81,6 +81,16 @@ def _cmd_docs(args) -> int:
     return _fetch_and_emit(lambda: DocsSource().fetch(args.path), args, fail="read failed")
 
 
+def _cmd_arxiv(args) -> int:
+    from gather.arxiv import ArxivSource
+    return _fetch_and_emit(lambda: ArxivSource(max_results=args.max_results).fetch(args.query), args)
+
+
+def _cmd_pdf(args) -> int:
+    from gather.pdf import PdfSource
+    return _fetch_and_emit(lambda: PdfSource().fetch(args.path), args, fail="read failed")
+
+
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
     p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
@@ -119,6 +129,17 @@ def build_parser() -> argparse.ArgumentParser:
     docs.add_argument("path")
     _add_common(docs)
     docs.set_defaults(func=_cmd_docs)
+
+    arxiv = sub.add_parser("arxiv", help="fetch papers from the arXiv API by id or free-text query")
+    arxiv.add_argument("query", help="an arXiv id (2301.12345) or a search query")
+    arxiv.add_argument("--max-results", type=int, default=10, help="max results for a search query")
+    _add_common(arxiv)
+    arxiv.set_defaults(func=_cmd_arxiv)
+
+    pdf = sub.add_parser("pdf", help="extract text from a local PDF (needs pdftotext on PATH)")
+    pdf.add_argument("path")
+    _add_common(pdf)
+    pdf.set_defaults(func=_cmd_pdf)
 
     return parser
 
