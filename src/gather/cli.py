@@ -97,15 +97,28 @@ def _cmd_run(args) -> int:
     from gather.run import gather_run
     from gather.store import Corpus
 
-    with open(args.config, encoding="utf-8") as f:
-        cfg = json.load(f)
-    jobs = [(_build_source(j["source"], j), j["target"]) for j in cfg.get("jobs", [])]
-    scope = cfg.get("scope", [])
-    store = Corpus(cfg["store"]) if cfg.get("store") else None
-    synthesizer = NullSynthesizer() if cfg.get("synthesize") else None
+    try:
+        with open(args.config, encoding="utf-8") as f:
+            cfg = json.load(f)
+        job_specs = cfg.get("jobs", [])
+        if not isinstance(job_specs, list) or not job_specs:
+            raise ValueError("config needs a non-empty 'jobs' list")
+        jobs = []
+        for j in job_specs:
+            if "source" not in j or "target" not in j:
+                raise ValueError(f"each job needs 'source' and 'target': {j}")
+            jobs.append((_build_source(j["source"], j), j["target"]))
+        store = Corpus(cfg["store"]) if cfg.get("store") else None
+        synthesizer = NullSynthesizer() if cfg.get("synthesize") else None
+    except FileNotFoundError:
+        print(f"run failed: config not found: {args.config}", file=sys.stderr)
+        return 1
+    except (ValueError, KeyError, json.JSONDecodeError) as exc:
+        print(f"run failed: bad config: {exc}", file=sys.stderr)
+        return 1
     try:
         record, _items = gather_run(
-            jobs, clock=_time.time, scope=scope, store=store,
+            jobs, clock=_time.time, scope=cfg.get("scope", []), store=store,
             synthesizer=synthesizer, synth_prompt=cfg.get("synth_prompt", ""),
         )
     except Exception as exc:
@@ -151,6 +164,17 @@ def _cmd_corpus(args) -> int:
         return 1 if bad else 0
     if args.action == "runs":
         history = list(c.runs())
+        if args.verify:
+            from gather.run import RunRecord, verify_record
+            checked = [(r.get("digest_seal", "")[:12], verify_record(RunRecord.from_dict(r))) for r in history]
+            bad = [s for s, ok in checked if not ok]
+            if args.json:
+                print(json.dumps([{"digest_seal": s, "verified": ok} for s, ok in checked], indent=2))
+            else:
+                for s, ok in checked:
+                    print(f"  {'OK ' if ok else 'BAD'} record {s}")
+                print(f"verified {len(checked)} run record(s), {len(bad)} bad")
+            return 1 if bad else 0
         if args.json:
             print(json.dumps(history, indent=2, ensure_ascii=False))
         else:
@@ -258,6 +282,7 @@ def build_parser() -> argparse.ArgumentParser:
     corpus.add_argument("action", choices=["list", "verify", "digest", "runs"])
     corpus.add_argument("dir", help="the corpus directory (created by --store)")
     corpus.add_argument("--json", action="store_true", help="emit as JSON")
+    corpus.add_argument("--verify", action="store_true", help="with runs: re-check each record's seal")
     corpus.set_defaults(func=_cmd_corpus)
 
     return parser
