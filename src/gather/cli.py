@@ -103,7 +103,9 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe.set_defaults(func=cmd_transcribe)
 
     run = sub.add_parser("run", help="run a multi-source gather session from a JSON config")
-    run.add_argument("config", help="path to a JSON config: {jobs:[{source,target}], scope, store, synthesize}")
+    run.add_argument("config",
+                     help="JSON config: {jobs:[{source,target}], scope, store, "
+                          "synthesize | synthesizer:[cmd...], synth_prompt}")
     run.add_argument("--json", action="store_true", help="emit the witnessed run record as JSON")
     run.set_defaults(func=cmd_run)
 
