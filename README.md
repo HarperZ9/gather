@@ -50,13 +50,16 @@ source content. The digest seal folds in `method` and `derived_from` alongside t
 relabelling an inference as a direct fetch, or quietly rewriting what it was built from,
 breaks the seal exactly as altering the content does.
 
-The honesty is mechanical, not a promise. The `method="synthesized"` label is reachable
+The honesty is mechanical where it can be. The `method="synthesized"` label is reachable
 only through the `Synthesizer` seam: the bare `gather.derive` builder defaults to `compiled`
-and refuses to stamp `synthesized` at all, so an inferred claim can only come from a model
-actually plugged into the seam (`synthesize_item` stamps the result with the synthesizer's
-own method). With no model wired in, the default `NullSynthesizer` performs a deterministic,
-extractive *compilation*: it assembles inputs verbatim, labels them `compiled`, and invents
-nothing. So Gather never labels something a synthesis unless a model performed one.
+and refuses to stamp `synthesized` at all, so a bare call can never forge a synthesis. With no
+edge wired in, the default `NullSynthesizer` performs a deterministic, extractive *compilation*:
+it assembles inputs verbatim, labels them `compiled`, invents nothing. What the seam attests is
+that the configured edge produced the text; that the edge is actually a model is the operator's
+responsibility, the same trust as choosing the browser binary or the API token (point the seam at
+`cat` and you get a verbatim echo labelled `synthesized`). And `derived_from` records the inputs
+supplied to the edge, an upper bound: a model may ignore some or generate beyond them, so it
+attests availability, not use.
 
 ## The discipline
 
