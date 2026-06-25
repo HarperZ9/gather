@@ -59,11 +59,21 @@ rows without re-reading bodies.
 
 ## The network edge (`gather.net`)
 
-HTTP lives in exactly one place: `http_get`. It allows only http/https, blocks private,
-loopback, link-local, and reserved hosts on the initial URL **and on every redirect hop** (so the
-guard cannot be slipped by a redirect inward, the cloud-metadata SSRF), caps the body, and warns
-on truncation. Optional headers (e.g. an Authorization header) are sent but never logged. The pure
-`decode_body` and the host check are tested directly; the live request is the isolated edge.
+HTTP transport lives in exactly one place: `http_get` (urllib.request). It allows only
+http/https, blocks private, loopback, link-local, and reserved hosts on the initial URL **and on
+every redirect hop** (so the guard cannot be slipped by a redirect inward, the cloud-metadata
+SSRF), refuses caller-supplied routing headers (Host, Forwarded) that could desync that guard,
+strips credentials (Authorization, Cookie) on a cross-origin redirect, caps the body, and warns on
+truncation. Optional headers (e.g. an Authorization header) are sent but never logged. Pure URL
+string-building (urllib.parse) may live in an adapter; only the transport is centralized.
+
+One residual is documented rather than hidden: the host check resolves the name to validate it,
+and urllib resolves again to connect, so a name that rebinds between the two lookups (DNS
+rebinding, requiring attacker-controlled DNS with a low TTL) is not defended. The common
+metadata/loopback/private cases are.
+
+The pure `decode_body` and the host check are tested directly; the live request is the isolated
+edge.
 
 ## Credentials (`gather.credentials`)
 
@@ -77,7 +87,8 @@ never reaches the URL, the receipt, or the disk.
 
 A `Corpus` is durable, content-addressed storage. Bodies live at `objects/ab/cdef...` keyed by the
 sha256 of their content, so identical content is stored once (the natural dedup), written
-temp-then-rename and fsync'd (durable by default). `catalog.jsonl` is an append log of one row per
+temp-then-rename and fsync'd (durable by default; the file fsync runs everywhere, the
+directory-entry fsync is POSIX-only). `catalog.jsonl` is an append log of one row per
 **distinct receipt**: dedup is at the body level only, so two different items with identical text
 keep both receipts and share one body, and no provenance is dropped. `verify()` re-hashes every
 stored body and reports MATCH / MISSING / CORRUPT, making the digest's proof durable over a growing

@@ -61,15 +61,19 @@ class RunRecord:
     @classmethod
     def from_dict(cls, d: dict) -> RunRecord:
         """Reconstruct a RunRecord from its dict form (e.g. a row of the corpus run history), so
-        a persisted record can be re-checked with verify_record."""
-        return cls(
-            started_at=d["started_at"],
-            targets=tuple(tuple(t) for t in d["targets"]),
-            scope=tuple(d["scope"]),
-            gathered=d["gathered"], kept=d["kept"], dropped=d["dropped"],
-            synthesized=d["synthesized"], digested=d["digested"],
-            digest_seal=d["digest_seal"], stored=d["stored"], seal=d["seal"],
-        )
+        a persisted record can be re-checked with verify_record. Raises a clear ValueError on a
+        malformed row (the run history can be hand-edited or corrupted), not a bare KeyError."""
+        try:
+            return cls(
+                started_at=d["started_at"],
+                targets=tuple(tuple(t) for t in d["targets"]),
+                scope=tuple(d["scope"]),
+                gathered=d["gathered"], kept=d["kept"], dropped=d["dropped"],
+                synthesized=d["synthesized"], digested=d["digested"],
+                digest_seal=d["digest_seal"], stored=d["stored"], seal=d["seal"],
+            )
+        except (KeyError, TypeError) as exc:
+            raise ValueError(f"malformed run record: {exc}") from exc
 
 
 def _record_fields(
@@ -86,6 +90,20 @@ def _record_fields(
 
 def _seal_record(fields: dict) -> str:
     return hashlib.sha256(json.dumps(fields, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _dedup_by_receipt(items: list[Item]) -> list[Item]:
+    """Drop items with a duplicate receipt identity (the corpus's dedup key), preserving order."""
+    seen: set[tuple] = set()
+    out: list[Item] = []
+    for it in items:
+        p = it.provenance
+        key = (it.kind, it.id, it.title, p.source, p.ref, p.method, p.sha256, p.derived_from)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(it)
+    return out
 
 
 def gather_run(
@@ -133,6 +151,10 @@ def gather_run(
     if synthesizer is not None and kept:
         final.append(synthesize_item(synthesizer, kept, synth_prompt, fetched_at=started, ref=synth_ref))
         synthesized = True
+
+    # dedup by receipt identity, the same key the corpus uses, so the run's digest seal equals the
+    # seal of what the corpus stores (a source that lists the same item twice would otherwise diverge)
+    final = _dedup_by_receipt(final)
 
     seal = digest(final).seal
     stored = store.add(final) if store is not None else None
