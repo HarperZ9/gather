@@ -7,4 +7,4 @@ that index, refine, and the crucible consume. A peer organ: it composes through 
 seam, it does not absorb or get absorbed.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
