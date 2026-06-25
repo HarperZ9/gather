@@ -3,6 +3,13 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## 1.3.0
+
+- Operating a corpus over time: `corpus stats` (a read-only summary, item and distinct-body counts
+  by source/kind/method) and `corpus prune` (find, and with `--apply` delete, orphan object files
+  left by a crash between a body write and its catalog row). Prune is report-only by default and
+  aborts on a malformed catalog, so it never deletes a referenced body.
+
 ## 1.2.0
 
 - `gather.model.SubprocessSynthesizer`: the real model edge for the `Synthesizer` seam (the default
