@@ -18,7 +18,10 @@ One string in, a list of receipted `Item`s out. An adapter may use the network, 
 tool, or a credential; it hides all of that behind this shape. The rest of Gather imports none
 of it. Awkward access is an adapter problem, not a system problem. Shipped adapters: `video`
 (yt-dlp), `web` (static http), `feed` (RSS/Atom), `docs` (local files), `arxiv` (the arXiv API),
-`pdf` (pdftotext), and `api` (authenticated JSON).
+`pdf` (pdftotext), `api` (authenticated JSON), `browser` (a headless browser, for JavaScript
+pages), `ocr` (tesseract, for scanned images), and `transcribe` (a Whisper-style CLI, for audio).
+The last three, like video and pdf, are isolated external-tool edges: an external program does
+the work, never a Python dependency.
 
 ## The receipt: `Item` and `Provenance`
 
@@ -74,6 +77,17 @@ metadata/loopback/private cases are.
 
 The pure `decode_body` and the host check are tested directly; the live request is the isolated
 edge.
+
+The `browser` edge is the sharp exception and the most exposed organ. It shares the initial scheme
++ private-host guard (`validate_public_http_url`), but it then hands the URL to a real headless
+browser, which follows its own redirects and loads sub-resources (fetch/XHR, iframes, images) with
+no host filtering. So the guard covers only the first navigation: a hostile or open-redirecting
+page can still reach an internal address, and the DNS-rebinding window is wider than for the http
+edge (the browser re-resolves throughout its life). The receipt's `browser-extract` method is
+honest that JavaScript ran, but it cannot make the fetch safe. Do not run `browser` against
+untrusted URLs in an environment with reachable internal services. The Chromium sandbox is left on
+by default; `no_sandbox=True` disables it (a deliberate hardening downgrade, sometimes needed to
+run as root in a container).
 
 ## Credentials (`gather.credentials`)
 
