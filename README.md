@@ -143,6 +143,7 @@ Write a corpus from one process at a time: the dedup is single-writer.
 - `gather.browser`: JavaScript-rendered pages via a headless browser; the `browser-extract` method records that JS was run.
 - `gather.ocr`: text from a scanned image via `tesseract`; a machine reading, labelled `ocr`.
 - `gather.transcribe`: a transcript from audio via a Whisper-style CLI; a machine transcription, labelled `transcribe`.
+- `gather.model`: the real model edge for the synthesizer seam; shells to a model CLI (prompt on stdin), stamping a genuine `synthesized` inference, `derived_from` set.
 - `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
 - `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
 - `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
@@ -159,7 +160,7 @@ Shipped:
 
 - The provenance receipt, the scope filter, the witnessed digest with a re-checkable seal, the catalog.
 - Adapters behind one `Source` shape: video (`yt-dlp`), web (static http), feed (RSS/Atom), docs (local files), arXiv (papers), PDF (`pdftotext`), authenticated JSON APIs (env-isolated credentials).
-- The derive seam: the `Synthesizer` shape with an honest compiling default; a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
+- The derive seam: the `Synthesizer` shape with an honest compiling default and a real model edge (`gather.model`); a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
 - A durable, content-addressed corpus (`--store DIR`): bodies deduped by hash, the catalog streamed, and `corpus verify` re-hashing every stored body against its receipt.
 - A witnessed gather run (`gather run config.json`): orchestrates many sources, scope, and optional synthesis into one re-checkable record, kept in the corpus run history.
 - Recall over the corpus (`gather corpus search`): query by scope terms and source/kind/method, returning re-verifiable items and a scoped digest.
@@ -168,7 +169,7 @@ Shipped:
 
 Next:
 
-- A model-backed synthesizer through the existing seam, and the digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
+- The digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item; corpus indexing so recall need not read every body.
 
 ## License
 

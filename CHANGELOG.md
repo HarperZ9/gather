@@ -3,6 +3,14 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## 1.2.0
+
+- `gather.model.SubprocessSynthesizer`: the real model edge for the `Synthesizer` seam (the default
+  only compiled). It shells to an operator-configured model CLI to infer a statement, with the
+  prompt (built from gathered content) on STDIN never the argv, and is stamped `synthesized` with
+  `derived_from` set, so a real inference is honestly distinguished from a compilation. `gather run`
+  accepts a `synthesizer` command in its config to use it.
+
 ## 1.1.0
 
 The hard sources, behind the same `Source` seam, each an isolated external-tool edge:
