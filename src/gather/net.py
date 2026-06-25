@@ -7,7 +7,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-DEFAULT_UA = "gather/0.3 (+https://github.com/HarperZ9/gather)"
+from gather import __version__
+
+DEFAULT_UA = f"gather/{__version__} (+https://github.com/HarperZ9/gather)"
 DEFAULT_MAX_BYTES = 5_000_000
 
 
