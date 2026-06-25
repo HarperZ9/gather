@@ -28,7 +28,7 @@ def decode_body(body: bytes, content_type: str = "") -> str:
         charset = lowered.split("charset=", 1)[1].split(";")[0].strip().strip("\"'") or "utf-8"
     try:
         return body.decode(charset, errors="replace")
-    except LookupError:
+    except (LookupError, ValueError):  # unknown or malformed charset from an untrusted server -> utf-8
         return body.decode("utf-8", errors="replace")
 
 

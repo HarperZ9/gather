@@ -20,7 +20,7 @@ from gather.scope import filter_scope, in_scope
 from gather.source import Catalog, Source
 from gather.store import Corpus
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 __all__ = [
     "Catalog", "Corpus", "Digest", "Item", "NullProvenanceProvider", "NullSynthesizer",

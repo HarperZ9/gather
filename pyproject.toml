@@ -4,13 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gather"
-version = "1.4.0"
+version = "1.5.0"
 description = "An accountable research-intake organ: ingest from scattered sources behind clean adapters, with a provenance receipt on every item and a witnessed digest out"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [{ name = "Zain Dana Harper" }]
-keywords = ["research", "intake", "ingestion", "provenance", "transcripts", "arxiv", "accountability"]
+keywords = [
+    "research", "intake", "ingestion", "provenance", "transcripts", "arxiv", "accountability",
+    "ocr", "transcription", "headless-browser", "synthesis", "web-scraping", "ssrf-safe",
+]
 dependencies = []
 
 [project.optional-dependencies]

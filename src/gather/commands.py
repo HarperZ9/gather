@@ -226,10 +226,17 @@ def cmd_run(args) -> int:
 
 
 def cmd_corpus(args) -> int:
-    from gather.digest import verify_digest
     from gather.store import Corpus
+    try:
+        return _corpus_dispatch(args, Corpus(args.dir))
+    except ValueError as exc:  # a malformed catalog/runs line surfaces as a clean error, not a traceback
+        print(f"corpus {args.action} failed: {exc}", file=sys.stderr)
+        return 1
 
-    c = Corpus(args.dir)
+
+def _corpus_dispatch(args, c) -> int:
+    from gather.digest import verify_digest
+
     if args.action == "list":
         rows = list(c.rows())
         if args.json:
