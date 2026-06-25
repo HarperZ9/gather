@@ -147,7 +147,7 @@ class VideoSource:
         cmd = [self._yt_dlp, "--dump-single-json", "--skip-download"]
         if self._with_comments:
             cmd.append("--write-comments")
-        cmd.append(target)
+        cmd += ["--", target]  # end-of-options: a target starting with - cannot be read as a flag
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self._timeout)
         if proc.returncode != 0:
             raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()[:200]}")
@@ -177,7 +177,7 @@ class VideoSource:
         with tempfile.TemporaryDirectory() as d:
             cmd = [
                 self._yt_dlp, "--skip-download", flag, "--sub-langs", "en.*",
-                "--sub-format", "vtt", "-o", os.path.join(d, "%(id)s.%(ext)s"), target,
+                "--sub-format", "vtt", "-o", os.path.join(d, "%(id)s.%(ext)s"), "--", target,
             ]
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self._timeout)
             vtts = sorted(glob.glob(os.path.join(d, "*.vtt")))
