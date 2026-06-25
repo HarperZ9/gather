@@ -24,3 +24,14 @@ def test_method_records_how_a_derived_item_was_obtained():
                    source="papers", ref="p1#frag", method="synthesized", fetched_at=2.0)
     assert it.provenance.method == "synthesized"
     assert it.verify() is True
+    assert it.provenance.derived_from == ()  # nothing declared, so no derivation chain
+
+
+def test_derived_item_records_the_inputs_it_was_built_from():
+    # the hash fingerprints the inference itself; derived_from carries the chain back to sources
+    it = make_item(kind="paper", id="p1", title="claim", text="a synthesized fact",
+                   source="synthesis", ref="claim-1", method="synthesized", fetched_at=2.0,
+                   derived_from=("frag-a", "frag-b"))
+    assert it.provenance.derived_from == ("frag-a", "frag-b")
+    assert it.provenance.sha256 == content_hash("a synthesized fact")  # the inference, not the inputs
+    assert it.verify() is True

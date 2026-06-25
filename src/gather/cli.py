@@ -48,7 +48,8 @@ def _cmd_parse(args) -> int:
     if args.vtt:
         with open(args.vtt, encoding="utf-8") as f:
             vtt = f.read()
-    return _emit(parse_video(info_json, vtt, fetched_at=time.time()), _scope(args), args.json)
+    items = parse_video(info_json, vtt, fetched_at=time.time(), auto_captions=args.auto_captions)
+    return _emit(items, _scope(args), args.json)
 
 
 def _cmd_video(args) -> int:
@@ -70,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     parse = sub.add_parser("parse", help="parse a saved yt-dlp info.json (+ optional .vtt), offline, no network")
     parse.add_argument("info", help="path to a yt-dlp info.json")
     parse.add_argument("--vtt", default=None, help="path to a .vtt captions file")
+    parse.add_argument("--auto-captions", action="store_true",
+                       help="captions are machine-generated: collapse rolling-window growth, stamp auto-caption")
     parse.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
     parse.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
     parse.set_defaults(func=_cmd_parse)
