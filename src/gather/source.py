@@ -16,9 +16,8 @@ class Source(Protocol):
 
     ``fetch(target)`` is the RETRIEVAL seam: one string in, items out, each fingerprinting
     the content it retrieved. Synthesis (deriving a fact from several inputs) does not fit
-    that shape and is deliberately not here in P1; it needs a separate ``derive(inputs)``
-    seam whose items carry ``method="synthesized"`` and ``derived_from`` set to their input
-    refs (the ``Provenance.derived_from`` field is already in place). That arrives in P2.
+    that shape and lives in the separate ``gather.derive`` seam, whose items carry
+    ``method="compiled"`` or ``"synthesized"`` and ``derived_from`` set to their inputs.
     """
 
     name: str
@@ -29,8 +28,8 @@ class Source(Protocol):
 class Catalog:
     """A record of what has been gathered: one row per item, with its origin and fingerprint.
 
-    The grown-up INDEX.json. Pure and deterministic; persists to JSON. Storage
-    organization is a later phase; this is the minimal honest index.
+    Pure and deterministic; persists to JSON. This is the in-memory index used by the CLI's
+    one-shot output; the durable, content-addressed, re-verifiable store is ``gather.store.Corpus``.
     """
 
     def __init__(self) -> None:

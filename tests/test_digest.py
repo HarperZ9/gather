@@ -28,6 +28,19 @@ def test_tampered_receipt_breaks_the_seal():
     assert verify_digest(bad) is False
 
 
+def test_swapping_field_values_between_receipts_breaks_the_seal():
+    # two distinct items; swapping one's title into the other's ref position must change the seal
+    # (the named-key canonicalization binds each value to its field, so no permutation collides)
+    a = make_item(kind="document", id="a", title="Alpha", text="x", source="web",
+                  ref="ref-a", method="http-get", fetched_at=1.0)
+    b = make_item(kind="document", id="b", title="Beta", text="y", source="web",
+                  ref="ref-b", method="http-get", fetched_at=1.0)
+    base = digest([a, b]).seal
+    a2 = make_item(kind="document", id="a", title="ref-a", text="x", source="web",
+                   ref="Alpha", method="http-get", fetched_at=1.0)  # title and ref values swapped
+    assert digest([a2, b]).seal != base
+
+
 def test_relabelling_how_an_item_was_obtained_breaks_the_seal():
     # passing a synthesis off as a direct fetch must not pass verification
     d = digest([_it("a", "x")])

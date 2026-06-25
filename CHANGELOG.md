@@ -3,6 +3,25 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## 1.0.0
+
+The first stable release. A whole-system review (correctness, security, and docs lenses) gated
+the milestone; its findings are fixed here.
+
+- Security: credentials (Authorization/Cookie) are stripped on a cross-origin redirect, so a
+  compromised or open-redirecting endpoint cannot harvest a bearer token; routing headers
+  (Host/Forwarded) that could desync the host guard are refused; the persisted run history is
+  hardened against a malformed row.
+- Integrity: the digest seal canonicalizes each receipt as a named-key object, so the
+  receipt-to-bytes mapping is unambiguous by construction; a run dedups duplicate receipts before
+  sealing, so a run's seal equals the corpus it stored; recall and verify now agree that a
+  tampered (non-hex) sha is CORRUPT, not MISSING.
+- Robustness: `gather run` rejects a non-list `scope`; feed entries with no derivable identity are
+  skipped (matching arxiv).
+- Public API: a curated top-level surface is re-exported from `gather` with `__all__`.
+- Docs: the design map, threat model (including the DNS-rebinding residual), and limitations are
+  stated where a user meets them; the security-contact and module list are corrected.
+
 ## 0.9.0
 
 - Documentation and hardening for the 1.0 line: `ARCHITECTURE.md`, this changelog, and a full

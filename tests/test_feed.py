@@ -82,6 +82,14 @@ def test_parse_feed_accepts_bytes_with_encoding_declaration():
     assert parse_feed(rss, "u", fetched_at=1.0)[0].title == "Café"
 
 
+def test_parse_feed_skips_an_entry_with_no_identity():
+    rss = """<?xml version="1.0"?><rss version="2.0"><channel><title>F</title>
+<item><description>a body but no title, link, or guid</description></item>
+<item><title>Real</title><link>http://x/1</link></item>
+</channel></rss>"""
+    assert [i.title for i in parse_feed(rss, "u", fetched_at=1.0)] == ["Real"]  # the identity-less entry is skipped
+
+
 def test_parse_feed_rejects_malformed_xml():
     with pytest.raises(ValueError):
         parse_feed("<rss><broken", "u", fetched_at=1.0)
