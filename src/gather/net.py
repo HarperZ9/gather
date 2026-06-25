@@ -61,6 +61,18 @@ def _host_is_private(host: str) -> bool:
 _SENSITIVE_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization"})
 
 
+def validate_public_http_url(url: str) -> str:
+    """Return the trimmed URL if it is http/https and resolves to a public host, else raise
+    ValueError. The reusable scheme allowlist + private-host (SSRF) guard, shared by http_get and
+    the browser edge so both refuse file://, other schemes, and loopback/private/metadata hosts."""
+    url = url.strip()
+    if not url.lower().startswith(("http://", "https://")):
+        raise ValueError(f"only http/https URLs are allowed, got: {url[:60]!r}")
+    if _host_is_private(urllib.parse.urlsplit(url).hostname or ""):
+        raise ValueError(f"refused: host resolves to a private or loopback address: {url[:60]!r}")
+    return url
+
+
 class _SafeRedirect(urllib.request.HTTPRedirectHandler):
     """Re-applies the scheme allowlist and the private-host block to every redirect hop, and
     strips credentials when a redirect crosses origins.
@@ -109,8 +121,6 @@ def http_get(
     network; the pure ``decode_body`` and the ``_host_is_private`` check are tested directly.
     """
     url = url.strip()
-    if not url.lower().startswith(("http://", "https://")):
-        raise ValueError(f"only http/https URLs are fetched, got: {url[:60]!r}")
     hdrs = {"User-Agent": user_agent}
     if headers:
         routing = {k for k in headers if k.lower() == "host" or k.lower().startswith(("x-forwarded", "forwarded"))}
@@ -118,8 +128,7 @@ def http_get(
             # a Host/forwarding header could steer a proxy to a target the URL-based guard never saw
             raise ValueError(f"routing headers are not allowed (they can desync the host guard): {sorted(routing)}")
         hdrs.update(headers)
-    if _host_is_private(urllib.parse.urlsplit(url).hostname or ""):
-        raise ValueError(f"refused: host resolves to a private or loopback address: {url[:60]!r}")
+    url = validate_public_http_url(url)  # scheme allowlist + private-host block (does the DNS lookup)
     opener = urllib.request.build_opener(_SafeRedirect)
     req = urllib.request.Request(url, headers=hdrs)
     with opener.open(req, timeout=timeout) as resp:

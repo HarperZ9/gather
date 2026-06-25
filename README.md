@@ -20,15 +20,19 @@ that index, refine, and the crucible consume.
 
 The aim is to pull information from anywhere, including the extremely difficult: gated APIs,
 auth and paywalls, JavaScript-walled pages, scanned PDFs, audio, obscure formats, and
-information that is not sitting in one place but has to be synthesized from fragments. Four
-adapters ship today (video, web, feed, docs); the harder sources are the design the adapter
-seam is built for, on the roadmap. What shipped first is the accountability that has to be
-right before any of the harder sources are safe to trust.
+information that is not sitting in one place but has to be synthesized from fragments. Many of
+these ship today: alongside video, web, feed, and docs, there are adapters for arXiv papers,
+PDFs, authenticated JSON APIs, JavaScript-rendered pages (a headless browser), scanned images
+(OCR), and audio (transcription). Each records HOW it reached the content, so the accountability
+is in place before the harder reach is trusted.
 
-The shipped web adapter is honest about its reach: it reads the static HTML a server
-returns and does not run JavaScript, so a client-rendered page yields only its shell, and
-the receipt's `http-get` method says exactly that. A browser-backed adapter for JS-walled
-pages is a separate, later edge, kept out of the core so the core stays dependency-free.
+Two adapters are honest about their reach in their receipts. The `web` adapter reads the static
+HTML a server returns and does not run JavaScript, so a client-rendered page yields only its
+shell, and `http-get` says exactly that; the `browser` adapter runs a real headless browser and
+records `browser-extract`, so you know JavaScript was executed. The browser is the most exposed
+edge: its host guard covers only the first navigation, and a rendered page then follows its own
+redirects and sub-requests unguarded, so do not point it at untrusted URLs where internal
+services are reachable (see the threat model in [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 That accountability is one rule: the receipt records how each item was obtained. A
 transcript read from captions, a page read through a browser, text recognized from a scan,
@@ -136,6 +140,9 @@ Write a corpus from one process at a time: the dedup is single-writer.
 - `gather.recall`: a `Query` over a stored corpus (substring scope terms, plus source/kind/method filters: OR within a filter, AND across) returning reconstructed items that are re-verified (missing or corrupt bodies are skipped and reported), so downstream organs draw scoped, trustworthy subsets.
 - `gather.credentials`: the one place secrets enter, read from the environment by name, never logged, never put in a receipt or a URL.
 - `gather.api`: an authenticated JSON-API adapter, the worked example of the credentials pattern (token from env, sent as a header, never witnessed).
+- `gather.browser`: JavaScript-rendered pages via a headless browser; the `browser-extract` method records that JS was run.
+- `gather.ocr`: text from a scanned image via `tesseract`; a machine reading, labelled `ocr`.
+- `gather.transcribe`: a transcript from audio via a Whisper-style CLI; a machine transcription, labelled `transcribe`.
 - `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
 - `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
 - `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
@@ -157,11 +164,11 @@ Shipped:
 - A witnessed gather run (`gather run config.json`): orchestrates many sources, scope, and optional synthesis into one re-checkable record, kept in the corpus run history.
 - Recall over the corpus (`gather corpus search`): query by scope terms and source/kind/method, returning re-verifiable items and a scoped digest.
 - Isolated credentials (env-only, never witnessed) with an authenticated-API adapter, and the method ladder enforced at construction (a fetch cannot claim inputs, a synthesis cannot lack them).
+- The hard sources behind the same seam, as isolated external-tool edges: JavaScript pages (headless browser), scanned images (OCR), and audio (transcription).
 
 Next:
 
-- More hard sources behind the same shape: JavaScript-walled pages via a browser edge, scanned PDFs via OCR, audio via transcription.
-- The digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
+- A model-backed synthesizer through the existing seam, and the digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
 
 ## License
 
