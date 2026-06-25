@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from gather.item import Item
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # only for the annotation; no runtime import, so item.py can import this module
+    from gather.item import Item
 
 # The method ladder: how directly an item's text reflects its source. A DIRECT method retrieved
 # the text as-is (a fetch, a read, a transcription); a DERIVED method produced new text from other
 # items (an assembly or an inference). The receipt's method records which, so a quote is never
-# confused with an inference; this module makes that distinction queryable and checkable.
+# confused with an inference; this module makes that distinction queryable AND enforced (make_item
+# rejects an item whose method contradicts its derivation chain).
 DIRECT_METHODS = frozenset({
     "yt-dlp", "auto-caption", "http-get", "file-read", "feed",
     "arxiv-api", "arxiv-api-id", "arxiv-api-search", "pdftotext",
@@ -27,14 +31,17 @@ def directness(method: str) -> str:
     return UNKNOWN
 
 
-def is_consistent(item: Item) -> bool:
-    """True if an item's method agrees with its derivation chain: a derived item must carry
-    ``derived_from`` and a direct one must not. An unknown method makes no claim (returns True),
-    so a new adapter's label is not rejected, only un-classified."""
-    rung = directness(item.provenance.method)
-    has_inputs = bool(item.provenance.derived_from)
+def consistent(method: str, has_derived_from: bool) -> bool:
+    """True if a method agrees with whether a derivation chain is present: a derived method must
+    have inputs, a direct method must not, and an unknown method makes no claim (always True)."""
+    rung = directness(method)
     if rung == DERIVED:
-        return has_inputs
+        return has_derived_from
     if rung == DIRECT:
-        return not has_inputs
+        return not has_derived_from
     return True
+
+
+def is_consistent(item: Item) -> bool:
+    """consistent() for a built Item: its method must agree with its derived_from chain."""
+    return consistent(item.provenance.method, bool(item.provenance.derived_from))

@@ -130,7 +130,7 @@ against its receipt and exits non-zero if anything is missing or corrupt.
 - `gather.recall`: a `Query` over a stored corpus (substring scope terms, plus source/kind/method filters: OR within a filter, AND across) returning reconstructed items that are re-verified (missing or corrupt bodies are skipped and reported), so downstream organs draw scoped, trustworthy subsets.
 - `gather.credentials`: the one place secrets enter, read from the environment by name, never logged, never put in a receipt or a URL.
 - `gather.api`: an authenticated JSON-API adapter, the worked example of the credentials pattern (token from env, sent as a header, never witnessed).
-- `gather.method`: the method ladder. Classifies a method as direct or derived and checks an item's method agrees with its derivation chain.
+- `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
 - `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search`.
 
 The core is pure standard library. A source adapter may pull in whatever its source
@@ -146,7 +146,7 @@ Shipped:
 - A durable, content-addressed corpus (`--store DIR`): bodies deduped by hash, the catalog streamed, and `corpus verify` re-hashing every stored body against its receipt.
 - A witnessed gather run (`gather run config.json`): orchestrates many sources, scope, and optional synthesis into one re-checkable record, kept in the corpus run history.
 - Recall over the corpus (`gather corpus search`): query by scope terms and source/kind/method, returning re-verifiable items and a scoped digest.
-- Isolated credentials (env-only, never witnessed) with an authenticated-API adapter, and the method ladder (direct vs derived, checkable against an item's derivation chain).
+- Isolated credentials (env-only, never witnessed) with an authenticated-API adapter, and the method ladder enforced at construction (a fetch cannot claim inputs, a synthesis cannot lack them).
 
 Next:
 

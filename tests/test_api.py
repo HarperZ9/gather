@@ -35,6 +35,41 @@ def test_parse_api_never_contains_a_credential():
     assert items[0].provenance.ref == "https://api.example/data"
 
 
+def test_parse_api_serializes_a_non_string_text_field_as_json():
+    payload = json.dumps([{"id": "1", "body": {"nested": True}}])
+    items = parse_api(payload, "u", fetched_at=1.0, text_key="body")
+    assert items[0].text == '{"nested": true}'   # canonical JSON, not a Python repr like {'nested': True}
+    assert items[0].verify()
+
+
 def test_parse_api_rejects_malformed_json():
     with pytest.raises(ValueError):
         parse_api("{not json", "u", fetched_at=1.0)
+
+
+def test_apisource_sends_the_token_in_a_header_and_never_leaks_it(monkeypatch, capsys):
+    import gather.api as api_mod
+    from gather.api import ApiSource
+
+    monkeypatch.setenv("GATHER_API_TOKEN", "supersecret-xyz")
+
+    def fake_http_get(url, *, timeout=20.0, headers=None, **kw):
+        assert headers and headers.get("Authorization") == "Bearer supersecret-xyz"  # token rides the header
+        assert "supersecret" not in url                                              # never in the URL
+        return b'[{"id":"1","title":"t","v":2}]', "application/json"
+
+    monkeypatch.setattr(api_mod, "http_get", fake_http_get)
+    items = ApiSource().fetch("https://api.example/data")
+    captured = capsys.readouterr()
+    for i in items:
+        assert "supersecret" not in i.text
+        assert "supersecret" not in i.provenance.ref
+        assert "supersecret" not in i.provenance.method
+    assert "supersecret" not in captured.out and "supersecret" not in captured.err
+
+
+def test_apisource_refuses_a_token_in_the_url(monkeypatch):
+    from gather.api import ApiSource
+    monkeypatch.setenv("GATHER_API_TOKEN", "supersecret-xyz")
+    with pytest.raises(ValueError, match="must not appear in the URL"):
+        ApiSource().fetch("https://api.example/data?key=supersecret-xyz")

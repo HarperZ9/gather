@@ -259,8 +259,8 @@ def _cmd_pdf(args) -> int:
 def _cmd_api(args) -> int:
     from gather.api import ApiSource
     return _fetch_and_emit(
-        lambda: ApiSource(auth_env=args.auth_env, items_key=args.items_key,
-                          text_key=args.text_key).fetch(args.url), args)
+        lambda: ApiSource(auth_env=args.auth_env, items_key=args.items_key, text_key=args.text_key,
+                          id_key=args.id_key, title_key=args.title_key).fetch(args.url), args)
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -319,6 +319,8 @@ def build_parser() -> argparse.ArgumentParser:
     api.add_argument("--auth-env", default="GATHER_API_TOKEN", help="env var holding the bearer token")
     api.add_argument("--items-key", default=None, help="key of the records array in the JSON response")
     api.add_argument("--text-key", default=None, help="record field to use as item text (else the whole record)")
+    api.add_argument("--id-key", default="id", help="record field to use as item id")
+    api.add_argument("--title-key", default="title", help="record field to use as item title")
     _add_common(api)
     api.set_defaults(func=_cmd_api)
 
