@@ -125,8 +125,9 @@ against its receipt and exits non-zero if anything is missing or corrupt.
 - `gather.docs`: local text files or a directory of them; the impure edge is the filesystem.
 - `gather.arxiv`: papers from the arXiv API by id or query; pure parser, the Item carries the abstract and metadata.
 - `gather.pdf`: text from a local PDF via `pdftotext` (an external tool, not a dependency); a best-effort reading, labelled as such.
-- `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash while every distinct receipt is kept (no provenance dropped); the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT).
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live), every command takes `--store DIR`; plus `corpus list/verify/digest`.
+- `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash while every distinct receipt is kept (no provenance dropped); the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT); the run history is kept too.
+- `gather.run`: the witnessed gather session. `gather_run` orchestrates fetch, scope, optional synthesis, digest, and store into one re-checkable `RunRecord` (its own seal plus the items' digest seal); the scope and synthesizer are composition seams that default to Null so the run stands alone.
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs`.
 
 The core is pure standard library. A source adapter may pull in whatever its source
 demands, isolated behind the `Source` shape.
@@ -139,11 +140,12 @@ Shipped:
 - Adapters behind one `Source` shape: video (`yt-dlp`), web (static http), feed (RSS/Atom), docs (local files), arXiv (papers), PDF (`pdftotext`).
 - The derive seam: the `Synthesizer` shape with an honest compiling default; a model produces `synthesized`, the default produces `compiled`, nothing fabricates.
 - A durable, content-addressed corpus (`--store DIR`): bodies deduped by hash, the catalog streamed, and `corpus verify` re-hashing every stored body against its receipt.
+- A witnessed gather run (`gather run config.json`): orchestrates many sources, scope, and optional synthesis into one re-checkable record, kept in the corpus run history.
 
 Next:
 
 - The hard sources behind the same shape: gated APIs with isolated credentials, JavaScript-walled pages via a browser edge, scanned PDFs via OCR, audio via transcription.
-- A witnessed gather run that orchestrates sources, scope, synthesis, digest, and storage with one re-checkable record.
+- Recall and query over a stored corpus (by scope, source, kind, method), so downstream organs draw from it.
 - Scope-to-telos filtering deepened, and the digest composed with `provenance-sensorium` for a full origin receipt before any claim uses an item.
 
 ## License
