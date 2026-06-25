@@ -146,6 +146,30 @@ def test_prune_detects_and_removes_orphan_objects_only(tmp_path):
     assert {i.id for i in [c.load_item(r) for r in c.rows()]} == {"a", "b"}  # corpus intact
 
 
+def test_verify_reports_a_field_missing_row_as_corrupt_not_a_crash(tmp_path):
+    import json as _json
+
+    c = Corpus(str(tmp_path), fsync=False)
+    c.add([_it("a", "alpha")])
+    with open(c._catalog, "a", encoding="utf-8") as f:
+        f.write(_json.dumps({"id": "b", "kind": "document"}) + "\n")  # a row with no sha256
+    by_id = {r["id"]: r["status"] for r in c.verify()}
+    assert by_id["a"] == MATCH and by_id["b"] == CORRUPT   # the malformed row is reported, not fatal
+
+
+def test_prune_refuses_when_catalog_is_empty_but_bodies_exist(tmp_path):
+    import pytest
+
+    c = Corpus(str(tmp_path), fsync=False)
+    c.add([_it("a", "alpha")])
+    # simulate a torn write: bodies present, catalog truncated to empty
+    open(c._catalog, "w", encoding="utf-8").close()
+    assert c.prune(apply=False)["orphans"] >= 1          # report is fine
+    with pytest.raises(ValueError, match="refusing to prune"):
+        c.prune(apply=True)                              # but refuse to delete every body
+    assert os.path.exists(c._object_path(content_hash("alpha")))  # body survived
+
+
 def test_prune_never_touches_a_tmp_staging_file(tmp_path):
     # a .tmp may be an in-flight write from a concurrent add; prune must never delete it
     c = Corpus(str(tmp_path), fsync=False)
