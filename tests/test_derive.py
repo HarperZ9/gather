@@ -9,13 +9,20 @@ def _it(id, text):
                      source="video", ref=id, method="yt-dlp", fetched_at=1.0)
 
 
-def test_derive_records_inputs_by_content_hash_and_hashes_the_inference():
+def test_derive_records_inputs_by_content_hash_and_compiles_by_default():
     a, b = _it("a", "alpha"), _it("b", "beta")
-    it = derive([a, b], "a new claim about alpha and beta", fetched_at=2.0, ref="claim-1")
-    assert it.provenance.method == "synthesized"
-    assert it.provenance.sha256 == content_hash("a new claim about alpha and beta")  # the inference, not inputs
+    it = derive([a, b], "alpha and beta assembled", fetched_at=2.0, ref="claim-1")
+    assert it.provenance.method == "compiled"  # bare derive never claims a synthesis
+    assert it.provenance.sha256 == content_hash("alpha and beta assembled")  # the assembly, not inputs
     assert it.provenance.derived_from == (content_hash("alpha"), content_hash("beta"))  # re-checkable pointers
     assert it.verify() is True
+
+
+def test_derive_refuses_to_label_anything_synthesized():
+    # the headline guarantee: "synthesized" is unreachable without the seam, even low-level
+    a = _it("a", "alpha")
+    with pytest.raises(ValueError, match="synthesize_item"):
+        derive([a], "a fabricated claim", fetched_at=1.0, ref="x", method="synthesized")
 
 
 def test_derive_refuses_empty_inputs():
