@@ -206,3 +206,53 @@ class Corpus:
         """Fold the whole corpus catalog into one witnessed digest, from the rows alone. Equals a
         live ``digest(items)`` when the corpus holds exactly those distinct items."""
         return digest_of_receipts(list(self.rows()))
+
+    def stats(self) -> dict:
+        """A read-only summary of the catalog: item count, distinct bodies, and counts by source,
+        kind, and method. Streams the catalog; reads no bodies."""
+        by_source: dict[str, int] = {}
+        by_kind: dict[str, int] = {}
+        by_method: dict[str, int] = {}
+        shas: set[str] = set()
+        items = 0
+        for r in self.rows():
+            items += 1
+            shas.add(r["sha256"])
+            for table, key in ((by_source, "source"), (by_kind, "kind"), (by_method, "method")):
+                table[r[key]] = table.get(r[key], 0) + 1
+        return {
+            "items": items, "distinct_bodies": len(shas),
+            "by_source": dict(sorted(by_source.items())),
+            "by_kind": dict(sorted(by_kind.items())),
+            "by_method": dict(sorted(by_method.items())),
+        }
+
+    def orphan_objects(self) -> list[str]:
+        """Object files on disk not referenced by any catalog row: leftovers from a crash between
+        writing a body and appending its row, or stale ``.tmp`` partial writes. Read-only. Reads the
+        catalog to learn what is referenced, so a malformed catalog raises before anything is judged
+        an orphan (it must not mistake a live object for a leftover)."""
+        referenced = {r["sha256"] for r in self.rows()}
+        orphans: list[str] = []
+        if not os.path.isdir(self._objects):
+            return orphans
+        for shard in sorted(os.listdir(self._objects)):
+            shard_dir = os.path.join(self._objects, shard)
+            if not os.path.isdir(shard_dir):
+                continue
+            for name in sorted(os.listdir(shard_dir)):
+                if shard + name not in referenced:
+                    orphans.append(os.path.join(shard_dir, name))
+        return orphans
+
+    def prune(self, *, apply: bool = False) -> dict:
+        """Report orphan object files; with ``apply=True``, delete them. Returns
+        ``{orphans, removed, applied}``. Default is report-only (fail-safe): nothing is deleted
+        unless ``apply`` is set, and a malformed catalog aborts before any deletion."""
+        orphans = self.orphan_objects()  # raises on a malformed catalog -> nothing removed
+        removed = 0
+        if apply:
+            for path in orphans:
+                os.remove(path)
+                removed += 1
+        return {"orphans": len(orphans), "removed": removed, "applied": apply}

@@ -114,3 +114,32 @@ def test_digest_of_receipts_rejects_a_row_missing_a_field(tmp_path):
 
 def test_rows_on_empty_corpus_is_empty(tmp_path):
     assert list(Corpus(str(tmp_path / "fresh")).rows()) == []
+
+
+def test_stats_summarizes_the_catalog(tmp_path):
+    c = Corpus(str(tmp_path), fsync=False)
+    c.add([_it("a", "x", source="web"), _it("b", "y", source="web"),
+           _it("c", "z", source="docs")])
+    s = c.stats()
+    assert s["items"] == 3 and s["distinct_bodies"] == 3
+    assert s["by_source"] == {"docs": 1, "web": 2}
+
+
+def test_prune_detects_and_removes_orphan_objects_only(tmp_path):
+    c = Corpus(str(tmp_path), fsync=False)
+    c.add([_it("a", "alpha"), _it("b", "beta")])
+    # plant an orphan object (a body no catalog row references) and a stray .tmp
+    orphan_dir = os.path.join(str(tmp_path), "objects", "ff")
+    os.makedirs(orphan_dir, exist_ok=True)
+    with open(os.path.join(orphan_dir, "0" * 62), "w", encoding="utf-8") as f:
+        f.write("leftover")
+
+    report = c.prune(apply=False)              # report-only by default
+    assert report == {"orphans": 1, "removed": 0, "applied": False}
+    assert os.path.exists(os.path.join(orphan_dir, "0" * 62))  # nothing deleted yet
+
+    applied = c.prune(apply=True)
+    assert applied["removed"] == 1
+    assert not os.path.exists(os.path.join(orphan_dir, "0" * 62))   # the orphan is gone
+    assert os.path.exists(c._object_path(content_hash("alpha")))    # referenced bodies untouched
+    assert {i.id for i in [c.load_item(r) for r in c.rows()]} == {"a", "b"}  # corpus intact

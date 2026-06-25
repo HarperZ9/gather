@@ -109,11 +109,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--json", action="store_true", help="emit the witnessed run record as JSON")
     run.set_defaults(func=cmd_run)
 
-    corpus = sub.add_parser("corpus", help="inspect a stored corpus: list, verify, digest, runs, or search")
-    corpus.add_argument("action", choices=["list", "verify", "digest", "runs", "search"])
+    corpus = sub.add_parser("corpus", help="inspect a stored corpus: list/verify/digest/runs/search/stats/prune")
+    corpus.add_argument("action", choices=["list", "verify", "digest", "runs", "search", "stats", "prune"])
     corpus.add_argument("dir", help="the corpus directory (created by --store)")
     corpus.add_argument("--json", action="store_true", help="emit as JSON")
     corpus.add_argument("--verify", action="store_true", help="with runs: re-check each record's seal")
+    corpus.add_argument("--apply", action="store_true", help="with prune: actually delete orphan objects")
     corpus.add_argument("--terms", default=None,
                         help="with search: scope keywords, case-insensitive substrings of title+body (any match)")
     corpus.add_argument("--source", default=None,
