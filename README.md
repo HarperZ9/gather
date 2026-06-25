@@ -20,15 +20,34 @@ that index, refine, and the crucible consume.
 
 The aim is to pull information from anywhere, including the extremely difficult: gated APIs,
 auth and paywalls, JavaScript-walled pages, scanned PDFs, audio, obscure formats, and
-information that is not sitting in one place but has to be synthesized from fragments.
+information that is not sitting in one place but has to be synthesized from fragments. One
+adapter ships today (video, below); the rest is the design the adapter seam is built for,
+on the roadmap. What ships first is the accountability that has to be right before any of
+the harder sources are safe to trust.
 
-The accountability that makes that safe is one rule: the receipt records how each item was
-obtained. A transcript read from captions, a page read through a browser, text recognized
-from a scan, speech transcribed from audio, and a fact synthesized from fragments are all
-valid items, but they are not equally direct. The `method` on every item keeps that on the
-record (`yt-dlp`, `browser-extract`, `ocr`, `transcribe`, `synthesized`), so a quote is
-never confused with an inference, and what was hard to get is never dressed up as if it
-were lying in the open.
+That accountability is one rule: the receipt records how each item was obtained. A
+transcript read from captions, a page read through a browser, text recognized from a scan,
+speech transcribed from audio, and a fact synthesized from fragments are all valid items,
+but they are not equally direct. The `method` on every item keeps that on the record
+(`yt-dlp`, `browser-extract`, `ocr`, `transcribe`, `synthesized`), so a quote is never
+confused with an inference, and what was hard to get is never dressed up as if it were
+lying in the open.
+
+A derived item (one assembled or inferred from other items, rather than fetched) is the
+sharp case, and the receipt is built for it. Its sha256 fingerprints the inference itself,
+not its sources, because it is a new statement and can only witness itself; a `derived_from`
+field records the content hash of each input, a re-checkable pointer back to the exact
+source content. The digest seal folds in `method` and `derived_from` alongside the hash, so
+relabelling an inference as a direct fetch, or quietly rewriting what it was built from,
+breaks the seal exactly as altering the content does.
+
+The honesty is mechanical, not a promise. The `method="synthesized"` label is reachable
+only through the `Synthesizer` seam: the bare `gather.derive` builder defaults to `compiled`
+and refuses to stamp `synthesized` at all, so an inferred claim can only come from a model
+actually plugged into the seam (`synthesize_item` stamps the result with the synthesizer's
+own method). With no model wired in, the default `NullSynthesizer` performs a deterministic,
+extractive *compilation*: it assembles inputs verbatim, labels them `compiled`, and invents
+nothing. So Gather never labels something a synthesis unless a model performed one.
 
 ## The discipline
 
@@ -49,34 +68,43 @@ were lying in the open.
 
 ## Watch it work
 
-The `parse` command consolidates already-harvested files (a yt-dlp `info.json` and its
-`.vtt` captions) into items, scope-filters them, and emits the witnessed digest, all
-offline:
+`examples/demo.py` parses an already-harvested video (a yt-dlp `info.json` plus its `.vtt`
+captions) into items, each with a provenance receipt, scope-filters them, folds them into a
+witnessed digest, then tampers with one receipt to show the seal catch it. All offline, no
+install, nothing downloaded:
 
 ```bash
-python examples/demo.py        # no install, nothing to download
+python examples/demo.py
 ```
 
 ```
-gathered 3 item(s)
-by kind: {'comment': 1, 'metadata': 1, 'transcript': 1}
-digest seal: 9f2c...           | verified: True
+parsed 3 items from one video, each with a receipt:
+  metadata   abc123  sha256=40d9839ffb0e...  verify=True
+  transcript abc123  sha256=f798cd2c334c...  verify=True
+  comment    c1  sha256=301cf39d5091...  verify=True
+
+scope to ['tile','monotile']: kept 3, dropped 0
+witnessed digest: 3 receipts, seal 22b3603535ea..., verified True
+
+after tampering one receipt, digest verifies: False  <- caught
 ```
 
-Live intake of a video needs the `yt-dlp` tool on PATH (the external tool the video
-adapter shells out to; not a Python dependency):
+The `gather` CLI does the same over real files, and `gather video` fetches a live one.
+Live intake needs the `yt-dlp` tool on PATH (the external tool the video adapter shells
+out to; not a Python dependency):
 
 ```bash
+gather parse harvested/<id>.info.json --vtt harvested/<id>.en.vtt --scope "rubik,group theory"
 gather video "https://youtu.be/<id>" --comments --scope "rubik,group theory"
-gather parse harvested/<id>.info.json --vtt harvested/<id>.en.vtt
 ```
 
 ## What's here
 
-- `gather.item`: an `Item` and its `Provenance` receipt; `make_item` computes the receipt from the content.
+- `gather.item`: an `Item` and its `Provenance` receipt (with `derived_from` for inferences); `make_item` computes the receipt from the content.
 - `gather.source`: the `Source` adapter shape (the isolated impure edge) and a `Catalog` of what was gathered.
 - `gather.scope`: the scope-to-telos filter, deterministic and order-preserving.
-- `gather.digest`: the witnessed, provenance-stamped digest with a re-checkable seal.
+- `gather.digest`: the witnessed, provenance-stamped digest with a re-checkable seal (folds in `method` and `derived_from`).
+- `gather.derive`: the derive seam, building a derived item with `derived_from`; a `Synthesizer` seam whose `NullSynthesizer` default compiles verbatim (never fabricates a synthesis).
 - `gather.video`: the first adapter, video intake via `yt-dlp`. Its parsing is pure and tested; the fetch is the impure shell.
 - `gather.cli`: a `gather` command (`parse` offline, `video` live).
 
