@@ -193,6 +193,13 @@ def cmd_run(args) -> int:
             synthesizer = NullSynthesizer()
         else:
             synthesizer = None
+        prov_cmd = cfg.get("provenance")  # a command list -> compose an external origin verdict per item
+        if prov_cmd is not None and not isinstance(prov_cmd, list):
+            raise ValueError("'provenance' must be a command list, e.g. [\"python\", \"-m\", \"provenance\", \"check\"]")
+        provider = None
+        if prov_cmd:
+            from gather.provenance import SubprocessProvenanceProvider
+            provider = SubprocessProvenanceProvider(prov_cmd)
     except FileNotFoundError:
         print(f"run failed: config not found: {args.config}", file=sys.stderr)
         return 1
@@ -202,7 +209,7 @@ def cmd_run(args) -> int:
     try:
         record, _items = gather_run(
             jobs, clock=time.time, scope=scope, store=store,
-            synthesizer=synthesizer, synth_prompt=cfg.get("synth_prompt", ""),
+            synthesizer=synthesizer, synth_prompt=cfg.get("synth_prompt", ""), provenance=provider,
         )
     except Exception as exc:
         print(f"run failed: {exc}", file=sys.stderr)

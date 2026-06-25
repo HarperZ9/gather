@@ -10,6 +10,7 @@ from typing import Protocol
 from gather.derive import Synthesizer, synthesize_item
 from gather.digest import digest
 from gather.item import Item
+from gather.provenance import ProvenanceProvider
 from gather.scope import filter_scope
 from gather.source import Source
 
@@ -46,17 +47,21 @@ class RunRecord:
     dropped: int        # items filtered out of scope
     synthesized: bool   # whether one synthesized item was appended
     digested: int       # items folded into the digest and stored: kept plus the synthesis if any
+    origins: tuple[dict, ...]  # per-item external origin verdicts (empty unless a ProvenanceProvider ran)
     digest_seal: str
     stored: dict | None
     seal: str
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "started_at": self.started_at, "targets": [list(t) for t in self.targets],
             "scope": list(self.scope), "gathered": self.gathered, "kept": self.kept,
             "dropped": self.dropped, "synthesized": self.synthesized, "digested": self.digested,
             "digest_seal": self.digest_seal, "stored": self.stored, "seal": self.seal,
         }
+        if self.origins:  # omit when empty, so a no-provider run serializes exactly as before origins existed
+            d["origins"] = list(self.origins)
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> RunRecord:
@@ -70,6 +75,7 @@ class RunRecord:
                 scope=tuple(d["scope"]),
                 gathered=d["gathered"], kept=d["kept"], dropped=d["dropped"],
                 synthesized=d["synthesized"], digested=d["digested"],
+                origins=tuple(d.get("origins") or ()),
                 digest_seal=d["digest_seal"], stored=d["stored"], seal=d["seal"],
             )
         except (KeyError, TypeError) as exc:
@@ -79,17 +85,36 @@ class RunRecord:
 def _record_fields(
     started_at: float, targets: tuple[tuple[str, str], ...], scope: tuple[str, ...],
     gathered: int, kept: int, dropped: int, synthesized: bool, digested: int,
-    digest_seal: str, stored: dict | None,
+    origins: tuple[dict, ...], digest_seal: str, stored: dict | None,
 ) -> dict:
-    return {
+    # A field is folded into the seal only when it carries a value: an empty/Null seam contributes
+    # nothing, so adding a seam (origins) does not perturb the seals records written before it had.
+    fields = {
         "started_at": started_at, "targets": [list(t) for t in targets], "scope": list(scope),
         "gathered": gathered, "kept": kept, "dropped": dropped, "synthesized": synthesized,
         "digested": digested, "digest_seal": digest_seal, "stored": stored,
     }
+    if origins:
+        fields["origins"] = list(origins)
+    return fields
 
 
 def _seal_record(fields: dict) -> str:
     return hashlib.sha256(json.dumps(fields, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _origin_entry(provider: ProvenanceProvider, it: Item) -> dict:
+    """One sealed origin record: the item's receipt identity plus the provider's verdict. Keyed by
+    the full identity (source/ref/method/sha256), so a verdict joins back to exactly one digest
+    receipt. The provider is an external seam, so a verdict that raises degrades to an error rather
+    than aborting the run (matching the subprocess provider's own report-not-raise contract)."""
+    p = it.provenance
+    try:
+        verdict = provider.origin(it)
+    except Exception as exc:  # noqa: BLE001 - a provider is an untrusted seam; never let it abort a run
+        verdict = {"error": f"provenance provider raised: {str(exc)[:120]}"}
+    return {"id": it.id, "source": p.source, "ref": p.ref, "method": p.method,
+            "sha256": p.sha256, "origin": verdict}
 
 
 def _dedup_by_receipt(items: list[Item]) -> list[Item]:
@@ -116,6 +141,7 @@ def gather_run(
     synth_prompt: str = "",
     synth_ref: str = "synthesis",
     store: StoreLike | None = None,
+    provenance: ProvenanceProvider | None = None,
 ) -> tuple[RunRecord, list[Item]]:
     """Orchestrate one gather session and return its witnessed record and the digested items.
 
@@ -156,16 +182,21 @@ def gather_run(
     # seal of what the corpus stores (a source that lists the same item twice would otherwise diverge)
     final = _dedup_by_receipt(final)
 
+    # compose an external origin verdict per item, if a provenance organ is wired in (Null does none)
+    origins: tuple[dict, ...] = ()
+    if provenance is not None:
+        origins = tuple(_origin_entry(provenance, it) for it in final)
+
     seal = digest(final).seal
     stored = store.add(final) if store is not None else None
 
     targets_t = tuple(targets)
     fields = _record_fields(started, targets_t, scope, len(all_items), len(kept), dropped,
-                            synthesized, len(final), seal, stored)
+                            synthesized, len(final), origins, seal, stored)
     record = RunRecord(
         started_at=started, targets=targets_t, scope=scope, gathered=len(all_items),
         kept=len(kept), dropped=dropped, synthesized=synthesized, digested=len(final),
-        digest_seal=seal, stored=stored, seal=_seal_record(fields),
+        origins=origins, digest_seal=seal, stored=stored, seal=_seal_record(fields),
     )
     if store is not None:
         store.add_record(record.to_dict())
@@ -177,6 +208,7 @@ def verify_record(record: RunRecord) -> bool:
     altered). Works on a record reconstructed from disk via RunRecord.from_dict too."""
     fields = _record_fields(
         record.started_at, record.targets, record.scope, record.gathered, record.kept,
-        record.dropped, record.synthesized, record.digested, record.digest_seal, record.stored,
+        record.dropped, record.synthesized, record.digested, record.origins,
+        record.digest_seal, record.stored,
     )
     return _seal_record(fields) == record.seal

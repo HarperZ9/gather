@@ -3,6 +3,19 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## 1.4.0
+
+The last roadmap item: the digest composed with an external origin verdict.
+
+- `gather.provenance`: the `ProvenanceProvider` seam, which composes an EXTERNAL origin verdict for
+  an item (is it forged, a re-encode, authentic) beyond Gather's own content receipt. The default
+  `NullProvenanceProvider` makes no claim (Gather stands alone); `SubprocessProvenanceProvider`
+  shells to an external provenance organ (request on stdin, JSON verdict on stdout, errors reported
+  not raised), e.g. provenance-sensorium.
+- `gather_run` accepts a `provenance` provider; each digested item's origin verdict is recorded in
+  the `RunRecord` (a new sealed `origins` field) and re-checkable from disk. `gather run` selects it
+  via a `provenance` command in its config.
+
 ## 1.3.0
 
 - Operating a corpus over time: `corpus stats` (a read-only summary, item and distinct-body counts
