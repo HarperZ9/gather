@@ -15,8 +15,11 @@ The hard sources, behind the same `Source` seam, each an isolated external-tool 
 - `gather.transcribe`: a transcript from audio via a Whisper-style CLI. The `transcribe` method
   records a machine transcription.
 - The scheme + private-host guard is now a shared `net.validate_public_http_url`, used by both the
-  http and browser edges. External-tool paths are resolved to absolute paths so a filename starting
-  with `-` cannot be read as a flag.
+  http and browser edges. The new tool paths (OCR, transcribe) are resolved to absolute paths so a
+  filename starting with `-` cannot be read as a flag.
+- The browser edge is honest about its limits: the guard covers only the initial navigation (a
+  rendered browser then follows its own redirects and sub-requests unguarded), and the Chromium
+  sandbox is left on by default (`no_sandbox` is opt-in). See the threat model in ARCHITECTURE.md.
 
 ## 1.0.0
 

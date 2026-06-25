@@ -85,6 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
     browser = sub.add_parser("browser", help="fetch a JS-rendered page via a headless browser (needs chromium on PATH)")
     browser.add_argument("url")
     browser.add_argument("--browser", default="chromium", help="headless browser binary")
+    browser.add_argument("--no-sandbox", action="store_true",
+                         help="disable the Chromium sandbox (only if running as root in a container; a downgrade)")
     _add_common(browser)
     browser.set_defaults(func=cmd_browser)
 

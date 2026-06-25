@@ -20,15 +20,19 @@ that index, refine, and the crucible consume.
 
 The aim is to pull information from anywhere, including the extremely difficult: gated APIs,
 auth and paywalls, JavaScript-walled pages, scanned PDFs, audio, obscure formats, and
-information that is not sitting in one place but has to be synthesized from fragments. Four
-adapters ship today (video, web, feed, docs); the harder sources are the design the adapter
-seam is built for, on the roadmap. What shipped first is the accountability that has to be
-right before any of the harder sources are safe to trust.
+information that is not sitting in one place but has to be synthesized from fragments. Many of
+these ship today: alongside video, web, feed, and docs, there are adapters for arXiv papers,
+PDFs, authenticated JSON APIs, JavaScript-rendered pages (a headless browser), scanned images
+(OCR), and audio (transcription). Each records HOW it reached the content, so the accountability
+is in place before the harder reach is trusted.
 
-The shipped web adapter is honest about its reach: it reads the static HTML a server
-returns and does not run JavaScript, so a client-rendered page yields only its shell, and
-the receipt's `http-get` method says exactly that. A browser-backed adapter for JS-walled
-pages is a separate, later edge, kept out of the core so the core stays dependency-free.
+Two adapters are honest about their reach in their receipts. The `web` adapter reads the static
+HTML a server returns and does not run JavaScript, so a client-rendered page yields only its
+shell, and `http-get` says exactly that; the `browser` adapter runs a real headless browser and
+records `browser-extract`, so you know JavaScript was executed. The browser is the most exposed
+edge: its host guard covers only the first navigation, and a rendered page then follows its own
+redirects and sub-requests unguarded, so do not point it at untrusted URLs where internal
+services are reachable (see the threat model in [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 That accountability is one rule: the receipt records how each item was obtained. A
 transcript read from captions, a page read through a browser, text recognized from a scan,

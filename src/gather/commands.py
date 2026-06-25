@@ -146,7 +146,8 @@ def cmd_api(args) -> int:
 
 def cmd_browser(args) -> int:
     from gather.browser import BrowserSource
-    return _fetch_and_emit(lambda: BrowserSource(browser=args.browser).fetch(args.url), args)
+    return _fetch_and_emit(
+        lambda: BrowserSource(browser=args.browser, no_sandbox=args.no_sandbox).fetch(args.url), args)
 
 
 def cmd_ocr(args) -> int:
