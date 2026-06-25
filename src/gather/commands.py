@@ -82,6 +82,15 @@ def _build_source(name: str, opts: dict):
             items_key=opts.get("items_key"), id_key=opts.get("id_key", "id"),
             title_key=opts.get("title_key", "title"), text_key=opts.get("text_key"),
         )
+    if name == "browser":
+        from gather.browser import BrowserSource
+        return BrowserSource()
+    if name == "ocr":
+        from gather.ocr import OcrSource
+        return OcrSource()
+    if name == "transcribe":
+        from gather.transcribe import TranscribeSource
+        return TranscribeSource()
     raise ValueError(f"unknown source: {name!r}")
 
 
@@ -133,6 +142,22 @@ def cmd_api(args) -> int:
     return _fetch_and_emit(
         lambda: ApiSource(auth_env=args.auth_env, items_key=args.items_key, text_key=args.text_key,
                           id_key=args.id_key, title_key=args.title_key).fetch(args.url), args)
+
+
+def cmd_browser(args) -> int:
+    from gather.browser import BrowserSource
+    return _fetch_and_emit(lambda: BrowserSource(browser=args.browser).fetch(args.url), args)
+
+
+def cmd_ocr(args) -> int:
+    from gather.ocr import OcrSource
+    return _fetch_and_emit(lambda: OcrSource(lang=args.lang).fetch(args.path), args, fail="ocr failed")
+
+
+def cmd_transcribe(args) -> int:
+    from gather.transcribe import TranscribeSource
+    return _fetch_and_emit(lambda: TranscribeSource(model=args.model).fetch(args.path), args,
+                           fail="transcribe failed")
 
 
 def cmd_run(args) -> int:

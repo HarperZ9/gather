@@ -7,12 +7,15 @@ from gather import __version__
 from gather.commands import (
     cmd_api,
     cmd_arxiv,
+    cmd_browser,
     cmd_corpus,
     cmd_docs,
     cmd_feed,
+    cmd_ocr,
     cmd_parse,
     cmd_pdf,
     cmd_run,
+    cmd_transcribe,
     cmd_video,
     cmd_web,
 )
@@ -78,6 +81,24 @@ def build_parser() -> argparse.ArgumentParser:
     api.add_argument("--title-key", default="title", help="record field to use as item title")
     _add_common(api)
     api.set_defaults(func=cmd_api)
+
+    browser = sub.add_parser("browser", help="fetch a JS-rendered page via a headless browser (needs chromium on PATH)")
+    browser.add_argument("url")
+    browser.add_argument("--browser", default="chromium", help="headless browser binary")
+    _add_common(browser)
+    browser.set_defaults(func=cmd_browser)
+
+    ocr = sub.add_parser("ocr", help="recognize text in a local image via tesseract (needs tesseract on PATH)")
+    ocr.add_argument("path")
+    ocr.add_argument("--lang", default="eng", help="tesseract language code")
+    _add_common(ocr)
+    ocr.set_defaults(func=cmd_ocr)
+
+    transcribe = sub.add_parser("transcribe", help="transcribe a local audio file via whisper (needs whisper on PATH)")
+    transcribe.add_argument("path")
+    transcribe.add_argument("--model", default="base", help="whisper model name")
+    _add_common(transcribe)
+    transcribe.set_defaults(func=cmd_transcribe)
 
     run = sub.add_parser("run", help="run a multi-source gather session from a JSON config")
     run.add_argument("config", help="path to a JSON config: {jobs:[{source,target}], scope, store, synthesize}")

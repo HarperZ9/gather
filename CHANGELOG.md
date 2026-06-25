@@ -3,6 +3,21 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## 1.1.0
+
+The hard sources, behind the same `Source` seam, each an isolated external-tool edge:
+
+- `gather.browser`: JavaScript-rendered pages via a headless Chromium (`--dump-dom`), reusing the
+  web text extractor. The receipt's `browser-extract` method records that JavaScript was run, so a
+  rendered page is distinguished from a raw fetch; the same scheme + private-host SSRF guard applies.
+- `gather.ocr`: text from a scanned image via `tesseract`. The `ocr` method records a machine
+  reading of an image.
+- `gather.transcribe`: a transcript from audio via a Whisper-style CLI. The `transcribe` method
+  records a machine transcription.
+- The scheme + private-host guard is now a shared `net.validate_public_http_url`, used by both the
+  http and browser edges. External-tool paths are resolved to absolute paths so a filename starting
+  with `-` cannot be read as a flag.
+
 ## 1.0.0
 
 The first stable release. A whole-system review (correctness, security, and docs lenses) gated
