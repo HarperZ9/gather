@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install (dev extras only; no runtime deps)
+        run: pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: ruff check src tests examples
+      - name: Type check (mypy)
+        run: mypy src/gather
+      - name: Run tests with coverage
+        run: pytest -q --cov=gather --cov-report=term-missing --cov-fail-under=78
+      - name: Run the demos (smoke check)
+        run: |
+          python examples/demo.py
+          python examples/pipeline.py
