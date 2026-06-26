@@ -1,8 +1,36 @@
+<p align="center">
+  <img src="docs/brand/gather-hero.svg" alt="Gather, a Project Telos flagship for accountable research intake">
+</p>
+<!-- Project mark: docs/brand/gather-mark.svg -->
+
 # Gather
+
+> Bring difficult sources in, and keep how they arrived on the record.
+
+[Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [crucible](https://github.com/HarperZ9/crucible) | [telos](https://github.com/HarperZ9/telos)
 
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success.svg)
 ![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
+
+## Try it
+
+```bash
+pip install gather-engine
+python examples/demo.py
+```
+
+Open the visual proof surface at [`examples/gather-demo.html`](examples/gather-demo.html).
+
+## Why it matters
+
+Research breaks when sources become a blur. Gather keeps method, ref, hash, and derivation visible, so a team can use harder sources without losing the trail.
+
+## Work with it
+
+Bring a messy research workflow, compare the digest against your own notes, or fund adapter work for the sources that matter in your field.
+
+## What it does
 
 Research lives behind awkward access. Captions and comments on a video, papers behind an
 arXiv gate, a library buried in a repo, an API with a credential wall, a fact that exists

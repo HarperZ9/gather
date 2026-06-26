@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gather-engine"
 version = "1.5.0"
-description = "An accountable research-intake organ: ingest from scattered sources behind clean adapters, with a provenance receipt on every item and a witnessed digest out"
+description = "Accountable research intake for difficult sources, with provenance receipts and witnessed digests."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }

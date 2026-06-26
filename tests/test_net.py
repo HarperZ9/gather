@@ -4,20 +4,20 @@ from gather.net import _host_is_private, decode_body, http_get
 
 
 def test_decode_body_uses_charset_from_content_type():
-    assert decode_body("café".encode("latin-1"), "text/html; charset=latin-1") == "café"
+    assert decode_body("caf\u00e9".encode("latin-1"), "text/html; charset=latin-1") == "caf\u00e9"
 
 
 def test_decode_body_handles_a_quoted_charset():
     # charset="latin-1" (quoted) is legal; the quotes must be stripped, not fed to decode
-    assert decode_body("café".encode("latin-1"), 'text/html; charset="latin-1"') == "café"
+    assert decode_body("caf\u00e9".encode("latin-1"), 'text/html; charset="latin-1"') == "caf\u00e9"
 
 
 def test_decode_body_defaults_to_utf8():
-    assert decode_body("café".encode("utf-8"), "text/html") == "café"
+    assert decode_body("caf\u00e9".encode("utf-8"), "text/html") == "caf\u00e9"
 
 
 def test_decode_body_falls_back_on_unknown_charset_without_raising():
-    out = decode_body("café".encode("utf-8"), "text/html; charset=bogus-xyz")
+    out = decode_body("caf\u00e9".encode("utf-8"), "text/html; charset=bogus-xyz")
     assert "caf" in out  # degrades to utf-8 with replacement, never raises
 
 
