@@ -77,9 +77,9 @@ def test_parse_feed_accepts_bytes_with_encoding_declaration():
     # a real feed begins with an XML encoding declaration; parsing a decoded str would raise,
     # so feeds are parsed from bytes and ElementTree honors the declared encoding
     rss = ('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>'
-           '<title>B</title><item><title>Café</title><link>http://x/1</link></item>'
+           '<title>B</title><item><title>Caf\u00e9</title><link>http://x/1</link></item>'
            '</channel></rss>').encode("utf-8")
-    assert parse_feed(rss, "u", fetched_at=1.0)[0].title == "Café"
+    assert parse_feed(rss, "u", fetched_at=1.0)[0].title == "Caf\u00e9"
 
 
 def test_parse_feed_skips_an_entry_with_no_identity():

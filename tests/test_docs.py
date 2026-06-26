@@ -1,6 +1,26 @@
+from pathlib import Path
+
 import pytest
 
 from gather.docs import DocsSource, document_item
+
+
+def test_flagship_brand_assets_exist_and_are_referenced():
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for rel in [
+        "docs/brand/gather-mark.svg",
+        "docs/brand/gather-hero.svg",
+        "examples/gather-demo.html",
+    ]:
+        assert (root / rel).exists(), rel
+        assert rel in readme
+    assert "## Why it matters" in readme
+    assert "## Work with it" in readme
+    hero = (root / "docs/brand/gather-hero.svg").read_text(encoding="utf-8")
+    assert "<title" in hero
+    assert "<desc" in hero
+    assert "#f4f3ef" in hero
 
 
 def test_document_item_is_receipted():
