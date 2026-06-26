@@ -89,6 +89,18 @@ The distribution is `gather-engine`; it installs the `gather` command and the `g
 (`yt-dlp`, `pdftotext`, a headless `chromium`, `tesseract`, `whisper`), which you install only if
 you use that adapter.
 
+## Try it in the field
+
+Gather is the right first test when the hard part is not answering, but preserving what the answer was built from.
+
+- **Doctor / clinical admin:** collect intake notes, policy text, and prior instructions with source receipts before a model summary becomes action.
+- **Media / newsroom:** keep quotes, source pages, transcripts, and derived claims apart, so an editor can see what was fetched directly and what was inferred.
+- **Research / funding review:** turn scattered PDFs, pages, feeds, and notes into a witnessed digest that another tool or person can re-check before deciding.
+
+Project Telos: <https://harperz9.github.io>. GitHub: <https://github.com/HarperZ9>. Peer flagships: [index](https://github.com/HarperZ9/index), [forum](https://github.com/HarperZ9/forum), [crucible](https://github.com/HarperZ9/crucible), and [the telos engine](https://github.com/HarperZ9/telos).
+
+I am looking for verification, testing against real workflows, early traction from people willing to inspect receipts, and possibly modest grassroots research funding or pointers.
+
 ## Watch it work
 
 `examples/demo.py` parses an already-harvested video (a yt-dlp `info.json` plus its `.vtt`
