@@ -20,6 +20,7 @@ from gather.commands import (
 )
 from gather.corpus_cmd import cmd_corpus
 from gather.flagship import cmd_demo, cmd_doctor, cmd_status
+from gather.mcp import serve as serve_mcp
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -139,6 +140,9 @@ def build_parser() -> argparse.ArgumentParser:
     corpus.add_argument("--method", default=None, help="with search: keep items of any of these methods (comma-sep)")
     corpus.add_argument("--limit", type=int, default=None, help="with search: cap the matches (<=0 means none)")
     corpus.set_defaults(func=cmd_corpus)
+
+    mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
+    mcp.set_defaults(func=lambda _args: serve_mcp())
 
     return parser
 
