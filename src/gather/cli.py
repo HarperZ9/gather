@@ -19,6 +19,7 @@ from gather.commands import (
     cmd_web,
 )
 from gather.corpus_cmd import cmd_corpus
+from gather.flagship import cmd_demo, cmd_doctor, cmd_status
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -27,10 +28,25 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--store", default=None, metavar="DIR", help="persist gathered items into a corpus at DIR")
 
 
+def _add_flagship_commands(sub) -> None:
+    status = sub.add_parser("status", help="emit Gather's Project Telos operator-spine status")
+    status.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    status.set_defaults(func=cmd_status)
+
+    doctor = sub.add_parser("doctor", help="check Gather's operator-spine readiness")
+    doctor.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    doctor.set_defaults(func=cmd_doctor)
+
+    demo = sub.add_parser("demo", help="show Gather's operator-spine demo command")
+    demo.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    demo.set_defaults(func=cmd_demo)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gather", description="Gather: accountable research intake.")
     parser.add_argument("--version", action="version", version=f"gather {__version__}")
     sub = parser.add_subparsers(dest="command")
+    _add_flagship_commands(sub)
 
     parse = sub.add_parser("parse", help="parse a saved yt-dlp info.json (+ optional .vtt), offline, no network")
     parse.add_argument("info", help="path to a yt-dlp info.json")
