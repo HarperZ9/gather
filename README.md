@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/brand/gather-hero.svg" alt="Gather, a Project Telos flagship for accountable research intake">
+  <img src="docs/brand/gather-hero.png" alt="Gather, a Project Telos flagship for accountable research intake">
 </p>
 <!-- Project mark: docs/brand/gather-mark.svg -->
 
