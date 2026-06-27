@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from gather.derive import Synthesizer
     from gather.item import Item
     from gather.run import Job, RunRecord, StoreLike
 
@@ -16,7 +17,7 @@ class RunPlan:
     jobs: list[Job]
     scope: list[str]
     store: StoreLike | None
-    synthesizer: Any
+    synthesizer: Synthesizer | None
     synth_prompt: str
     provenance: Any
 
@@ -84,6 +85,7 @@ def plan_from_config(cfg: dict) -> RunPlan:
 
     store = Corpus(cfg["store"]) if cfg.get("store") else None
     synth_cmd = cfg.get("synthesizer")
+    synthesizer: Synthesizer | None
     if synth_cmd:
         if not isinstance(synth_cmd, list):
             raise ValueError('"synthesizer" must be a command list, e.g. ["llm", "-m", "model"]')
