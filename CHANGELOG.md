@@ -10,6 +10,7 @@ Operator-spine housekeeping for Project Telos presentation parity.
 - README: adds the shared forward-facing status block, current CI badge, and consistent five-flagship navigation.
 - Status payload: exposes current operator commands, MCP tool names, and a plain current-status string under `native`.
 - CLI/MCP surface: records the Project Telos `status`, `doctor`, `demo`, and `mcp` operator surfaces now present on the command line.
+- CLI/MCP payloads: share the `gather.catalog-digest/v1` envelope for catalog rows, digest receipts, dropped-counts, and digest verification status.
 - MCP tools: documents native availability for `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, and `gather.run`.
 - CI repair: the run-config synthesizer is typed against the shared `Synthesizer` protocol so the post-operator-spine code remains mypy-clean.
 

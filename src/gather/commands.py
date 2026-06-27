@@ -15,8 +15,8 @@ def _scope(args) -> list[str]:
 
 def _emit(items, scope, as_json, store=None) -> int:
     from gather.digest import digest, verify_digest
+    from gather.payloads import catalog_digest_payload
     from gather.scope import filter_scope
-    from gather.source import Catalog
 
     kept, dropped = filter_scope(items, scope)
     d = digest(kept)
@@ -25,11 +25,7 @@ def _emit(items, scope, as_json, store=None) -> int:
         from gather.store import Corpus
         stored = Corpus(store).add(kept)
     if as_json:
-        cat = Catalog()
-        cat.add(kept)
-        out = {"catalog": cat.rows(), "digest": json.loads(d.to_json()), "dropped": dropped}
-        if stored is not None:
-            out["stored"] = stored
+        out = catalog_digest_payload(kept, dropped=dropped, stored=stored)
         print(json.dumps(out, indent=2, ensure_ascii=False))
         return 0
     note = f", dropped {dropped} out of scope" if scope else ""
