@@ -95,6 +95,17 @@ def _tool_defs() -> list[dict]:
                 "required": ["query"],
             },
         },
+        {
+            "name": "gather.run",
+            "description": "Run a multi-source gather config and return the witnessed run record.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "config": {"type": "string", "description": "path to a gather run JSON config"},
+                },
+                "required": ["config"],
+            },
+        },
     ]
 
 
@@ -125,6 +136,21 @@ def call_tool(name: str, args: dict) -> str:
             _scope_terms(args.get("scope")),
         )
         return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    if name == "gather.run":
+        from gather.run_config import load_run_config, plan_from_config, run_plan
+
+        config = args.get("config")
+        if not isinstance(config, str) or not config:
+            raise ValueError("gather.run requires a non-empty config path")
+        try:
+            cfg = load_run_config(config)
+            plan = plan_from_config(cfg)
+        except FileNotFoundError as exc:
+            raise ValueError(f"config not found: {config}") from exc
+        except (ValueError, KeyError, json.JSONDecodeError) as exc:
+            raise ValueError(f"bad config: {exc}") from exc
+        record, _items = run_plan(plan)
+        return json.dumps(record.to_dict(), indent=2, ensure_ascii=False)
     raise ValueError(f"unknown tool: {name}")
 
 

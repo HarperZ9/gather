@@ -22,7 +22,7 @@ def test_initialize_announces_gather():
 def test_tools_list_uses_catalog_names():
     resp = handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     names = {tool["name"] for tool in resp["result"]["tools"]}
-    assert {"gather.status", "gather.doctor", "gather.docs", "gather.arxiv"} <= names
+    assert {"gather.status", "gather.doctor", "gather.docs", "gather.arxiv", "gather.run"} <= names
 
 
 def test_status_tool_returns_action_envelope():
@@ -40,6 +40,29 @@ def test_docs_tool_returns_receipt(tmp_path):
     body = json.loads(resp["result"]["content"][0]["text"])
     assert body["dropped"] == 0
     assert body["digest"]["receipts"][0]["title"] == "note.md"
+
+
+def test_run_tool_returns_cli_shaped_witnessed_record(tmp_path, capsys):
+    from gather.cli import main
+
+    source = tmp_path / "note.md"
+    source.write_text("about tiling and monotiles\n", encoding="utf-8")
+    config = tmp_path / "run.json"
+    config.write_text(json.dumps({
+        "jobs": [{"source": "docs", "target": str(source)}],
+        "scope": ["tiling"],
+    }), encoding="utf-8")
+
+    resp = _call("gather.run", {"config": str(config)})
+    mcp_body = json.loads(resp["result"]["content"][0]["text"])
+
+    assert main(["run", str(config), "--json"]) == 0
+    cli_body = json.loads(capsys.readouterr().out)
+
+    for key in ("targets", "scope", "gathered", "kept", "dropped", "synthesized", "digested", "stored"):
+        assert mcp_body[key] == cli_body[key]
+    assert len(mcp_body["digest_seal"]) == 64
+    assert len(mcp_body["seal"]) == 64
 
 
 def test_unknown_tool_is_jsonrpc_error():

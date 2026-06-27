@@ -55,45 +55,6 @@ def _fetch_and_emit(fetch, args, fail: str = "fetch failed") -> int:
     return _emit(items, _scope(args), args.json, store=args.store)
 
 
-def _build_source(name: str, opts: dict):
-    """Construct a source adapter by name (lazy imports keep the impure edges out of cold paths)."""
-    if name == "web":
-        from gather.web import WebSource
-        return WebSource()
-    if name == "feed":
-        from gather.feed import FeedSource
-        return FeedSource()
-    if name == "docs":
-        from gather.docs import DocsSource
-        return DocsSource()
-    if name == "arxiv":
-        from gather.arxiv import ArxivSource
-        return ArxivSource(max_results=int(opts.get("max_results", 10)))
-    if name == "video":
-        from gather.video import VideoSource
-        return VideoSource(with_comments=bool(opts.get("comments", False)))
-    if name == "pdf":
-        from gather.pdf import PdfSource
-        return PdfSource()
-    if name == "api":
-        from gather.api import ApiSource
-        return ApiSource(
-            auth_env=opts.get("auth_env", "GATHER_API_TOKEN"),
-            items_key=opts.get("items_key"), id_key=opts.get("id_key", "id"),
-            title_key=opts.get("title_key", "title"), text_key=opts.get("text_key"),
-        )
-    if name == "browser":
-        from gather.browser import BrowserSource
-        return BrowserSource()
-    if name == "ocr":
-        from gather.ocr import OcrSource
-        return OcrSource()
-    if name == "transcribe":
-        from gather.transcribe import TranscribeSource
-        return TranscribeSource()
-    raise ValueError(f"unknown source: {name!r}")
-
-
 def cmd_parse(args) -> int:
     from gather.video import parse_video
 
@@ -162,44 +123,11 @@ def cmd_transcribe(args) -> int:
 
 
 def cmd_run(args) -> int:
-    from gather.derive import NullSynthesizer, Synthesizer
-    from gather.run import gather_run
-    from gather.store import Corpus
-
-    synthesizer: Synthesizer | None
+    from gather.run_config import load_run_config, plan_from_config, run_plan
 
     try:
-        with open(args.config, encoding="utf-8") as f:
-            cfg = json.load(f)
-        job_specs = cfg.get("jobs", [])
-        if not isinstance(job_specs, list) or not job_specs:
-            raise ValueError("config needs a non-empty 'jobs' list")
-        jobs = []
-        for j in job_specs:
-            if "source" not in j or "target" not in j:
-                raise ValueError(f"each job needs 'source' and 'target': {j}")
-            jobs.append((_build_source(j["source"], j), j["target"]))
-        scope = cfg.get("scope", [])
-        if not isinstance(scope, list):
-            raise ValueError("'scope' must be a list of strings")  # a bare string would become char terms
-        store = Corpus(cfg["store"]) if cfg.get("store") else None
-        synth_cmd = cfg.get("synthesizer")  # a command list -> the real model edge
-        if synth_cmd:
-            if not isinstance(synth_cmd, list):
-                raise ValueError("'synthesizer' must be a command list, e.g. [\"llm\", \"-m\", \"model\"]")
-            from gather.model import SubprocessSynthesizer
-            synthesizer = SubprocessSynthesizer(synth_cmd)
-        elif cfg.get("synthesize"):
-            synthesizer = NullSynthesizer()
-        else:
-            synthesizer = None
-        prov_cmd = cfg.get("provenance")  # a command list -> compose an external origin verdict per item
-        if prov_cmd is not None and not isinstance(prov_cmd, list):
-            raise ValueError("'provenance' must be a command list, e.g. [\"python\", \"-m\", \"provenance\", \"check\"]")
-        provider = None
-        if prov_cmd:
-            from gather.provenance import SubprocessProvenanceProvider
-            provider = SubprocessProvenanceProvider(prov_cmd)
+        cfg = load_run_config(args.config)
+        plan = plan_from_config(cfg)
     except FileNotFoundError:
         print(f"run failed: config not found: {args.config}", file=sys.stderr)
         return 1
@@ -207,10 +135,7 @@ def cmd_run(args) -> int:
         print(f"run failed: bad config: {exc}", file=sys.stderr)
         return 1
     try:
-        record, _items = gather_run(
-            jobs, clock=time.time, scope=scope, store=store,
-            synthesizer=synthesizer, synth_prompt=cfg.get("synth_prompt", ""), provenance=provider,
-        )
+        record, _items = run_plan(plan, clock=time.time)
     except Exception as exc:
         print(f"run failed: {exc}", file=sys.stderr)
         return 1
