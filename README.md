@@ -7,8 +7,10 @@
 
 > Bring difficult sources in, and keep how they arrived on the record.
 
-[Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [crucible](https://github.com/HarperZ9/crucible) | [telos](https://github.com/HarperZ9/telos)
+[Project Telos](https://harperz9.github.io) | [Gather](https://github.com/HarperZ9/gather) | [Crucible](https://github.com/HarperZ9/crucible) | [Index](https://github.com/HarperZ9/index) | [Forum](https://github.com/HarperZ9/forum) | [Telos](https://github.com/HarperZ9/telos)
 
+[![CI](https://github.com/HarperZ9/gather/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/gather/actions/workflows/ci.yml)
+![version: 1.5](https://img.shields.io/badge/version-1.5-informational.svg)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success.svg)
 ![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
@@ -29,6 +31,12 @@ Research breaks when sources become a blur. Gather keeps method, ref, hash, and 
 ## Work with it
 
 Bring a messy research workflow, compare the digest against your own notes, or fund adapter work for the sources that matter in your field.
+
+## Current status
+
+- **Release:** `gather-engine 1.5.0`; command `gather`; Python 3.11+; zero third-party runtime dependencies in core.
+- **Operator surface:** `gather status --json`, `gather doctor --json`, `gather demo --json`, and `gather mcp` expose the Project Telos action envelope and native MCP tools: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, and `gather.run`.
+- **Housekeeping:** [CHANGELOG.md](CHANGELOG.md) records the post-1.5 operator-spine and MCP updates separately from the 1.5.0 completion milestone.
 
 ## What it does
 
@@ -125,7 +133,7 @@ Gather is the right first test when the hard part is not answering, but preservi
 - **Media / newsroom:** keep quotes, source pages, transcripts, and derived claims apart, so an editor can see what was fetched directly and what was inferred.
 - **Research / funding review:** turn scattered PDFs, pages, feeds, and notes into a witnessed digest that another tool or person can re-check before deciding.
 
-Project Telos: <https://harperz9.github.io>. GitHub: <https://github.com/HarperZ9>. Peer flagships: [index](https://github.com/HarperZ9/index), [forum](https://github.com/HarperZ9/forum), [crucible](https://github.com/HarperZ9/crucible), and [the telos engine](https://github.com/HarperZ9/telos).
+Project Telos: <https://harperz9.github.io>. GitHub: <https://github.com/HarperZ9>. Peer flagships: [Crucible](https://github.com/HarperZ9/crucible), [Index](https://github.com/HarperZ9/index), [Forum](https://github.com/HarperZ9/forum), and [the Telos engine](https://github.com/HarperZ9/telos).
 
 I am looking for verification, testing against real workflows, early traction from people willing to inspect receipts, and possibly modest grassroots research funding or pointers.
 
