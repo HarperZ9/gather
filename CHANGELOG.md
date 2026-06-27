@@ -3,6 +3,16 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## Unreleased
+
+Operator-spine housekeeping for Project Telos presentation parity.
+
+- README: adds the shared forward-facing status block, current CI badge, and consistent five-flagship navigation.
+- Status payload: exposes current operator commands, MCP tool names, and a plain current-status string under `native`.
+- CLI/MCP surface: records the Project Telos `status`, `doctor`, `demo`, and `mcp` operator surfaces now present on the command line.
+- MCP tools: documents native availability for `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, and `gather.run`.
+- CI repair: the run-config synthesizer is typed against the shared `Synthesizer` protocol so the post-operator-spine code remains mypy-clean.
+
 ## 1.5.0
 
 Organic completion. A final multi-lens whole-system review (correctness, security, docs) across

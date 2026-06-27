@@ -34,7 +34,19 @@ def _next(tool: str, action: str, reason: str) -> dict:
 def status_payload() -> dict:
     return envelope(
         "status",
-        native={"role": "perception-intake", "commands": PRIMARY_COMMANDS},
+        native={
+            "role": "perception-intake",
+            "commands": PRIMARY_COMMANDS,
+            "operator_commands": ["status", "doctor", "demo", "mcp"],
+            "mcp_tools": [
+                "gather.status",
+                "gather.doctor",
+                "gather.docs",
+                "gather.arxiv",
+                "gather.run",
+            ],
+            "current_status": "1.5.0 completion floor with Project Telos operator-spine MCP parity",
+        },
         next_actions=[_next("index", "map", "map workspace context for gathered sources")],
     )
 
