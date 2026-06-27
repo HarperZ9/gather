@@ -19,6 +19,8 @@ def test_parse_command_emits_catalog_and_digest(tmp_path, capsys):
     rc = main(["parse", str(info), "--vtt", str(vtt), "--json"])
     out = json.loads(capsys.readouterr().out)
     assert rc == 0
+    assert out["schema"] == "gather.catalog-digest/v1"
+    assert out["verified"] is True
     assert sorted(r["kind"] for r in out["catalog"]) == ["comment", "metadata", "transcript"]
     assert len(out["digest"]["seal"]) == 64
 

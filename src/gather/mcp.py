@@ -5,10 +5,9 @@ import sys
 from typing import Any
 
 from gather import __version__
-from gather.digest import digest
 from gather.flagship import doctor_payload, status_payload
+from gather.payloads import catalog_digest_payload
 from gather.scope import filter_scope
-from gather.source import Catalog
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 
@@ -37,13 +36,7 @@ def _scope_terms(raw: object) -> list[str]:
 
 def _payload_from_items(items, scope: list[str]) -> dict:
     kept, dropped = filter_scope(items, scope)
-    cat = Catalog()
-    cat.add(kept)
-    return {
-        "catalog": cat.rows(),
-        "digest": json.loads(digest(kept).to_json()),
-        "dropped": dropped,
-    }
+    return catalog_digest_payload(kept, dropped=dropped)
 
 
 def _tool_defs() -> list[dict]:

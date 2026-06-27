@@ -38,6 +38,8 @@ def test_docs_tool_returns_receipt(tmp_path):
     source.write_text("Project Telos receipt source\n", encoding="utf-8")
     resp = _call("gather.docs", {"path": str(source)})
     body = json.loads(resp["result"]["content"][0]["text"])
+    assert body["schema"] == "gather.catalog-digest/v1"
+    assert body["verified"] is True
     assert body["dropped"] == 0
     assert body["digest"]["receipts"][0]["title"] == "note.md"
 
