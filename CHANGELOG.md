@@ -5,6 +5,8 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- Enterprise readiness: adds `docs/ENTERPRISE-READINESS.md` for context envelopes, action receipts, readability gates, and host-neutral operation.
+
 Operator-spine housekeeping for Project Telos presentation parity.
 
 - README: adds the shared forward-facing status block, current CI badge, and consistent five-flagship navigation.
