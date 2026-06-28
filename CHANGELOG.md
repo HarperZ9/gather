@@ -7,6 +7,7 @@ built behind a feature branch and reviewed before merge.
 
 - Enterprise readiness: adds `docs/ENTERPRISE-READINESS.md` for context envelopes, action receipts, readability gates, and host-neutral operation.
 - MCP host-neutral run configs: `gather.run` now accepts either a local config path or an inline config object, so OpenAI, Anthropic, IDE, TUI, and app hosts do not need to stage temporary files before running witnessed intake.
+- Operator surface: the status payload now advertises shared Project Telos CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
 
 Operator-spine housekeeping for Project Telos presentation parity.
 

@@ -7,6 +7,17 @@ from gather import __version__
 SCHEMA = "project-telos.flagship-action/v1"
 TOOL = "gather"
 PRIMARY_COMMANDS = ["docs", "web", "feed", "pdf", "run", "corpus"]
+TELOS_CONTRACTS = {
+    "host_surfaces": ["CLI JSON", "MCP stdio", "plugins", "IDEs", "TUIs", "apps"],
+    "schemas": [
+        "project-telos.flagship-action/v1",
+        "project-telos.context-envelope/v1",
+        "project-telos.action-receipt/v1",
+    ],
+    "workflow_domains": ["enterprise", "research", "creative", "scientific", "education"],
+    "second_brain_role": "capture source, media, and research material with provenance before context is compressed",
+    "privacy_boundary": "hosts receive receipts, hashes, redacted refs, and verdicts; raw private payloads stay in local adapters",
+}
 
 
 def envelope(command: str, *, status: str = "MATCH", native: dict | None = None,
@@ -46,6 +57,7 @@ def status_payload() -> dict:
                 "gather.run",
             ],
             "current_status": "1.5.0 completion floor with Project Telos operator-spine MCP parity",
+            "telos_contracts": TELOS_CONTRACTS,
         },
         next_actions=[_next("index", "map", "map workspace context for gathered sources")],
     )

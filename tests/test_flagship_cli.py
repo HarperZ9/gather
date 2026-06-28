@@ -10,6 +10,12 @@ def test_status_json_is_action_envelope(capsys):
     assert payload["tool"] == "gather"
     assert payload["status"] == "MATCH"
     assert "gather.run" in payload["native"]["mcp_tools"]
+    contracts = payload["native"]["telos_contracts"]
+    assert contracts["host_surfaces"] == ["CLI JSON", "MCP stdio", "plugins", "IDEs", "TUIs", "apps"]
+    assert "project-telos.context-envelope/v1" in contracts["schemas"]
+    assert "creative" in contracts["workflow_domains"]
+    assert "scientific" in contracts["workflow_domains"]
+    assert "raw private payloads" in contracts["privacy_boundary"]
     assert payload["next_actions"][0]["tool"] == "index"
 
 
