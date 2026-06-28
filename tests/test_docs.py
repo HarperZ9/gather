@@ -10,7 +10,7 @@ def test_flagship_brand_assets_exist_and_are_referenced():
     readme = (root / "README.md").read_text(encoding="utf-8")
     for rel in [
         "docs/brand/gather-mark.svg",
-        "docs/brand/gather-hero.svg",
+        "docs/brand/gather-hero.png",
         "examples/gather-demo.html",
     ]:
         assert (root / rel).exists(), rel
