@@ -23,6 +23,8 @@ def test_tools_list_uses_catalog_names():
     resp = handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     names = {tool["name"] for tool in resp["result"]["tools"]}
     assert {"gather.status", "gather.doctor", "gather.docs", "gather.arxiv", "gather.run"} <= names
+    run_schema = next(tool["inputSchema"] for tool in resp["result"]["tools"] if tool["name"] == "gather.run")
+    assert "oneOf" in run_schema["properties"]["config"]
 
 
 def test_status_tool_returns_action_envelope():
@@ -65,6 +67,26 @@ def test_run_tool_returns_cli_shaped_witnessed_record(tmp_path, capsys):
         assert mcp_body[key] == cli_body[key]
     assert len(mcp_body["digest_seal"]) == 64
     assert len(mcp_body["seal"]) == 64
+
+
+def test_run_tool_accepts_inline_config_for_host_neutral_mcp(tmp_path):
+    source = tmp_path / "note.md"
+    source.write_text("about receptors and measured constants\n", encoding="utf-8")
+
+    resp = _call("gather.run", {
+        "config": {
+            "jobs": [{"source": "docs", "target": str(source)}],
+            "scope": ["constants"],
+        }
+    })
+    body = json.loads(resp["result"]["content"][0]["text"])
+
+    assert resp["result"].get("isError") is not True
+    assert body["targets"] == [["docs", str(source)]]
+    assert body["scope"] == ["constants"]
+    assert body["gathered"] == 1
+    assert body["kept"] == 1
+    assert len(body["digest_seal"]) == 64
 
 
 def test_unknown_tool_is_jsonrpc_error():
