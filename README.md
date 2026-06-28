@@ -38,6 +38,8 @@ Bring a messy research workflow, compare the digest against your own notes, or f
 - **Operator surface:** `gather status --json`, `gather doctor --json`, `gather demo --json`, and `gather mcp` expose the Project Telos action envelope and native MCP tools: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, and `gather.run`. Catalog-producing CLI and MCP paths share the `gather.catalog-digest/v1` envelope with digest verification status.
 - **Housekeeping:** [CHANGELOG.md](CHANGELOG.md) records the post-1.5 operator-spine and MCP updates separately from the 1.5.0 completion milestone.
 
+- **Enterprise readiness:** [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md) records the large-context, action-receipt, readability, and host-integration contract for unattended agent workflows.
+
 ## What it does
 
 Research lives behind awkward access. Captions and comments on a video, papers behind an
