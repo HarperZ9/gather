@@ -94,9 +94,15 @@ def _tool_defs() -> list[dict]:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "config": {"type": "string", "description": "path to a gather run JSON config"},
+                    "config": {
+                        "description": "inline gather run JSON config or path to a config file",
+                        "oneOf": [
+                            {"type": "string"},
+                            {"type": "object"},
+                        ],
+                    },
+                    "config_path": {"type": "string", "description": "path to a gather run JSON config"},
                 },
-                "required": ["config"],
             },
         },
     ]
@@ -133,14 +139,22 @@ def call_tool(name: str, args: dict) -> str:
         from gather.run_config import load_run_config, plan_from_config, run_plan
 
         config = args.get("config")
-        if not isinstance(config, str) or not config:
-            raise ValueError("gather.run requires a non-empty config path")
+        if config is None:
+            config = args.get("config_path")
+        if isinstance(config, str) and config:
+            try:
+                cfg = load_run_config(config)
+            except FileNotFoundError as exc:
+                raise ValueError(f"config not found: {config}") from exc
+            except (ValueError, KeyError, json.JSONDecodeError) as exc:
+                raise ValueError(f"bad config: {exc}") from exc
+        elif isinstance(config, dict):
+            cfg = config
+        else:
+            raise ValueError("gather.run requires config as an inline object or non-empty config path")
         try:
-            cfg = load_run_config(config)
             plan = plan_from_config(cfg)
-        except FileNotFoundError as exc:
-            raise ValueError(f"config not found: {config}") from exc
-        except (ValueError, KeyError, json.JSONDecodeError) as exc:
+        except (ValueError, KeyError) as exc:
             raise ValueError(f"bad config: {exc}") from exc
         record, _items = run_plan(plan)
         return json.dumps(record.to_dict(), indent=2, ensure_ascii=False)

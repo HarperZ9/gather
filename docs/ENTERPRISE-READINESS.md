@@ -14,7 +14,7 @@ This guide aligns the flagship with Project Telos context envelopes and action r
 
 - `gather status --json` and `gather doctor --json` for host readiness.
 - `gather docs PATH --json` for local source-ref intake.
-- `gather run CONFIG --json` for multi-source witnessed intake.
+- `gather run CONFIG --json` for multi-source witnessed CLI intake; MCP `gather.run` accepts either a config path or an inline config object for host-neutral agent calls.
 - `gather corpus verify DIR` before trusting a stored corpus.
 - `gather mcp` for stdio MCP hosts.
 
