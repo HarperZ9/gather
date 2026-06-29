@@ -256,3 +256,12 @@ Possible future work (not required for the completion milestone):
 Gather is fair-source: the code is open to read, run, and build on, with commercial use
 reserved so the project can fund its own development. Copyright stays with the author. See
 [LICENSE](LICENSE) for the exact terms.
+
+## For developers
+
+Keep the public README, package metadata, and examples aligned with current behavior. Before opening a PR or pushing a release, run the local package verification path.
+
+```bash
+python -m pip install -e ".[test]"
+python -m pytest
+```
