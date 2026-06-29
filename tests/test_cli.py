@@ -1,4 +1,8 @@
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from gather.cli import main
 
@@ -64,3 +68,19 @@ def test_run_command_rejects_a_non_list_synthesizer(tmp_path, capsys):
 def test_no_command_prints_help(capsys):
     assert main([]) == 1
     assert "usage: gather" in capsys.readouterr().out
+
+
+def test_package_module_entrypoint_runs_version():
+    root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "PYTHONPATH": str(root / "src")}
+    result = subprocess.run(
+        [sys.executable, "-m", "gather", "--version"],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0
+    assert "gather " in result.stdout
