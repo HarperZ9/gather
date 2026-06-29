@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/brand/gather-hero.png" alt="Gather, a Project Telos flagship for accountable research intake">
+  <img src="docs/brand/gather-hero.png" alt="Gather, capture sources into verified research packets">
 </p>
 <!-- Project mark: docs/brand/gather-mark.svg -->
 
 # gather
 
-> Bring difficult sources in as receipts, not blurry context.
+> Capture sources as verified research packets.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos)
 
