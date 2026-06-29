@@ -3,11 +3,11 @@
 </p>
 <!-- Project mark: docs/brand/gather-mark.svg -->
 
-# Gather
+# gather
 
-> Bring difficult sources in, and keep how they arrived on the record.
+> Bring difficult sources in as receipts, not blurry context.
 
-[Project Telos](https://harperz9.github.io) | [Gather](https://github.com/HarperZ9/gather) | [Crucible](https://github.com/HarperZ9/crucible) | [Index](https://github.com/HarperZ9/index) | [Forum](https://github.com/HarperZ9/forum) | [Telos](https://github.com/HarperZ9/telos)
+[Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos)
 
 [![CI](https://github.com/HarperZ9/gather/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/gather/actions/workflows/ci.yml)
 ![version: 1.5](https://img.shields.io/badge/version-1.5-informational.svg)
@@ -26,16 +26,17 @@ Open the visual proof surface at [`examples/gather-demo.html`](examples/gather-d
 
 ## Why it matters
 
-Research breaks when sources become a blur. Gather keeps method, ref, hash, and derivation visible, so a team can use harder sources without losing the trail.
+Research breaks when sources become a blur. gather keeps method, ref, hash, and derivation visible, so a team can use harder sources without losing the trail a model, reviewer, or later agent will need.
 
 ## Work with it
 
-Bring a messy research workflow, compare the digest against your own notes, or fund adapter work for the sources that matter in your field.
+Bring papers, transcripts, local docs, source bundles, or awkward public materials that need provenance before synthesis. Useful pressure right now is source-adapter testing, research-lab feedback, and grassroots funding for harder intake lanes.
 
 ## Current status
 
 - **Release:** `gather-engine 1.5.0`; command `gather`; Python 3.11+; zero third-party runtime dependencies in core.
 - **Operator surface:** `gather status --json`, `gather doctor --json`, `gather demo --json`, and `gather mcp` expose the Project Telos action envelope and native MCP tools: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, and `gather.run`. The same CLI is available from source checkouts with `python -m gather`. Catalog-producing CLI and MCP paths share the `gather.catalog-digest/v1` envelope with digest verification status, `gather.run` accepts either config paths or inline config objects for host-neutral MCP calls, and the status payload now advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
+- **Public role:** source intake for Project Telos: gather feeds index maps, forum routing, crucible verdicts, and telos workbench receipts without promoting source claims beyond their evidence.
 - **Housekeeping:** [CHANGELOG.md](CHANGELOG.md) records the post-1.5 operator-spine and MCP updates separately from the 1.5.0 completion milestone.
 
 - **Enterprise readiness:** [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md) records the large-context, action-receipt, readability, and host-integration contract for unattended agent workflows.
@@ -135,7 +136,7 @@ Gather is the right first test when the hard part is not answering, but preservi
 - **Media / newsroom:** keep quotes, source pages, transcripts, and derived claims apart, so an editor can see what was fetched directly and what was inferred.
 - **Research / funding review:** turn scattered PDFs, pages, feeds, and notes into a witnessed digest that another tool or person can re-check before deciding.
 
-Project Telos: <https://harperz9.github.io>. GitHub: <https://github.com/HarperZ9>. Peer flagships: [Crucible](https://github.com/HarperZ9/crucible), [Index](https://github.com/HarperZ9/index), [Forum](https://github.com/HarperZ9/forum), and [the Telos engine](https://github.com/HarperZ9/telos).
+Project Telos: <https://harperz9.github.io>. GitHub: <https://github.com/HarperZ9>. Peer flagships: [crucible](https://github.com/HarperZ9/crucible), [index](https://github.com/HarperZ9/index), [forum](https://github.com/HarperZ9/forum), and [the telos engine](https://github.com/HarperZ9/telos).
 
 I am looking for verification, testing against real workflows, early traction from people willing to inspect receipts, and possibly modest grassroots research funding or pointers.
 
