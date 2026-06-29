@@ -32,6 +32,12 @@ Research breaks when sources become a blur. gather keeps method, ref, hash, and 
 
 Bring papers, transcripts, local docs, source bundles, or awkward public materials that need provenance before synthesis. Useful pressure right now is source-adapter testing, research-lab feedback, and grassroots funding for harder intake lanes.
 
+## What to test first
+
+- Point gather at a mixed source set: one local document, one public page, one PDF, and one derived note.
+- Check whether each output item keeps source, method, hash, and derivation clear enough for another person to review later.
+- Try to break the boundary between fetched text and inferred text. A useful bug report is one where a derived statement can be mistaken for a direct source.
+
 ## Current status
 
 - **Release:** `gather-engine 1.5.0`; command `gather`; Python 3.11+; zero third-party runtime dependencies in core.
