@@ -25,7 +25,7 @@ jobs:
       - name: Type check (mypy)
         run: mypy src/gather
       - name: Run tests with coverage
-        run: pytest -q --cov=gather --cov-report=term-missing --cov-fail-under=78
+        run: pytest -q --cov=src/gather --cov-report=term-missing --cov-fail-under=78
       - name: Run the demos (smoke check)
         run: |
           python examples/demo.py

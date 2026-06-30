@@ -1,4 +1,10 @@
+import subprocess
+import sys
+from pathlib import Path
+
 import gather
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_version_is_exposed():
@@ -20,3 +26,17 @@ def test_stable_surface_is_importable_from_the_top_level():
 def test_all_names_resolve():
     for name in gather.__all__:
         assert hasattr(gather, name), name
+
+
+def test_source_checkout_supports_cli_module_path():
+    completed = subprocess.run(
+        [sys.executable, "-m", "gather.cli", "--help"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "Gather: accountable research intake" in completed.stdout

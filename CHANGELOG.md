@@ -5,8 +5,9 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
-- CLI compatibility: `python -m gather` now dispatches the normal Gather CLI, so module-mode hosts,
-  source checkouts, and harnesses can use the same command surface as the installed `gather` script.
+- CLI compatibility: `python -m gather` and `python -m gather.cli` now dispatch the normal Gather
+  CLI from source checkouts, so module-mode MCP hosts and harnesses can use the same command
+  surface as the installed `gather` script.
 - Enterprise readiness: adds `docs/ENTERPRISE-READINESS.md` for context envelopes, action receipts, readability gates, and host-neutral operation.
 - MCP host-neutral run configs: `gather.run` now accepts either a local config path or an inline config object, so OpenAI, Anthropic, IDE, TUI, and app hosts do not need to stage temporary files before running witnessed intake.
 - Operator surface: the status payload now advertises shared Project Telos CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
