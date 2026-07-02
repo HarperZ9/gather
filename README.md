@@ -189,6 +189,8 @@ gather corpus verify ./corpus                               # re-hash every stor
 gather corpus availability ./corpus                         # witness a sealed availability rung per record
 gather federation validate ./registry.json                  # check a source registry against the closed contract
 gather federation plan ./registry.json --json               # compile one capture plan per source, offline
+gather federation policy ./policy.json                      # audit retry/backoff rules as sealed, typed-verdict receipts
+gather federation entity ./entities.json --json             # rank an entity-resolution receipt and seal every candidate
 ```
 
 Any command takes `--store DIR` to persist what it gathered into a content-addressed corpus,
@@ -214,6 +216,19 @@ keyed source records the lead and never hunts for credentials, a rate-limited so
 its retry policy before any live probe, and a lead-only source is cataloged and claims nothing.
 A registry row is a catalog fact, never presented as coverage, availability, or content. Both
 commands run offline; no probe fires and no source data ships with the machinery.
+
+A federation decision is a claim surface, not a bare knob. `gather federation policy` audits a
+retry/backoff/fallback policy: each rule carries the provenance capture ref it stands on and a
+failure class that maps to one typed verdict (429 to a retryable source lead, 403 to an access
+escalation, 503 to honor a retry-after). A rule with no provenance capture is refused (a policy
+asserted without a source is not evidence), an unknown failure class is refused, and a rule
+marked superseded is refused as active. `gather federation entity` audits an entity-resolution
+receipt: each candidate carries a named identifier path (the join key, such as `ror` or an
+`openalex-id`), a confidence, and its evidence refs. A match with no named identifier path is
+refused (a title or keyword hit is not an identity join), ranked candidates must already be
+ordered by confidence, and a promotion to resolved requires the top candidate to be an exact-id
+join, not a fuzzy name match. Both fold under the same federation seal, so editing any sealed
+field of a witnessed rule or match breaks verification.
 
 ## What's here
 
@@ -243,7 +258,8 @@ commands run offline; no probe fires and no source data ships with the machinery
 - `gather.availability`: the seal-covered availability rung. `witness_availability` checks each record's source (the default probe reads the corpus's own store; a live re-fetch probe plugs in) and seals a rung per receipt; `assess_availability` derives the typed outcome (AVAILABLE/CHANGED/UNAVAILABLE/UNWITNESSED), gated on the rung's content-hash binding, never its status string.
 - `gather.federation`: the source-federation registry contract: a closed row shape with closed access-policy and capture-status vocabularies, registry snapshots sealed under the digest machinery, and a `join()` deriving one evidence status per source from its capture statuses (a source with no captures reports `SOURCE_LEAD_ONLY`, never availability).
 - `gather.federation_policy`: the pure adapter policy compiler (one deterministic capture plan per access token; an unknown token is refused) and the claims guard, a default-deny whitelist that rejects the known bad patterns by name (registry size as coverage, a listing as availability, metadata as full text, a keyed source as available, an empty capture as a match, a route failure as source absence).
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api`/`browser`/`ocr`/`transcribe` live), every command takes `--store DIR`; plus `run`, `corpus list/verify/digest/runs/search/stats/prune/availability`, and `federation validate/plan`.
+- `gather.federation_receipt`: two federation decisions treated as sealed claim surfaces. A retry/backoff policy rule (`validate_policy_rule`) carries a provenance capture ref and a failure class mapped to one typed verdict; a rule with no capture, an unknown class, or a superseded flag is refused. An entity-resolution match (`validate_entity_match`, `resolve_entity`) carries a named identifier path, confidence, and evidence refs; a nameless-join match, an out-of-order ranking, or a fuzzy-match promotion is refused. Both fold under the federation seal, so editing a witnessed field breaks verify.
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api`/`browser`/`ocr`/`transcribe` live), every command takes `--store DIR`; plus `run`, `corpus list/verify/digest/runs/search/stats/prune/availability`, and `federation validate/plan/policy/entity`.
 - `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
 
 The core is pure standard library. A source adapter may pull in whatever its source
