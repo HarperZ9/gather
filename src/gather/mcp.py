@@ -89,6 +89,26 @@ def _tool_defs() -> list[dict]:
             },
         },
         {
+            "name": "gather.federation",
+            "description": "Validate a source-federation registry or compile its capture plans; "
+                           "returns the sealed registry payload.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["validate", "plan"]},
+                    "registry": {
+                        "description": "inline registry rows (or {sources:[...]}) or a path to a registry JSON file",
+                        "oneOf": [
+                            {"type": "string"},
+                            {"type": "object"},
+                            {"type": "array"},
+                        ],
+                    },
+                },
+                "required": ["action", "registry"],
+            },
+        },
+        {
             "name": "gather.run",
             "description": "Run a multi-source gather config and return the witnessed run record.",
             "inputSchema": {
@@ -106,6 +126,30 @@ def _tool_defs() -> list[dict]:
             },
         },
     ]
+
+
+def _federation_tool(args: dict) -> str:
+    from gather.federation import registry_rows
+    from gather.federation_cmd import load_registry_file
+    from gather.payloads import federation_payload
+
+    action = args.get("action")
+    if action not in ("validate", "plan"):
+        raise ValueError("gather.federation action must be 'validate' or 'plan'")
+    registry = args.get("registry")
+    if isinstance(registry, str) and registry:
+        try:
+            rows = load_registry_file(registry)
+        except FileNotFoundError as exc:
+            raise ValueError(f"registry not found: {registry}") from exc
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"bad registry: {exc}") from exc
+    elif isinstance(registry, (list, dict)):
+        rows = registry_rows(registry)
+    else:
+        raise ValueError("gather.federation requires registry rows or a non-empty registry path")
+    payload = federation_payload(rows, plan=(action == "plan"))
+    return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
 def call_tool(name: str, args: dict) -> str:
@@ -135,6 +179,8 @@ def call_tool(name: str, args: dict) -> str:
             _scope_terms(args.get("scope")),
         )
         return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    if name == "gather.federation":
+        return _federation_tool(args)
     if name == "gather.run":
         from gather.run_config import load_run_config, plan_from_config, run_plan
 

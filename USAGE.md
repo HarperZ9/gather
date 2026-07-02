@@ -31,6 +31,24 @@ The same package can be exercised from source with:
 python -m gather --help
 ```
 
+## Federation
+
+Validate a source-federation registry and compile its capture plans, all offline:
+
+```bash
+gather federation validate registry.json --json
+gather federation plan registry.json --json
+```
+
+A registry file is a list of source rows or `{"sources": [...]}`; each row carries
+`id`, `system`, `family`, `domain`, `access`, `adapter`, `url`, `scope`, and
+`priority`. Validation is a closed contract: unknown access tokens, priorities, or
+extra fields are typed rejections, and the validated snapshot is sealed, so a row
+cannot be edited after witnessing without breaking the seal. `plan` adds one
+deterministic capture plan per source, derived from its access policy. Neither
+command probes a source, and a registry row is never reported as coverage or
+availability.
+
 ## MCP
 
 Use `gather mcp` when a host needs the tool over stdio. The MCP surface should
