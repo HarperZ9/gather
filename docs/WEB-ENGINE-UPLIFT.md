@@ -120,4 +120,14 @@ and an honest benchmark table is published. Then, and only then, stop.
   - Tests: `tests/test_crawl.py` (11; full suite 323 passed), including dedup,
     depth/page caps, robots block, sitemap seeding, resume-across-pause chain
     continuity, concurrent-workers parity, and ledger tamper detection.
-- Wedges 4 through 8: not started.
+- Wedge 4: DONE on the same branch.
+  - `src/gather/schema_extract.py` — `extract_schema` (schema of CSS-lite
+    selectors + optional attr/regex/many to a JSON record, each field bound to a
+    source node path + hash; the firecrawl `extract` shape) AND `verify_record`,
+    the hallucination-REJECT: any value in a proposed record not grounded in the
+    fetched content is rejected. Turns LLM extraction from trust-the-model into
+    prove-it-against-the-source.
+  - Tests: `tests/test_schema_extract.py` (6; full suite 329 passed), including
+    tamper detection and a hallucinated-field rejection negative.
+- Wedge 5 (capability backends: browser / stealth / fast-parse): in progress.
+- Wedges 6 through 8: not started.
