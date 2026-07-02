@@ -13,7 +13,7 @@ if TYPE_CHECKING:  # only for the annotation; no runtime import, so item.py can 
 DIRECT_METHODS = frozenset({
     "yt-dlp", "auto-caption", "http-get", "file-read", "feed",
     "arxiv-api", "arxiv-api-id", "arxiv-api-search", "pdftotext",
-    "api-get", "ocr", "transcribe", "browser-extract",
+    "api-get", "ocr", "transcribe", "browser-extract", "browser-evidence",
 })
 DERIVED_METHODS = frozenset({"compiled", "synthesized"})
 
