@@ -102,6 +102,8 @@ def _corpus_dispatch(args, c) -> int:
             print("by kind:  ", s["by_kind"])
             print("by method:", s["by_method"])
         return 0
+    if args.action == "availability":
+        return _cmd_availability(args, c)
     if args.action == "prune":
         res = c.prune(apply=args.apply)
         if args.json:
@@ -117,3 +119,32 @@ def _corpus_dispatch(args, c) -> int:
     else:
         print(f"corpus digest: {len(d.receipts)} receipts, seal {d.seal[:16]}..., verified {verify_digest(d)}")
     return 0
+
+
+def _cmd_availability(args, c) -> int:
+    """Witness the availability of every catalog row against the stored bodies and report the
+    typed outcome per row. The sealed record (receipts with their rungs, plus the seal) is the
+    thing to keep: any later edit to a rung breaks its seal. Exit 1 unless every source assessed
+    AVAILABLE, so the gate is the machine-checked binding, never the rung's own status string."""
+    from gather.availability import (
+        AVAILABLE,
+        assess_availability,
+        stored_probe,
+        witness_availability,
+    )
+
+    d = witness_availability(c.rows(), stored_probe(c))
+    outcomes = [{"id": r["id"], "sha256": r["sha256"], "availability": assess_availability(r)}
+                for r in d.receipts]
+    bad = [o for o in outcomes if o["availability"] != AVAILABLE]
+    if args.json:
+        print(json.dumps({"digest": json.loads(d.to_json()), "outcomes": outcomes},
+                         indent=2, ensure_ascii=False))
+    else:
+        counts: dict[str, int] = {}
+        for o in outcomes:
+            counts[o["availability"]] = counts.get(o["availability"], 0) + 1
+        print(f"checked {len(outcomes)} item(s): {dict(sorted(counts.items()))}; seal {d.seal[:16]}...")
+        for o in bad:
+            print(f"  {o['availability']:<11} {o['id']} {o['sha256'][:12]}")
+    return 1 if bad else 0
