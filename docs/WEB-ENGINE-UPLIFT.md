@@ -78,4 +78,15 @@ and an honest benchmark table is published. Then, and only then, stop.
     verdict set MATCH / RELOCATED / DRIFT / GONE with a residual.
   - Tests: `tests/test_dom.py`, `tests/test_extract.py`, `tests/test_track.py`
     (16 new; full suite 305 passed), including tamper and drift negatives.
-- Wedges 2 through 8: not started.
+- Wedge 2: DONE on the same branch.
+  - `src/gather/fetch.py` — an accountable HTTP GET that reuses net.py's SSRF
+    guard and cross-origin credential stripping, and returns a `FetchReceipt`
+    (bytes hash, headers digest, recorded redirect chain, status, attempts) with
+    conditional GET (ETag / If-Modified-Since, honest 304) and retry/backoff. The
+    transport is a seam, so retry/conditional/receipt logic is tested offline.
+  - Tests: `tests/test_fetch.py` (7; full suite 312 passed), including retry,
+    exhaustion, tamper, and routing-header-guard negatives.
+  - Honest limitation vs Scrapling: default UA identifies gather (no browser
+    impersonation) and zero-dep cannot forge a TLS fingerprint; a caller may
+    supply their own headers, on the record.
+- Wedges 3 through 8: not started.
