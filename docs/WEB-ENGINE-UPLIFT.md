@@ -1,10 +1,16 @@
 # gather web-data engine uplift
 
-Make gather the accountable web-data engine that out-features and out-performs
-browser-use, Scrapling, crawlee, and firecrawl, and wire its outputs as
-first-class receipts into learn, forum, and index. The thesis is not to
-out-muscle Playwright: it is that every scrape, crawl, and extraction gather
-emits carries a re-verifiable receipt none of the four competitors produce.
+Make gather the web-data engine that offers the SUPERSET of the best features of
+browser-use, Scrapling, crawlee, and firecrawl, is more performant than each on
+its own ground, AND is the only one whose every operation carries a re-verifiable
+receipt. Then wire those capabilities into learn, forum, and index.
+
+Capability is the price of entry, not the differentiator. The receipt is a
+MULTIPLIER on top of being the most capable and fastest choice; it is never a
+substitute for a feature a user actually needs. If a competitor does something
+users pick it for, gather must do that thing at least as well (zero-dep where it
+can, via an optional capability backend where it must) and additionally witness
+it. "Honest but less capable" is a losing position and is out of scope.
 
 ## The competitors and the gap (verified 2026-07-02)
 
@@ -41,30 +47,45 @@ assertions plus a must-fail negative fixture; no secrets, synthetic fixtures
 only; no em-dashes in project text; honest scope labels; never merge without
 operator authorization.
 
-Wedges, in priority order (done = code + tests + negative fixture + README/USAGE
-+ version bump + PR-ready):
-  1. DOM + witnessable adaptive tracking + accountable extract.
-  2. Accountable FETCH core: stdlib HTTP, browser-like headers, retry/backoff,
-     conditional GET/ETag, redirect-chain provenance, a per-fetch receipt.
-  3. CRAWL + MAP: frontier queue (BFS/DFS), URL canonicalization/dedup,
-     robots.txt, sitemap discovery, per-host throttle, pause/resume checkpoint,
-     append-only witnessed crawl ledger.
-  4. STRUCTURED EXTRACT: schema-bound fields, each bound to a source node path +
-     hash; a REJECT rule forbids any field value not present in fetched content.
-  5. SELECTOR DRIFT MONITOR: saved selector + fingerprint re-checked on re-fetch,
-     emitting a per-selector drift report with residuals.
-  6. OPTIONAL BROWSER EDGE: pluggable, capability-gated backend for JS pages;
-     absent means UNVERIFIABLE, never a faked render.
-  7. PERF: benchmark parse/extract/select against the competitors' published
-     numbers; publish honest results; where zero-dep cannot win raw speed, win on
-     accountability and say so.
+Wedges (done = best-in-class capability + tests + negative fixture + docs +
+version bump + PR-ready; EVERY wedge ALSO emits its receipt):
+  1. EXTRACT: HTML to Markdown/text/structured, CSS-lite selection, adaptive
+     element relocation. Match firecrawl markdown + Scrapling selectors.
+     [receipt: per-block path+hash, MATCH/RELOCATED/DRIFT/GONE]
+  2. FETCH: conditional GET/ETag, retry/backoff, redirect provenance, HTTP
+     concurrency, on-disk response cache (dev mode). Match Scrapling.Fetcher.
+     [receipt: bytes + headers digest, redirect chain]
+  3. CRAWL + MAP: concurrent resumable crawler, frontier BFS/DFS, sitemap +
+     robots, URL canonicalization/dedup, depth/page limits, per-host throttle.
+     Match crawlee queue + firecrawl crawl/map. [receipt: witnessed crawl ledger]
+  4. STRUCTURED EXTRACT: schema to JSON via CSS/XPath/regex selectors with an
+     adaptive-relocation fallback; every field bound to a source node + hash; a
+     REJECT rule forbids any value not present in fetched content. Match firecrawl
+     extract, beat it on precision. [receipt: field-to-node binding]
+  5. CAPABILITY BACKENDS (the parity layer; all optional + capability-gated, with
+     a stdlib fallback or an honest UNVERIFIABLE when absent, never a fake):
+       a. BROWSER: JS render, click/fill/scroll, screenshot. Match browser-use +
+          Scrapling Dynamic.
+       b. STEALTH: TLS/browser impersonation transport, proxy rotation, session +
+          fingerprint persistence, Cloudflare handling. Match Scrapling stealth +
+          crawlee sessions.
+       c. FAST PARSE: optional lxml/selectolax backend to win raw parse speed;
+          stdlib stays the default and the fallback.
+     [receipt: which backend + capability level produced each artifact]
+  6. SEARCH + AGENT INTAKE: web-search-to-content and a URL-less gather agent
+     loop. Match firecrawl search + agent. [receipt: query + source set]
+  7. DX + PERFORMANCE: interactive CLI shell, dev-mode cache, pause/resume
+     everywhere, JSON/JSONL exports, and MCP tools for all of the above; publish
+     an honest benchmark table (fast backend on and off) against the competitors'
+     numbers. Win on speed with the fast backend; state the zero-dep number too.
   8. INTEROP: gather crawl/corpus to index context-envelope + graph feed; gather
-     extraction receipt to a forum evidence lane; gather selector-provenance
-     receipt to a learn proof-lesson; each proven end-to-end on the organ-bundle
-     spine.
+     extraction to a forum evidence lane; gather selector-provenance to a learn
+     proof-lesson. Each interop carries the best capability of that flagship's
+     category, not only the receipt. Proven end-to-end on the organ-bundle spine.
 
-Organically complete when wedges 2-8 are shipped and green, the three interop
-demos pass end-to-end, USAGE/README are updated, the gather version is bumped,
+Organically complete when the capability superset above is shipped and green (a
+user can pick gather over any single competitor on features AND speed AND
+verifiability), the three interop demos pass end-to-end, docs + version bumped,
 and an honest benchmark table is published. Then, and only then, stop.
 ```
 
@@ -89,4 +110,14 @@ and an honest benchmark table is published. Then, and only then, stop.
   - Honest limitation vs Scrapling: default UA identifies gather (no browser
     impersonation) and zero-dep cannot forge a TLS fingerprint; a caller may
     supply their own headers, on the record.
-- Wedges 3 through 8: not started.
+- Wedge 3: DONE on the same branch.
+  - `src/gather/crawl.py` — a competitive crawler (concurrent wave fetching,
+    BFS/DFS frontier, URL canonicalization + dedup, robots.txt via stdlib
+    `robotparser`, sitemap discovery, depth/page caps, per-host throttle, and
+    pause/resume via a serializable `CrawlState`) PLUS an append-only,
+    hash-chained `CrawlLedger` a reviewer can re-derive to prove the crawl was
+    not reordered, truncated, or edited.
+  - Tests: `tests/test_crawl.py` (11; full suite 323 passed), including dedup,
+    depth/page caps, robots block, sitemap seeding, resume-across-pause chain
+    continuity, concurrent-workers parity, and ledger tamper detection.
+- Wedges 4 through 8: not started.
