@@ -101,6 +101,108 @@ def test_plan_human_output_names_each_action(tmp_path, capsys):
     assert "catalog_only" in out
 
 
+# --- gather federation policy (policy-as-receipt) ---
+
+_CAP = "a" * 64
+
+
+def _rule(**over):
+    rule = {"rule": "retry-on-throttle", "source_capture_ref": _CAP,
+            "failure_class": "429", "superseded": False}
+    rule.update(over)
+    return rule
+
+
+def _doc(tmp_path, obj):
+    path = tmp_path / "doc.json"
+    path.write_text(json.dumps(obj), encoding="utf-8")
+    return str(path)
+
+
+def test_policy_json_emits_the_sealed_policy_payload(tmp_path, capsys):
+    rules = [_rule(), _rule(rule="escalate-on-forbidden", failure_class="403")]
+    assert main(["federation", "policy", _doc(tmp_path, {"rules": rules}), "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["schema"] == "gather.federation-policy/v1"
+    verdicts = {r["rule"]: r["verdict"] for r in out["rules"]}
+    assert verdicts["retry-on-throttle"] == "retryable_source_lead"
+    assert verdicts["escalate-on-forbidden"] == "access_escalation"
+    assert out["verified"] is True
+    assert len(out["digest"]["seal"]) == 64
+
+
+def test_policy_rejects_a_rule_with_no_provenance_capture(tmp_path, capsys):
+    rule = _rule()
+    del rule["source_capture_ref"]
+    assert main(["federation", "policy", _doc(tmp_path, [rule])]) == 1
+    assert "source_capture_ref" in capsys.readouterr().err
+
+
+def test_policy_rejects_an_unknown_failure_class(tmp_path, capsys):
+    assert main(["federation", "policy", _doc(tmp_path, [_rule(failure_class="418")])]) == 1
+    assert "418" in capsys.readouterr().err
+
+
+def test_policy_rejects_a_superseded_rule(tmp_path, capsys):
+    assert main(["federation", "policy", _doc(tmp_path, [_rule(superseded=True)])]) == 1
+    assert "superseded" in capsys.readouterr().err
+
+
+def test_policy_human_output_names_each_verdict(tmp_path, capsys):
+    assert main(["federation", "policy", _doc(tmp_path, [_rule()])]) == 0
+    out = capsys.readouterr().out
+    assert "retryable_source_lead" in out
+    assert "not evidence" in out
+
+
+# --- gather federation entity (entity-resolution) ---
+
+
+def _cand(**over):
+    cand = {"candidate_id": "ror-052gg0110", "identifier_path": "ror",
+            "confidence": 0.98, "evidence_refs": [_CAP], "exact_id_join": True}
+    cand.update(over)
+    return cand
+
+
+def test_entity_json_emits_the_sealed_resolution_payload(tmp_path, capsys):
+    cands = [_cand(), _cand(candidate_id="ror-lo", confidence=0.4,
+                            identifier_path="name", exact_id_join=False)]
+    assert main(["federation", "entity", _doc(tmp_path, {"candidates": cands}), "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["schema"] == "gather.federation-entity/v1"
+    assert out["resolution"]["resolved"] == "ror-052gg0110"
+    assert out["resolution"]["identifier_path"] == "ror"
+    assert out["verified"] is True
+
+
+def test_entity_rejects_a_match_with_no_named_identifier_path(tmp_path, capsys):
+    cand = _cand()
+    del cand["identifier_path"]
+    assert main(["federation", "entity", _doc(tmp_path, [cand])]) == 1
+    assert "identifier_path" in capsys.readouterr().err
+
+
+def test_entity_rejects_candidates_out_of_confidence_order(tmp_path, capsys):
+    cands = [_cand(candidate_id="ror-lo", confidence=0.4),
+             _cand(candidate_id="ror-hi", confidence=0.9)]
+    assert main(["federation", "entity", _doc(tmp_path, cands)]) == 1
+    assert "confidence" in capsys.readouterr().err
+
+
+def test_entity_rejects_a_fuzzy_name_promotion(tmp_path, capsys):
+    cand = _cand(identifier_path="name", exact_id_join=False)
+    assert main(["federation", "entity", _doc(tmp_path, [cand])]) == 1
+    assert "exact-id" in capsys.readouterr().err
+
+
+def test_entity_human_output_names_the_resolution(tmp_path, capsys):
+    assert main(["federation", "entity", _doc(tmp_path, [_cand()])]) == 0
+    out = capsys.readouterr().out
+    assert "resolved ror-052gg0110 on ror" in out
+    assert "identity join" in out
+
+
 # --- MCP parity ---
 
 

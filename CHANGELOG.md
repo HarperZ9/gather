@@ -26,6 +26,18 @@ built behind a feature branch and reviewed before merge.
   MCP tool (inline rows or a registry path) share the `gather.federation-registry/v1` payload;
   the status envelope advertises both. No live probes and no source data ship with the
   machinery.
+- `gather.federation_receipt`: two federation decisions treated as sealed claim surfaces, each
+  folded under the federation seal so an edited field breaks `verify_digest`. A retry/backoff
+  policy rule (`validate_policy_rule`, `policy_rule_digest`) carries a provenance capture ref
+  and a `failure_class` mapped to one typed verdict (`429` to `retryable_source_lead`, `403` to
+  `access_escalation`, `503` to `retry_after`); a rule with no capture ref, an unknown failure
+  class, or a `superseded` flag is a typed rejection. An entity-resolution match
+  (`validate_entity_match`, `resolve_entity`, `entity_match_digest`) carries a named
+  `identifier_path`, a unit-interval `confidence`, and `evidence_refs`; a match with no named
+  identifier path, a ranking out of confidence order, or a promotion to resolved on a fuzzy name
+  match rather than an exact-id join is a typed rejection. New `gather federation policy|entity
+  FILE [--json]` CLI actions share the `gather.federation-policy/v1` and
+  `gather.federation-entity/v1` payloads.
 - `gather.availability`: a seal-covered availability rung per source record. `witness_availability`
   checks each catalog row through a probe (default: the corpus's own store; a live re-fetch probe
   plugs in through the seam) and seals `{status, checked_at, sha256}` into the digest, so an
