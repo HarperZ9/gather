@@ -146,4 +146,38 @@ and an honest benchmark table is published. Then, and only then, stop.
     - fast-parse: lxml or selectolax.
   The protocol is ready; each backend is a small adapter that registers when its
   dependency is present. Awaiting the go-ahead + a real environment to verify.
-- Wedges 6 through 8: not started.
+- Wedge 6: not started (web-search needs an external search API = the next
+  operator/external blocker; the intake+receipt abstraction is buildable).
+- Wedge 7 (DX + performance): PARTIAL, on the same branch.
+  - `src/gather/cache.py` — dev-mode response cache (Scrapling dev-mode parity):
+    content-addressed store, offline replay, and conditional revalidation that
+    serves the cached body on a 304.
+  - `src/gather/export.py` — uniform JSON / JSONL export across every receipt.
+  - `examples/bench.py` — an honest micro-benchmark, plus a real perf fix: node
+    paths are now assigned at parse time, so `extract` over ~15k elements went
+    from 1171 ms to 113 ms (about 10x). See Benchmarks below.
+  - Tests: `tests/test_cache.py` + `tests/test_export.py` (9; full suite 345
+    passed), including cache tamper detection and dev-mode replay-without-refetch.
+  - Not yet in wedge 7: CLI/MCP wiring of the new modules; a native fast-parse
+    backend (that is wedge 5-backends, blocked).
+- Wedge 8 (interop): not started; buildable (sibling repos are local).
+
+## Benchmarks (honest, zero-dep)
+
+Measured by `examples/bench.py` over a ~461 KB, ~15,000-element document
+(`python examples/bench.py`):
+
+| op | time |
+| --- | --- |
+| `parse_dom` | ~67 ms |
+| `select('.r')` (5000 hits) | ~14 ms |
+| `to_markdown` | ~84 ms |
+| `extract` (markdown + per-block receipt) | ~113 ms |
+
+Honest comparison: Scrapling publishes ~2 ms text extraction on 5,000 nested
+elements using lxml (a C parser). gather's stdlib parser is real and usable but
+is not going to match a C parser on raw speed. That is precisely what the
+optional fast-parse backend (wedge 5-backends, lxml/selectolax, gated on the
+dependency decision) is for; the stdlib path stays the zero-dep default and
+fallback. gather already wins on what it carries that lxml does not: a
+re-verifiable per-block provenance receipt.

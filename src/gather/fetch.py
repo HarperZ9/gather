@@ -81,6 +81,14 @@ def _headers_digest(headers: tuple[tuple[str, str], ...]) -> str:
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
+def _header(headers: tuple[tuple[str, str], ...], name: str) -> str:
+    low = name.lower()
+    for k, v in headers:
+        if k.lower() == low:
+            return v
+    return ""
+
+
 @dataclass(frozen=True, slots=True)
 class FetchReceipt:
     """A re-verifiable record of one fetch. ``content_sha256`` fingerprints the
@@ -96,6 +104,8 @@ class FetchReceipt:
     redirects: tuple[Redirect, ...]
     attempts: int
     not_modified: bool = False
+    etag: str = ""
+    last_modified: str = ""
 
     def verify(self, body: bytes | None) -> bool:
         """Confirm ``body`` is exactly the bytes this receipt was built from."""
@@ -110,6 +120,7 @@ class FetchReceipt:
             "content_sha256": self.content_sha256, "headers_digest": self.headers_digest,
             "redirects": [{"status": r.status, "location": r.location} for r in self.redirects],
             "attempts": self.attempts, "not_modified": self.not_modified,
+            "etag": self.etag, "last_modified": self.last_modified,
         }
 
 
@@ -162,6 +173,7 @@ def _build_receipt(url: str, raw: RawResponse, attempts: int, now: float) -> Fet
         fetched_at=now, content_sha256="" if not_modified else _sha_bytes(raw.body),
         headers_digest=_headers_digest(raw.headers), redirects=raw.redirects,
         attempts=attempts, not_modified=not_modified,
+        etag=_header(raw.headers, "etag"), last_modified=_header(raw.headers, "last-modified"),
     )
 
 
