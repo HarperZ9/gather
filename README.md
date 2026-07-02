@@ -41,7 +41,7 @@ Bring papers, transcripts, local docs, source bundles, or awkward public materia
 ## Current status
 
 - **Release:** `gather-engine 1.5.0`; command `gather`; Python 3.11+; zero third-party runtime dependencies in core.
-- **Operator surface:** `gather status --json`, `gather doctor --json`, `gather demo --json`, and `gather mcp` expose the Project Telos action envelope and native MCP tools: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, and `gather.run`. The same CLI is available from source checkouts with `python -m gather`. Catalog-producing CLI and MCP paths share the `gather.catalog-digest/v1` envelope with digest verification status, `gather.run` accepts either config paths or inline config objects for host-neutral MCP calls, and the status payload now advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
+- **Operator surface:** `gather status --json`, `gather doctor --json`, `gather demo --json`, and `gather mcp` expose the Project Telos action envelope and native MCP tools: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, and `gather.run`. The same CLI is available from source checkouts with `python -m gather`. Catalog-producing CLI and MCP paths share the `gather.catalog-digest/v1` envelope with digest verification status, `gather.run` accepts either config paths or inline config objects for host-neutral MCP calls, and the status payload now advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
 - **Public role:** source intake for Project Telos: gather feeds index maps, forum routing, crucible verdicts, and telos workbench receipts without promoting source claims beyond their evidence.
 - **Housekeeping:** [CHANGELOG.md](CHANGELOG.md) records the post-1.5 operator-spine and MCP updates separately from the 1.5.0 completion milestone.
 
@@ -187,6 +187,8 @@ gather arxiv "aperiodic monotile" --store ./corpus          # papers (abstracts 
 gather video "https://youtu.be/<id>" --comments --scope "rubik,group theory"
 gather corpus verify ./corpus                               # re-hash every stored body
 gather corpus availability ./corpus                         # witness a sealed availability rung per record
+gather federation validate ./registry.json                  # check a source registry against the closed contract
+gather federation plan ./registry.json --json               # compile one capture plan per source, offline
 ```
 
 Any command takes `--store DIR` to persist what it gathered into a content-addressed corpus,
@@ -202,6 +204,16 @@ available). `search` matches its terms as case-insensitive substrings of title a
 `art` also matches `cartesian`).
 Write a corpus from one process at a time: the dedup is single-writer, and `prune` (which reads
 the catalog then deletes unreferenced objects) must likewise run with no concurrent writer.
+
+A source federation is planned before it is probed. `gather federation validate` checks a
+registry of candidate sources (id, system, family, domain, access policy, adapter, url, scope,
+priority) against a closed contract and seals the snapshot, so a listed source cannot be edited
+after witnessing without breaking the seal. `gather federation plan` compiles each access policy
+into a deterministic capture plan: an open source is captured and its body hash recorded, a
+keyed source records the lead and never hunts for credentials, a rate-limited source records
+its retry policy before any live probe, and a lead-only source is cataloged and claims nothing.
+A registry row is a catalog fact, never presented as coverage, availability, or content. Both
+commands run offline; no probe fires and no source data ships with the machinery.
 
 ## What's here
 
@@ -229,7 +241,9 @@ the catalog then deletes unreferenced objects) must likewise run with no concurr
 - `gather.provenance`: the `ProvenanceProvider` seam, composing an external origin verdict (forged? re-encode? authentic?) per item; the `Null` default stands alone, a subprocess edge calls an external provenance organ. Verdicts are sealed into the run record.
 - `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
 - `gather.availability`: the seal-covered availability rung. `witness_availability` checks each record's source (the default probe reads the corpus's own store; a live re-fetch probe plugs in) and seals a rung per receipt; `assess_availability` derives the typed outcome (AVAILABLE/CHANGED/UNAVAILABLE/UNWITNESSED), gated on the rung's content-hash binding, never its status string.
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api`/`browser`/`ocr`/`transcribe` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search/stats/prune/availability`.
+- `gather.federation`: the source-federation registry contract: a closed row shape with closed access-policy and capture-status vocabularies, registry snapshots sealed under the digest machinery, and a `join()` deriving one evidence status per source from its capture statuses (a source with no captures reports `SOURCE_LEAD_ONLY`, never availability).
+- `gather.federation_policy`: the pure adapter policy compiler (one deterministic capture plan per access token; an unknown token is refused) and the claims guard, a default-deny whitelist that rejects the known bad patterns by name (registry size as coverage, a listing as availability, metadata as full text, a keyed source as available, an empty capture as a match, a route failure as source absence).
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api`/`browser`/`ocr`/`transcribe` live), every command takes `--store DIR`; plus `run`, `corpus list/verify/digest/runs/search/stats/prune/availability`, and `federation validate/plan`.
 - `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
 
 The core is pure standard library. A source adapter may pull in whatever its source

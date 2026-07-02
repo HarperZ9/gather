@@ -19,6 +19,7 @@ from gather.commands import (
     cmd_web,
 )
 from gather.corpus_cmd import cmd_corpus
+from gather.federation_cmd import cmd_federation
 from gather.flagship import cmd_demo, cmd_doctor, cmd_status
 from gather.mcp import serve as serve_mcp
 
@@ -60,6 +61,15 @@ def _add_corpus_parser(sub) -> None:
     corpus.add_argument("--method", default=None, help="with search: keep items of any of these methods (comma-sep)")
     corpus.add_argument("--limit", type=int, default=None, help="with search: cap the matches (<=0 means none)")
     corpus.set_defaults(func=cmd_corpus)
+
+
+def _add_federation_parser(sub) -> None:
+    fed = sub.add_parser(
+        "federation", help="validate a source-federation registry or compile its capture plans")
+    fed.add_argument("action", choices=["validate", "plan"])
+    fed.add_argument("file", help='registry JSON: a list of source rows, or {"sources": [...]}')
+    fed.add_argument("--json", action="store_true", help="emit the sealed registry payload as JSON")
+    fed.set_defaults(func=cmd_federation)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -146,6 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.set_defaults(func=cmd_run)
 
     _add_corpus_parser(sub)
+    _add_federation_parser(sub)
 
     mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
     mcp.set_defaults(func=lambda _args: serve_mcp())
