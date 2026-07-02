@@ -65,10 +65,15 @@ def _add_corpus_parser(sub) -> None:
 
 def _add_federation_parser(sub) -> None:
     fed = sub.add_parser(
-        "federation", help="validate a source-federation registry or compile its capture plans")
-    fed.add_argument("action", choices=["validate", "plan"])
-    fed.add_argument("file", help='registry JSON: a list of source rows, or {"sources": [...]}')
-    fed.add_argument("--json", action="store_true", help="emit the sealed registry payload as JSON")
+        "federation",
+        help="validate a registry, compile capture plans, or audit a policy/entity receipt")
+    fed.add_argument("action", choices=["validate", "plan", "policy", "entity"])
+    fed.add_argument(
+        "file",
+        help='JSON document: registry rows or {"sources":[...]} (validate/plan); '
+             'policy rules or {"rules":[...]} (policy); '
+             'entity candidates or {"candidates":[...]} (entity)')
+    fed.add_argument("--json", action="store_true", help="emit the sealed payload as JSON")
     fed.set_defaults(func=cmd_federation)
 
 
