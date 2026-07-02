@@ -6,7 +6,7 @@ from gather import __version__
 
 SCHEMA = "project-telos.flagship-action/v1"
 TOOL = "gather"
-PRIMARY_COMMANDS = ["docs", "web", "feed", "pdf", "run", "corpus"]
+PRIMARY_COMMANDS = ["docs", "web", "feed", "pdf", "run", "corpus", "federation"]
 TELOS_CONTRACTS = {
     "host_surfaces": ["CLI JSON", "MCP stdio", "plugins", "IDEs", "TUIs", "apps"],
     "schemas": [
@@ -54,6 +54,7 @@ def status_payload() -> dict:
                 "gather.doctor",
                 "gather.docs",
                 "gather.arxiv",
+                "gather.federation",
                 "gather.run",
             ],
             "current_status": "1.5.0 completion floor with Project Telos operator-spine MCP parity",

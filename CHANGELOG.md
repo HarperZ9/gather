@@ -5,6 +5,27 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- `gather.federation`: the source-federation registry contract. A registry row is a closed
+  nine-field shape (`id`, `system`, `family`, `domain`, `access`, `adapter`, `url`, `scope`,
+  `priority`) with closed vocabularies for the access policy (`open`, `key_required`,
+  `rate_limited`, `restricted_or_registered`, `endpoint_alias_needed`, `source_lead_only`,
+  `account_required`) and for per-probe capture statuses (`GATHER_VERIFIED` plus five typed
+  warnings). Registry snapshots fold under the existing digest seal (the availability-rung
+  precedent): each row is fingerprinted whole, so editing a sealed row breaks `verify_digest`.
+  `join()` derives one evidence status per source from its capture statuses; a source with no
+  captures reports `SOURCE_LEAD_ONLY`, never availability. Unknown tokens and statuses are
+  typed rejections.
+- `gather.federation_policy`: the pure adapter policy compiler (`compile_plan`, one
+  deterministic capture plan per access token, unknown token refused) and the claims guard
+  (`guard_claim`, whitelist with default deny). Six known-bad claim patterns are refused by
+  name and pinned by negative fixtures that must reject: `source_count_as_world_coverage`,
+  `registry_listing_as_endpoint_availability`, `metadata_as_full_text`,
+  `closed_key_source_as_available`, `empty_capture_as_match`, and
+  `route_failure_as_source_absence`.
+- CLI/MCP surface: `gather federation validate|plan FILE [--json]` and the `gather.federation`
+  MCP tool (inline rows or a registry path) share the `gather.federation-registry/v1` payload;
+  the status envelope advertises both. No live probes and no source data ship with the
+  machinery.
 - `gather.availability`: a seal-covered availability rung per source record. `witness_availability`
   checks each catalog row through a probe (default: the corpus's own store; a live re-fetch probe
   plugs in through the seam) and seals `{status, checked_at, sha256}` into the digest, so an
