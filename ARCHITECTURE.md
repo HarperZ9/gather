@@ -109,6 +109,25 @@ stored body and reports MATCH / MISSING / CORRUPT, making the digest's proof dur
 corpus. The catalog and run history stream a row at a time; a content hash is validated as 64 hex
 before it is used to build a path, so a tampered catalog cannot traverse out of the store.
 
+## The availability rung (`gather.availability`)
+
+A corpus outlives its sources, so "is this source still there, serving what we witnessed" is its
+own question. `witness_availability` checks every catalog row through a probe (the default reads
+the corpus's own object store, so Gather stands alone; a live re-fetch probe plugs in through the
+same seam) and attaches a rung to each receipt: `{status, checked_at, sha256}`, where the sha256
+binds the claim to the content hash actually observed. The rung is folded into the digest seal,
+so once witnessed an availability claim cannot be edited, grafted on, or stripped off without
+breaking `verify_digest`; a receipt without a rung seals byte-identically to before rungs
+existed, so every pre-rung digest still verifies.
+
+Assessment never trusts the rung's status string: `assess_availability` reports AVAILABLE only
+when the rung's bound hash matches the receipt's own, CHANGED when the source answered with
+different content, UNAVAILABLE when it did not answer, and UNWITNESSED when there is no valid
+rung (the legacy case, which is never reported available). A verifier that cannot fail on a
+known-bad input is not a verifier; here the known-bad inputs (an edited rung, an "available"
+claim over a mismatched hash) are what the seal and the outcome rules reject. `gather corpus
+availability` runs the check and exits non-zero unless every record assesses AVAILABLE.
+
 ## The witnessed run (`gather.run`)
 
 `gather_run` orchestrates one session: fetch each `(source, target)` job, collect, scope-filter,

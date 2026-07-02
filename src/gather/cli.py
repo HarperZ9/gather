@@ -43,6 +43,25 @@ def _add_flagship_commands(sub) -> None:
     demo.set_defaults(func=cmd_demo)
 
 
+def _add_corpus_parser(sub) -> None:
+    corpus = sub.add_parser(
+        "corpus", help="inspect a stored corpus: list/verify/digest/runs/search/stats/prune/availability")
+    corpus.add_argument("action",
+                        choices=["list", "verify", "digest", "runs", "search", "stats", "prune", "availability"])
+    corpus.add_argument("dir", help="the corpus directory (created by --store)")
+    corpus.add_argument("--json", action="store_true", help="emit as JSON")
+    corpus.add_argument("--verify", action="store_true", help="with runs: re-check each record's seal")
+    corpus.add_argument("--apply", action="store_true", help="with prune: actually delete orphan objects")
+    corpus.add_argument("--terms", default=None,
+                        help="with search: scope keywords, case-insensitive substrings of title+body (any match)")
+    corpus.add_argument("--source", default=None,
+                        help="with search: keep items from any of these sources (comma-sep, OR within)")
+    corpus.add_argument("--kind", default=None, help="with search: keep items of any of these kinds (comma-sep)")
+    corpus.add_argument("--method", default=None, help="with search: keep items of any of these methods (comma-sep)")
+    corpus.add_argument("--limit", type=int, default=None, help="with search: cap the matches (<=0 means none)")
+    corpus.set_defaults(func=cmd_corpus)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gather", description="Gather: accountable research intake.")
     parser.add_argument("--version", action="version", version=f"gather {__version__}")
@@ -126,20 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--json", action="store_true", help="emit the witnessed run record as JSON")
     run.set_defaults(func=cmd_run)
 
-    corpus = sub.add_parser("corpus", help="inspect a stored corpus: list/verify/digest/runs/search/stats/prune")
-    corpus.add_argument("action", choices=["list", "verify", "digest", "runs", "search", "stats", "prune"])
-    corpus.add_argument("dir", help="the corpus directory (created by --store)")
-    corpus.add_argument("--json", action="store_true", help="emit as JSON")
-    corpus.add_argument("--verify", action="store_true", help="with runs: re-check each record's seal")
-    corpus.add_argument("--apply", action="store_true", help="with prune: actually delete orphan objects")
-    corpus.add_argument("--terms", default=None,
-                        help="with search: scope keywords, case-insensitive substrings of title+body (any match)")
-    corpus.add_argument("--source", default=None,
-                        help="with search: keep items from any of these sources (comma-sep, OR within)")
-    corpus.add_argument("--kind", default=None, help="with search: keep items of any of these kinds (comma-sep)")
-    corpus.add_argument("--method", default=None, help="with search: keep items of any of these methods (comma-sep)")
-    corpus.add_argument("--limit", type=int, default=None, help="with search: cap the matches (<=0 means none)")
-    corpus.set_defaults(func=cmd_corpus)
+    _add_corpus_parser(sub)
 
     mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
     mcp.set_defaults(func=lambda _args: serve_mcp())
