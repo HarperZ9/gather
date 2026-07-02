@@ -5,6 +5,15 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- `gather.availability`: a seal-covered availability rung per source record. `witness_availability`
+  checks each catalog row through a probe (default: the corpus's own store; a live re-fetch probe
+  plugs in through the seam) and seals `{status, checked_at, sha256}` into the digest, so an
+  availability claim cannot be edited after witnessing without breaking the seal. Re-verification
+  (`assess_availability`) reports typed outcomes gated on the content-hash binding, never the
+  status string: AVAILABLE only when the bound hash matches the receipt, CHANGED when the source
+  answered with different content, UNAVAILABLE when it did not answer, and UNWITNESSED for a
+  legacy record without the rung (which still verifies, but is never reported available). New
+  `corpus availability` CLI action, exiting non-zero unless every record assesses AVAILABLE.
 - CLI compatibility: `python -m gather` and `python -m gather.cli` now dispatch the normal Gather
   CLI from source checkouts, so module-mode MCP hosts and harnesses can use the same command
   surface as the installed `gather` script.

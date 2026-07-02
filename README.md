@@ -186,12 +186,20 @@ gather feed "https://example.com/feed.xml" --json           # RSS or Atom
 gather arxiv "aperiodic monotile" --store ./corpus          # papers (abstracts + metadata)
 gather video "https://youtu.be/<id>" --comments --scope "rubik,group theory"
 gather corpus verify ./corpus                               # re-hash every stored body
+gather corpus availability ./corpus                         # witness a sealed availability rung per record
 ```
 
 Any command takes `--store DIR` to persist what it gathered into a content-addressed corpus,
-and `gather corpus list|verify|digest|search DIR` inspects it. `verify` re-hashes every stored
-body against its receipt and exits non-zero if anything is missing or corrupt. `search` matches
-its terms as case-insensitive substrings of title and body (so `art` also matches `cartesian`).
+and `gather corpus list|verify|digest|search|availability DIR` inspects it. `verify` re-hashes
+every stored body against its receipt and exits non-zero if anything is missing or corrupt.
+`availability` checks each record's source and emits a sealed record where every receipt carries
+an availability rung (`status`, `checked_at`, and the observed content hash); the rung is folded
+into the seal, so an availability claim cannot be edited after witnessing without breaking it.
+Re-verification reports typed outcomes: AVAILABLE only when the bound hash matches the receipt,
+CHANGED when the source answered with different content, UNAVAILABLE when it did not answer, and
+UNWITNESSED for a legacy record with no rung (which still verifies, but is never reported
+available). `search` matches its terms as case-insensitive substrings of title and body (so
+`art` also matches `cartesian`).
 Write a corpus from one process at a time: the dedup is single-writer, and `prune` (which reads
 the catalog then deletes unreferenced objects) must likewise run with no concurrent writer.
 
@@ -220,7 +228,8 @@ the catalog then deletes unreferenced objects) must likewise run with no concurr
 - `gather.model`: the real model edge for the synthesizer seam; shells to a model CLI (prompt on stdin), stamping a genuine `synthesized` inference, `derived_from` set.
 - `gather.provenance`: the `ProvenanceProvider` seam, composing an external origin verdict (forged? re-encode? authentic?) per item; the `Null` default stands alone, a subprocess edge calls an external provenance organ. Verdicts are sealed into the run record.
 - `gather.method`: the method ladder. Classifies a method as direct or derived, and `make_item` enforces it: a fetched item cannot carry a derivation chain and a synthesized one cannot lack it.
-- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api`/`browser`/`ocr`/`transcribe` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search/stats/prune`.
+- `gather.availability`: the seal-covered availability rung. `witness_availability` checks each record's source (the default probe reads the corpus's own store; a live re-fetch probe plugs in) and seals a rung per receipt; `assess_availability` derives the typed outcome (AVAILABLE/CHANGED/UNAVAILABLE/UNWITNESSED), gated on the rung's content-hash binding, never its status string.
+- `gather.cli`: a `gather` command (`parse`/`docs`/`pdf` offline, `web`/`feed`/`video`/`arxiv`/`api`/`browser`/`ocr`/`transcribe` live), every command takes `--store DIR`; plus `run` and `corpus list/verify/digest/runs/search/stats/prune/availability`.
 - `gather.commands`: the command implementations behind the CLI surface (split from `cli` so no module exceeds the size budget).
 
 The core is pure standard library. A source adapter may pull in whatever its source
@@ -242,6 +251,7 @@ Shipped:
 - Isolated credentials (env-only, never witnessed) with an authenticated-API adapter, and the method ladder enforced at construction (a fetch cannot claim inputs, a synthesis cannot lack them).
 - The hard sources behind the same seam, as isolated external-tool edges: JavaScript pages (headless browser), scanned images (OCR), and audio (transcription).
 - A real model edge for the synthesizer seam, and a provenance-composition seam that folds an external origin verdict per item into the witnessed run.
+- A seal-covered availability rung per record (`gather corpus availability`): typed re-verification outcomes distinguish a source that no longer answers from one whose content changed, and a legacy record reports unwitnessed, never available.
 
 Gather reached its organic completion at 1.5.0: every planned source and seam is shipped, and the
 accountability claims hold end to end across a final whole-system review. The item below is a scale
