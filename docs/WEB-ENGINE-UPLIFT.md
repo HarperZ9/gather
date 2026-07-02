@@ -129,5 +129,21 @@ and an honest benchmark table is published. Then, and only then, stop.
     prove-it-against-the-source.
   - Tests: `tests/test_schema_extract.py` (6; full suite 329 passed), including
     tamper detection and a hallucinated-field rejection negative.
-- Wedge 5 (capability backends: browser / stealth / fast-parse): in progress.
+- Wedge 5-core: DONE on the same branch (the accountable half).
+  - `src/gather/backends.py` — a capability registry + gating: backends declare
+    capabilities (js-render, stealth, fast-parse); `render()` resolves the best
+    available and, when a required capability has no backend, returns
+    UNVERIFIABLE with a reason and never a faked render. Every result records
+    which backend served it. `best_parser`/`detect_fast_parse` select a native
+    parser when installed, else stdlib.
+  - Tests: `tests/test_backends.py` (7; full suite 336 passed), including the
+    honest-degrade negative (missing capability -> UNVERIFIABLE, not a fake).
+- Wedge 5-backends: BLOCKED (operator decision). The actual heavy backends need
+  optional deps that cannot be installed or verified in this sandbox, and a
+  posture decision on which the parity layer will accept:
+    - js-render: Playwright (+ browser binaries) or a CDP client.
+    - stealth: curl_cffi / a TLS-impersonation transport; a proxy pool.
+    - fast-parse: lxml or selectolax.
+  The protocol is ready; each backend is a small adapter that registers when its
+  dependency is present. Awaiting the go-ahead + a real environment to verify.
 - Wedges 6 through 8: not started.
