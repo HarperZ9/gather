@@ -10,7 +10,7 @@ from gather.interop import (
     search_entry,
     validate,
 )
-from gather.search import SearchHit, search
+from gather.search import search
 
 _HTML = "<html><head><title>T</title></head><body><h1>H</h1><p>p</p></body></html>"
 
