@@ -22,6 +22,7 @@ from gather.corpus_cmd import cmd_corpus
 from gather.federation_cmd import cmd_federation
 from gather.flagship import cmd_demo, cmd_doctor, cmd_status
 from gather.mcp import serve as serve_mcp
+from gather.web_commands import cmd_caps, cmd_crawl, cmd_extract, cmd_markdown
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -162,6 +163,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     _add_corpus_parser(sub)
     _add_federation_parser(sub)
+
+    caps = sub.add_parser("caps", help="report the web-data capabilities this install can actually use")
+    caps.add_argument("--json", action="store_true", help="emit as JSON")
+    caps.set_defaults(func=cmd_caps)
+
+    ex = sub.add_parser("extract", help="extract Markdown + a per-block provenance receipt from a URL or local HTML file")
+    ex.add_argument("target", help="a URL or a path to a local .html file")
+    ex.set_defaults(func=cmd_extract)
+
+    md = sub.add_parser("markdown", help="print structured Markdown for a URL or local HTML file")
+    md.add_argument("target", help="a URL or a path to a local .html file")
+    md.set_defaults(func=cmd_markdown)
+
+    crawl = sub.add_parser("crawl", help="crawl a site and emit a witnessed, hash-chained crawl ledger as JSON")
+    crawl.add_argument("url")
+    crawl.add_argument("--depth", type=int, default=2, help="max crawl depth")
+    crawl.add_argument("--max-pages", type=int, default=50, dest="max_pages", help="max pages to fetch")
+    crawl.set_defaults(func=cmd_crawl)
 
     mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
     mcp.set_defaults(func=lambda _args: serve_mcp())
