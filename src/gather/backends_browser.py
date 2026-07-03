@@ -32,7 +32,7 @@ def render_playwright(url: str, *, timeout_ms: int = 20000, wait_until: str = "l
         browser = p.chromium.launch(headless=True)
         try:
             page = browser.new_page()
-            page.goto(url, timeout=timeout_ms, wait_until=wait_until)
+            page.goto(url, timeout=timeout_ms, wait_until=wait_until)  # type: ignore[arg-type]
             return page.content()
         finally:
             browser.close()

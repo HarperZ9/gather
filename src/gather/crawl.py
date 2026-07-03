@@ -237,7 +237,7 @@ def crawl(
     pages = len(records)
 
     while frontier and pages < max_pages:
-        batch = []
+        batch: list[tuple[str, int, str]] = []
         while frontier and len(batch) < max(1, workers) and pages + len(batch) < max_pages:
             url, depth, parent = _pop(frontier, strategy)
             if url in visited or depth > max_depth:

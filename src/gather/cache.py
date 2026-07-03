@@ -100,19 +100,20 @@ def cached_fetch(
     """Return ``(result, body)``. Replays from cache unless ``revalidate`` (then a
     conditional GET is made; a 304 still serves the cached body)."""
     if fetch_fn is None:
-        from gather.fetch import fetch as fetch_fn  # lazy: keeps cache.py network-free to import
+        from gather.fetch import fetch  # lazy: keeps cache.py network-free to import
+        fetch_fn = fetch
     cached = cache.get(url)
     if cached and not revalidate:
         entry, body = cached
         return CachedResult(url, "cache", entry.status, entry.content_sha256), body
 
     etag, last_modified = cache.conditional(url) if cached else (None, None)
-    receipt, body = fetch_fn(url, etag=etag, last_modified=last_modified, **fetch_kw)
+    receipt, fetched_body = fetch_fn(url, etag=etag, last_modified=last_modified, **fetch_kw)
     if receipt.not_modified and cached:
         entry, cbody = cached
         return CachedResult(url, "cache-revalidated", entry.status, entry.content_sha256), cbody
     entry = cache.put(
-        url, status=receipt.status, body=body or b"", etag=receipt.etag,
+        url, status=receipt.status, body=fetched_body or b"", etag=receipt.etag,
         last_modified=receipt.last_modified, fetched_at=float(clock()),
     )
-    return CachedResult(url, "network", entry.status, entry.content_sha256), body
+    return CachedResult(url, "network", entry.status, entry.content_sha256), fetched_body

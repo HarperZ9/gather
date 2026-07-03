@@ -29,7 +29,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from gather.net import (
     DEFAULT_MAX_BYTES,

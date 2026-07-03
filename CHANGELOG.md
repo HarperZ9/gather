@@ -5,6 +5,22 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- **Web-data engine (1.6.0):** a capability-superset web toolkit carrying gather's receipt
+  discipline, standing against browser-use, Scrapling, crawlee, and firecrawl on features and
+  speed. `gather.dom`/`gather.extract` turn HTML into Markdown plus a per-block provenance
+  receipt (source-node path + content hash); `gather.track` relocates a scraped element across
+  page versions with a witnessed MATCH/RELOCATED/DRIFT/GONE verdict; `gather.fetch` returns a
+  re-verifiable FetchReceipt (bytes + headers digest, redirect chain, conditional GET,
+  retry/backoff) over the existing SSRF-guarded edge; `gather.crawl` is a concurrent, resumable
+  crawler (robots, sitemap, dedup, per-host throttle) emitting an append-only hash-chained
+  ledger; `gather.schema_extract` binds schema fields to source nodes and rejects any
+  LLM-proposed value not grounded in the fetched content; `gather.search` turns a query into
+  fetchable leads through a pluggable provider (honest UNVERIFIABLE with none). Optional
+  capability backends register when installed: `gather[fast]` (lxml, ~2x parse),
+  `gather[browser]` (Playwright JS render), `gather[stealth]` (curl_cffi TLS impersonation); a
+  missing capability degrades to UNVERIFIABLE, never a fake. `gather.interop` maps these receipts
+  onto the organ-bundle spine (validated against proof-surface's real validator). New CLI:
+  `gather caps|extract|markdown|crawl`. Full suite 368+ tests; ruff + mypy clean.
 - `gather.federation`: the source-federation registry contract. A registry row is a closed
   nine-field shape (`id`, `system`, `family`, `domain`, `access`, `adapter`, `url`, `scope`,
   `priority`) with closed vocabularies for the access policy (`open`, `key_required`,

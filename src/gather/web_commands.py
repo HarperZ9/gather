@@ -26,12 +26,13 @@ def _read_source(target: str) -> tuple[str, str]:
 
 def cmd_caps(args) -> int:
     reg = default_registry()
-    info = {"parser": best_parser(reg), "capabilities": reg.capabilities()}
+    parser = best_parser(reg)
+    caps = reg.capabilities()
     if getattr(args, "json", False):
-        print(to_json(info))
+        print(to_json({"parser": parser, "capabilities": caps}))
     else:
-        print(f"parser: {info['parser']}")
-        for cap, backends in sorted(info["capabilities"].items()):
+        print(f"parser: {parser}")
+        for cap, backends in sorted(caps.items()):
             print(f"  {cap:<12} {', '.join(backends)}")
     return 0
 

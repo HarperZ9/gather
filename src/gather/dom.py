@@ -50,6 +50,7 @@ class Node:
     attrs: dict[str, str] = field(default_factory=dict)
     parent: "Node | None" = None
     content: list = field(default_factory=list)
+    pos: int = 0  # 1-based index among same-tag siblings, assigned at parse time
 
     @property
     def node_id(self) -> str:
@@ -66,13 +67,12 @@ class Node:
     @property
     def path(self) -> str:
         """A stable, 1-based, tag-scoped path from the root, e.g.
-        ``html[1]/body[1]/div[2]/p[1]``. The root sentinel has an empty path."""
+        ``html[1]/body[1]/div[2]/p[1]``. The root sentinel has an empty path.
+        ``pos`` is assigned once at parse time, so this is O(depth), not O(n)."""
         if self.parent is None:
             return ""
-        sibs = [c for c in self.parent.children if c.tag == self.tag]
-        idx = sibs.index(self) + 1
         prefix = self.parent.path
-        seg = f"{self.tag}[{idx}]"
+        seg = f"{self.tag}[{self.pos}]"
         return f"{prefix}/{seg}" if prefix else seg
 
     def text_content(self) -> str:
@@ -113,16 +113,23 @@ class _DOMBuilder(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.root = Node("#root")
         self._stack: list[Node] = [self.root]
+        self._counts: dict[int, dict[str, int]] = {}  # id(parent) -> {tag: count}
+
+    def _make(self, tag, attrs) -> Node:
+        parent = self._stack[-1]
+        counts = self._counts.setdefault(id(parent), {})
+        counts[tag] = counts.get(tag, 0) + 1
+        node = Node(tag, {k: (v or "") for k, v in attrs}, parent, pos=counts[tag])
+        parent.content.append(node)
+        return node
 
     def handle_starttag(self, tag, attrs):
-        node = Node(tag, {k: (v or "") for k, v in attrs}, self._stack[-1])
-        self._stack[-1].content.append(node)
+        node = self._make(tag, attrs)
         if tag not in VOID:
             self._stack.append(node)
 
     def handle_startendtag(self, tag, attrs):
-        node = Node(tag, {k: (v or "") for k, v in attrs}, self._stack[-1])
-        self._stack[-1].content.append(node)
+        self._make(tag, attrs)
 
     def handle_endtag(self, tag):
         for i in range(len(self._stack) - 1, 0, -1):
