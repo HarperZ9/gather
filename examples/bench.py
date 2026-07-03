@@ -39,11 +39,18 @@ def main() -> int:
     html = make_html(5000)
     root = parse_dom(html)
     print(f"document: {len(html):,} bytes, ~5000 elements, zero dependencies")
-    print(f"  parse_dom     {bench(lambda: parse_dom(html)):7.2f} ms")
-    print(f"  select('.r')  {bench(lambda: select(root, '.r')):7.2f} ms "
+    print(f"  parse_dom      {bench(lambda: parse_dom(html)):7.2f} ms  [stdlib, zero-dep]")
+    try:
+        from gather.backends import detect_fast_parse
+        from gather.fastparse import parse_dom_lxml
+        if detect_fast_parse() == "lxml":
+            print(f"  parse (lxml)   {bench(lambda: parse_dom_lxml(html)):7.2f} ms  [fast-parse backend]")
+    except Exception:  # pragma: no cover - optional
+        pass
+    print(f"  select('.r')   {bench(lambda: select(root, '.r')):7.2f} ms "
           f"({len(select(root, '.r'))} hits)")
-    print(f"  to_markdown   {bench(lambda: to_markdown(html)):7.2f} ms")
-    print(f"  extract       {bench(lambda: extract(html, 'http://e.com/', fetched_at=1.0)):7.2f} ms")
+    print(f"  to_markdown    {bench(lambda: to_markdown(html)):7.2f} ms")
+    print(f"  extract        {bench(lambda: extract(html, 'http://e.com/', fetched_at=1.0)):7.2f} ms")
     return 0
 
 

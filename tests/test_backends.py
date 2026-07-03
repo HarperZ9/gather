@@ -61,10 +61,25 @@ def test_best_parser_falls_back_to_stdlib_or_detected_native() -> None:
     assert detect_fast_parse() in (None, "lxml", "selectolax")
 
 
+def test_render_degrades_when_backend_fails_never_fakes() -> None:
+    def boom(url):
+        raise RuntimeError("browser binary not installed")
+
+    reg = Registry().register(Backend("playwright", frozenset({CAP_JS}), handler=boom))
+    r = render("http://e.com/", registry=reg, require=CAP_JS)
+    assert r.status == "UNVERIFIABLE"
+    assert r.backend == "playwright"      # names which backend failed
+    assert "browser binary" in r.reason
+    assert r.html == ""                   # no fabricated render
+
+
 def test_default_registry_reports_honest_capabilities() -> None:
+    from importlib.util import find_spec
+
     reg = default_registry()
-    caps = reg.capabilities()
-    assert "fetch" in caps  # always present
-    # js-render / stealth are unmet unless an optional backend is installed.
-    assert reg.has("js-render") is False
-    assert reg.has("stealth") is False
+    assert "fetch" in reg.capabilities()  # always present
+    # Capabilities are reported iff their optional backend is actually installed.
+    assert reg.has("js-render") == (find_spec("playwright") is not None)
+    assert reg.has("stealth") == (find_spec("curl_cffi") is not None)
+    assert reg.has("fast-parse") == (
+        find_spec("lxml") is not None or find_spec("selectolax") is not None)
