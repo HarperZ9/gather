@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from gather.dom import norm, parse_dom, select
+from gather.dom import SKIP, norm, parse_dom, select
 from gather.item import content_hash
 
 
@@ -44,6 +44,7 @@ class Hit:
     value: str
     path: str
     source_sha256: str
+    value_sha256: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,7 +84,7 @@ def _extract_field(root, spec: Field) -> list[Hit]:
             value = got
         if not value:
             continue
-        hits.append(Hit(value, node.path, content_hash(source)))
+        hits.append(Hit(value, node.path, content_hash(source), content_hash(value)))
         if not spec.many:
             break
     return hits
@@ -116,6 +117,10 @@ class SchemaExtraction:
                     return False
                 source = norm(node.attrs.get(f.attr, "") if f.attr else node.text_content())
                 if content_hash(source) != h.source_sha256:
+                    return False
+                # The value is bound by its own hash, so it cannot be swapped for
+                # an arbitrary substring of the source that happens to match.
+                if h.value_sha256 and content_hash(h.value) != h.value_sha256:
                     return False
                 if norm(h.value).lower() not in source.lower():
                     return False
@@ -161,21 +166,36 @@ class RecordVerdict:
 
 
 def _haystack(root) -> str:
-    parts = [root.text_content()]
+    # Collect each node's DIRECT text and attributes as separate parts joined by
+    # spaces, so adjacent inline elements do not glue into one run (e.g. "$19.99"
+    # + "one" must not become "$19.99one"). Word-boundary grounding depends on it.
+    parts: list[str] = []
     for n in root.walk():
+        if n.tag in SKIP:
+            continue
+        parts.extend(c for c in n.content if isinstance(c, str))
         parts.extend(n.attrs.values())
     return norm(" ".join(parts)).lower()
+
+
+def _grounded(token: str, hay: str) -> bool:
+    """True if ``token`` occurs in ``hay`` on word boundaries, so a value like
+    ``100`` is not falsely grounded inside ``1000``. \\w lookarounds (not \\b) so a
+    token with a non-word edge like ``$19.99`` still matches."""
+    if not token:
+        return False
+    return re.search(r"(?<!\w)" + re.escape(token) + r"(?!\w)", hay) is not None
 
 
 def verify_record(html: str, record: dict) -> RecordVerdict:
     """Check every value in ``record`` is grounded in the fetched content. A value
     that appears nowhere on the page is REJECTED (a fabricated/hallucinated
-    field). Pure."""
+    field). Grounding is word-boundary, so ``100`` does not match inside ``1000``.
+    Pure."""
     hay = _haystack(parse_dom(html))
     verdicts: list[FieldVerdict] = []
     for name, value in record.items():
         values = value if isinstance(value, (list, tuple)) else [value]
         for v in values:
-            token = norm(str(v)).lower()
-            verdicts.append(FieldVerdict(name, str(v), bool(token) and token in hay))
+            verdicts.append(FieldVerdict(name, str(v), _grounded(norm(str(v)).lower(), hay)))
     return RecordVerdict(tuple(verdicts), content_hash(html))

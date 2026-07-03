@@ -47,7 +47,7 @@ class SearchReceipt:
         return all(h.get("url_sha256") == content_hash(h.get("url", "")) for h in self.hits)
 
     def urls(self) -> list[str]:
-        return [h["url"] for h in self.hits]
+        return [h.get("url", "") for h in self.hits]
 
     def as_dict(self) -> dict:
         return {
