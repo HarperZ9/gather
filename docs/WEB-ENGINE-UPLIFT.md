@@ -194,3 +194,22 @@ optional fast-parse backend (wedge 5-backends, lxml/selectolax, gated on the
 dependency decision) is for; the stdlib path stays the zero-dep default and
 fallback. gather already wins on what it carries that lxml does not: a
 re-verifiable per-block provenance receipt.
+
+## Streaming (the partialupdate integration)
+
+`src/gather/stream.py` folds in the idea from Phil Holden's `partialupdate` (the
+talk "What if AI replies in HTML not Markdown?"): parse an HTML stream
+incrementally and commit only the STABLE part, holding back the incomplete tail
+so a progressive render never flashes half-open markup. The repo is gone (deleted
+from GitHub, never on npm, no Wayback snapshot), but the concept is clear and
+gather is its natural home.
+
+gather adds the accountability layer the streaming libraries lack: as each block
+element closes it is committed with a content hash and linked into an append-only
+hash chain (`StreamLedger`), so a streamed extraction is a re-verifiable ledger of
+stable increments, and the still-open tail is explicitly PENDING (not yet
+verifiable), never treated as final. Chunk boundaries do not matter: feeding a
+document in any split yields the same commits, hashes, and order as feeding it
+whole. This is extract.py's stable-vs-incomplete honesty applied to a live
+stream, and it directly serves the case the talk is about: an AI streaming HTML,
+extracted and receipted as it arrives.
