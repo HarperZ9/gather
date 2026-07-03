@@ -83,10 +83,19 @@ def bundle(entries, *, bundle_id="gather-bundle", generated_at=PLACEHOLDER_TS,
 
 
 def validate(b) -> list[str]:
-    """Return a list of problems with the bundle's entries (empty == valid)."""
+    """Return a list of problems with the bundle's entries (empty == valid). A
+    validator must report malformed input, never raise on it."""
     issues: list[str] = []
     seen: set = set()
-    for i, e in enumerate(b.get("entries", [])):
+    if not isinstance(b, dict):
+        return ["bundle is not an object"]
+    entries = b.get("entries", [])
+    if not isinstance(entries, list):
+        return ["bundle entries is not a list"]
+    for i, e in enumerate(entries):
+        if not isinstance(e, dict):
+            issues.append(f"entry[{i}] is not an object")
+            continue
         for f in _FIELDS:
             if f not in e:
                 issues.append(f"entry[{i}] missing {f}")

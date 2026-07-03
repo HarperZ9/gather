@@ -112,6 +112,11 @@ def cached_fetch(
     if receipt.not_modified and cached:
         entry, cbody = cached
         return CachedResult(url, "cache-revalidated", entry.status, entry.content_sha256), cbody
+    if receipt.not_modified:
+        # 304 with no cache entry to revalidate against: we sent no validators, so
+        # the server broke the conditional-request contract. There is no body to
+        # store; refuse rather than poison the content-addressed cache with b"".
+        raise ValueError(f"received 304 for {url} with no cache entry to revalidate")
     entry = cache.put(
         url, status=receipt.status, body=fetched_body or b"", etag=receipt.etag,
         last_modified=receipt.last_modified, fetched_at=float(clock()),

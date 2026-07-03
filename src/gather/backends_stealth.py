@@ -42,7 +42,7 @@ def stealth_transport(
     client = client or _default_client()
     current = validate_public_http_url(url)
     hdrs = dict(headers)
-    origin = urlsplit(current).hostname
+    prev = urlsplit(current)
     chain: list = []
     try:
         for _ in range(max_redirects + 1):
@@ -52,11 +52,13 @@ def stealth_transport(
             location = resp.headers.get("location") or resp.headers.get("Location")
             if status in _REDIRECT_CODES and location:
                 target = validate_public_http_url(urljoin(current, location))
-                if urlsplit(target).hostname != origin:
+                nxt = urlsplit(target)
+                # Strip credentials on a host change OR an https-to-non-https
+                # downgrade (the CVE-2018-18074 class), mirroring net._SafeRedirect.
+                if nxt.hostname != prev.hostname or (prev.scheme == "https" and nxt.scheme != "https"):
                     hdrs = {k: v for k, v in hdrs.items() if k.lower() not in _SENSITIVE_HEADERS}
-                    origin = urlsplit(target).hostname
                 chain.append(Redirect(status, target))
-                current = target
+                current, prev = target, nxt
                 continue
             if 500 <= status < 600:
                 raise TransientFetchError(f"HTTP {status}")

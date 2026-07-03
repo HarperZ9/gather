@@ -12,28 +12,40 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
 
-def to_dict(obj):
+def to_dict(obj, _seen=None):
     """Best-effort plain-data view: ``as_dict()`` if present, else recursive
-    dataclass/dict/list conversion, else the value itself."""
+    dataclass/dict/list conversion, else the value itself. Detects reference
+    cycles and raises ``ValueError`` (matching json.dumps) rather than overflowing
+    the stack; a value referenced twice without a cycle still serializes."""
     as_dict_fn = getattr(obj, "as_dict", None)
     if callable(as_dict_fn):
         return as_dict_fn()
     if is_dataclass(obj) and not isinstance(obj, type):
         return asdict(obj)
-    if isinstance(obj, (list, tuple)):
-        return [to_dict(o) for o in obj]
-    if isinstance(obj, dict):
-        return {k: to_dict(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, dict)):
+        if _seen is None:
+            _seen = set()
+        oid = id(obj)
+        if oid in _seen:
+            raise ValueError("Circular reference detected")
+        _seen.add(oid)
+        try:
+            if isinstance(obj, dict):
+                return {k: to_dict(v, _seen) for k, v in obj.items()}
+            return [to_dict(o, _seen) for o in obj]
+        finally:
+            _seen.discard(oid)
     return obj
 
 
 def to_json(obj, *, indent: int = 2) -> str:
-    return json.dumps(to_dict(obj), indent=indent, sort_keys=True, ensure_ascii=False)
+    # default=str keeps export total on a non-serializable leaf (datetime, Path, ...).
+    return json.dumps(to_dict(obj), indent=indent, sort_keys=True, ensure_ascii=False, default=str)
 
 
 def to_jsonl(items) -> str:
     return "\n".join(
-        json.dumps(to_dict(i), sort_keys=True, ensure_ascii=False) for i in items
+        json.dumps(to_dict(i), sort_keys=True, ensure_ascii=False, default=str) for i in items
     )
 
 
