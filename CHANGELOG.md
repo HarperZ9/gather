@@ -21,6 +21,21 @@ built behind a feature branch and reviewed before merge.
   missing capability degrades to UNVERIFIABLE, never a fake. `gather.interop` maps these receipts
   onto the organ-bundle spine (validated against proof-surface's real validator). New CLI:
   `gather caps|extract|markdown|crawl`. Full suite 368+ tests; ruff + mypy clean.
+- `gather.scholar`: a scholarly-graph federation adapter unifying OpenAlex, Semantic Scholar,
+  and Crossref into one intake. Pure per-provider parsers (`parse_openalex`,
+  `parse_semanticscholar`, `parse_crossref`) normalize each graph's shape onto one
+  provider-neutral `ScholarWork` (OpenAlex abstracts reconstructed from the inverted index);
+  `ScholarSource` is the isolated impure edge with an injectable fetcher, so the whole
+  federation is tested offline over recorded fixtures. Citation edges (references and citations)
+  are first-class provenance: `citation_edges` turns each into a re-checkable receipt (method
+  `citation-edge`, registered DIRECT on the method ladder) recording which provider asserted the
+  link, deduped by `(from, to, direction, provider)` and sealed into the digest alongside the
+  papers. `federate` joins works by normalized DOI (`normalize_doi` strips URL/`doi:` prefixes
+  and lowercases) into one unified `compiled` item whose `derived_from` points back at every
+  provider's contribution (no provenance dropped); a DOI is the only join key, never a fuzzy
+  title match, and a DOI-less work stays its own record. CLI: `gather scholar QUERY
+  [--providers ...] [--no-federate] [--edges] [--json]`; `--edges` folds the citation edges into
+  the same witnessed digest as the papers, so the seal covers the graph, not just the nodes.
 - `gather.federation`: the source-federation registry contract. A registry row is a closed
   nine-field shape (`id`, `system`, `family`, `domain`, `access`, `adapter`, `url`, `scope`,
   `priority`) with closed vocabularies for the access policy (`open`, `key_required`,
