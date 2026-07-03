@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from gather.dom import Node, SKIP, find, norm, parse_dom
+from gather.dom import SKIP, Node, find, norm, parse_dom
 from gather.item import content_hash
 
 _HEADING = {"h1": 1, "h2": 2, "h3": 3, "h4": 4, "h5": 5, "h6": 6}

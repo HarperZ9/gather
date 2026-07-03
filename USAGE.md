@@ -31,6 +31,26 @@ The same package can be exercised from source with:
 python -m gather --help
 ```
 
+## Web-data engine
+
+Each command prints a receipt as JSON.
+
+```bash
+gather caps                      # what this install can do (fast / browser / stealth)
+gather extract <url|file.html>   # Markdown + a per-block provenance receipt
+gather markdown <url|file.html>  # structured Markdown only
+gather crawl <url> --depth 2 --max-pages 50   # a witnessed, hash-chained crawl ledger
+```
+
+Optional capability backends (core stays zero-dependency; a missing one degrades to
+UNVERIFIABLE, never a fake):
+
+```bash
+pip install 'gather-engine[fast]'      # lxml, about 2x parse speed
+pip install 'gather-engine[browser]'   # Playwright JS render (then: playwright install chromium)
+pip install 'gather-engine[stealth]'   # curl_cffi TLS/browser impersonation
+```
+
 ## Federation
 
 Validate a source-federation registry and compile its capture plans, all offline:

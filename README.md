@@ -10,7 +10,7 @@
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
 
 [![CI](https://github.com/HarperZ9/gather/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/gather/actions/workflows/ci.yml)
-![version: 1.5](https://img.shields.io/badge/version-1.5-informational.svg)
+![version: 1.6](https://img.shields.io/badge/version-1.6-informational.svg)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success.svg)
 ![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
@@ -40,7 +40,7 @@ Bring papers, transcripts, local docs, source bundles, or awkward public materia
 
 ## Current status
 
-- **Release:** `gather-engine 1.5.0`; command `gather`; Python 3.11+; zero third-party runtime dependencies in core.
+- **Release:** `gather-engine 1.6.0`; command `gather`; Python 3.11+; zero third-party runtime dependencies in core (the web-data engine's browser/stealth/fast-parse backends are opt-in extras).
 - **Operator surface:** `gather status --json`, `gather doctor --json`, `gather demo --json`, and `gather mcp` expose the Project Telos action envelope and native MCP tools: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, and `gather.run`. The same CLI is available from source checkouts with `python -m gather`. Catalog-producing CLI and MCP paths share the `gather.catalog-digest/v1` envelope with digest verification status, `gather.run` accepts either config paths or inline config objects for host-neutral MCP calls, and the status payload now advertises shared CLI/MCP/plugin/IDE/TUI/app contracts for enterprise, research, creative, scientific, and education workflows.
 - **Public role:** source intake for Project Telos: gather feeds index maps, forum routing, crucible verdicts, and telos workbench receipts without promoting source claims beyond their evidence.
 - **Housekeeping:** [CHANGELOG.md](CHANGELOG.md) records the post-1.5 operator-spine and MCP updates separately from the 1.5.0 completion milestone.
@@ -105,6 +105,33 @@ responsibility, the same trust as choosing the browser binary or the API token (
 `cat` and you get a verbatim echo labelled `synthesized`). And `derived_from` records the inputs
 supplied to the edge, an upper bound: a model may ignore some or generate beyond them, so it
 attests availability, not use.
+
+## The web-data engine
+
+Beyond the source adapters, gather carries a full web-data engine that stands against
+browser-use, Scrapling, crawlee, and firecrawl on features and speed, and adds the one thing
+none of them carry: a re-verifiable receipt on every operation. Capability is the price of
+entry; the receipt is the edge.
+
+- **Fetch** with a receipt: conditional GET, retry with backoff, the recorded redirect chain,
+  and a sha256 of the exact bytes. Re-hash and confirm.
+- **Extract** to LLM-ready Markdown (the firecrawl shape) where every block binds to its source
+  node path and hash, so an extraction cannot be quietly rewritten.
+- **Adaptive tracking**: relocate a scraped element across a redesign and get a witnessed
+  MATCH / RELOCATED / DRIFT / GONE verdict, Scrapling's headline feature made checkable.
+- **Crawl and map**: a concurrent, resumable crawler (robots, sitemap, dedup, per-host
+  throttle) that emits an append-only, hash-chained ledger you can re-derive to prove it was
+  not reordered or edited.
+- **Structured extract** with a hallucination REJECT: an LLM-proposed record is checked against
+  the fetched content and any ungrounded field is rejected.
+- **Capability backends**, opt-in and honest: `gather[fast]` (lxml, about 2x parse speed),
+  `gather[browser]` (Playwright JS render), `gather[stealth]` (curl_cffi TLS impersonation). The
+  core stays zero-dependency; a missing capability degrades to UNVERIFIABLE, never a fake.
+- **Search** to fetchable leads through a pluggable provider, honest UNVERIFIABLE with none.
+
+Run `gather caps` to see what your install can do, then `gather extract <url>` or
+`gather crawl <url>` for receipts as JSON. Roadmap and honest benchmarks are in
+[docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md).
 
 ## The discipline
 
@@ -283,9 +310,11 @@ Shipped:
 - A real model edge for the synthesizer seam, and a provenance-composition seam that folds an external origin verdict per item into the witnessed run.
 - A seal-covered availability rung per record (`gather corpus availability`): typed re-verification outcomes distinguish a source that no longer answers from one whose content changed, and a legacy record reports unwitnessed, never available.
 
-Gather reached its organic completion at 1.5.0: every planned source and seam is shipped, and the
-accountability claims hold end to end across a final whole-system review. The item below is a scale
-optimization, not missing function.
+The intake organ reached its organic completion at 1.5.0: every planned source and seam is
+shipped, and the accountability claims hold end to end across a whole-system review. 1.6.0 opens
+a new front, the web-data engine (see "The web-data engine" above), which carries the same
+receipt discipline onto fetch, extract, crawl, structured extraction, and search. The item below
+is a scale optimization, not missing function.
 
 Possible future work (not required for the completion milestone):
 

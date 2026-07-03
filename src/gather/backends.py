@@ -19,7 +19,7 @@ when installed; absent, the capability is simply unmet and reported as such.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from importlib.util import find_spec
 
 from gather.item import content_hash
