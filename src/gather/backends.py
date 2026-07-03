@@ -104,7 +104,13 @@ def render(url: str, *, registry: Registry, require: str = CAP_FETCH) -> RenderR
             url, "UNVERIFIABLE", require, "", "", "",
             reason=f"no backend for capability {require!r}",
         )
-    html = backend.handler(url)
+    try:
+        html = backend.handler(url)
+    except Exception as e:  # capability present but failed (e.g. browser not installed)
+        return RenderResult(
+            url, "UNVERIFIABLE", require, backend.name, "", "",
+            reason=f"{backend.name} failed: {type(e).__name__}: {e}"[:200],
+        )
     return RenderResult(url, "rendered", require, backend.name, html, content_hash(html))
 
 
@@ -138,6 +144,14 @@ def default_registry(fetch_handler: Callable[[str], str] | None = None) -> Regis
     if fast is not None:
         reg.register(Backend(fast, frozenset({CAP_FAST_PARSE, "parse"}),
                              available=lambda: find_spec(fast) is not None))
-    # js-render (Playwright) and stealth (curl_cffi/TLS) backends register here
-    # when their optional dependency is present; none is bundled.
+    # Optional heavy backends self-register when their dependency is present.
+    try:
+        from gather.backends_browser import register as _register_browser
+        _register_browser(reg)
+    except Exception:  # pragma: no cover - optional import
+        pass
+    if find_spec("curl_cffi") is not None:
+        # stealth is a fetch transport, not a render handler; the marker lets
+        # capabilities() report it as available.
+        reg.register(Backend("curl_cffi", frozenset({CAP_STEALTH})))
     return reg

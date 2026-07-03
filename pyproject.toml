@@ -18,6 +18,12 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.10"]
+# Capability backends (wedge 5 parity layer). The core stays zero-dep; these are
+# opt-in edges. Missing edge => honest UNVERIFIABLE or stdlib fallback, never a fake.
+fast = ["lxml>=5"]          # native-speed parsing (2x on large docs); stdlib is the fallback
+browser = ["playwright>=1.4"]  # JS render (needs `playwright install chromium`)
+stealth = ["curl_cffi>=0.7"]   # TLS/browser impersonation transport
+all = ["lxml>=5", "playwright>=1.4", "curl_cffi>=0.7"]
 
 [project.scripts]
 gather = "gather.cli:main"

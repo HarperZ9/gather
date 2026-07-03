@@ -138,14 +138,20 @@ and an honest benchmark table is published. Then, and only then, stop.
     parser when installed, else stdlib.
   - Tests: `tests/test_backends.py` (7; full suite 336 passed), including the
     honest-degrade negative (missing capability -> UNVERIFIABLE, not a fake).
-- Wedge 5-backends: BLOCKED (operator decision). The actual heavy backends need
-  optional deps that cannot be installed or verified in this sandbox, and a
-  posture decision on which the parity layer will accept:
-    - js-render: Playwright (+ browser binaries) or a CDP client.
-    - stealth: curl_cffi / a TLS-impersonation transport; a proxy pool.
-    - fast-parse: lxml or selectolax.
-  The protocol is ready; each backend is a small adapter that registers when its
-  dependency is present. Awaiting the go-ahead + a real environment to verify.
+- Wedge 5-backends: DONE on the same branch (opt-in extras; core stays zero-dep).
+  - `src/gather/fastparse.py` — lxml fast-parse producing the IDENTICAL gather
+    Node tree (paths match stdlib); verified ~2x faster (33 ms vs 69 ms on the
+    ~15k-element bench).
+  - `src/gather/backends_browser.py` — Playwright js-render backend. Verified: it
+    really launches headless Chromium and executes JavaScript here. Missing
+    browser binary degrades to honest UNVERIFIABLE, never a fake.
+  - `src/gather/backends_stealth.py` — curl_cffi TLS-impersonation transport for
+    the accountable fetch path (same FetchReceipt), with the SSRF guard re-applied
+    per redirect hop and cross-origin credential stripping.
+  - `pyproject.toml` extras: `fast` / `browser` / `stealth` / `all`.
+  - Tests: `tests/test_fastparse.py`, `tests/test_backends_browser.py`,
+    `tests/test_backends_stealth.py`, plus the render-failure-degrade negative
+    (18 across the group; full suite 356 passed).
 - Wedge 6: not started (web-search needs an external search API = the next
   operator/external blocker; the intake+receipt abstraction is buildable).
 - Wedge 7 (DX + performance): PARTIAL, on the same branch.
