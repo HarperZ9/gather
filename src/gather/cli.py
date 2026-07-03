@@ -14,6 +14,7 @@ from gather.commands import (
     cmd_parse,
     cmd_pdf,
     cmd_run,
+    cmd_scholar,
     cmd_transcribe,
     cmd_video,
     cmd_web,
@@ -118,6 +119,19 @@ def build_parser() -> argparse.ArgumentParser:
     arxiv.add_argument("--max-results", type=int, default=10, help="max results for a search query")
     _add_common(arxiv)
     arxiv.set_defaults(func=cmd_arxiv)
+
+    scholar = sub.add_parser(
+        "scholar",
+        help="federate OpenAlex + Semantic Scholar + Crossref, dedup by DOI, capture citation edges")
+    scholar.add_argument("query", help="a DOI (10.1234/xyz) or a free-text query")
+    scholar.add_argument("--providers", default="openalex,semanticscholar,crossref",
+                         help="comma-separated subset of the three scholarly graphs")
+    scholar.add_argument("--no-federate", action="store_true",
+                         help="emit each provider's paper directly, undeduped (default: dedup by DOI)")
+    scholar.add_argument("--edges", action="store_true",
+                         help="also fold citation edges into the digest as first-class receipts")
+    _add_common(scholar)
+    scholar.set_defaults(func=cmd_scholar)
 
     pdf = sub.add_parser("pdf", help="extract text from a local PDF (needs pdftotext on PATH)")
     pdf.add_argument("path")

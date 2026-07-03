@@ -94,6 +94,62 @@ def cmd_pdf(args) -> int:
     return _fetch_and_emit(lambda: PdfSource().fetch(args.path), args, fail="read failed")
 
 
+def cmd_scholar(args) -> int:
+    from gather.scholar import PROVIDERS, ScholarError, ScholarSource
+
+    providers = tuple(_split(args.providers))
+    try:
+        src = ScholarSource(providers=providers or PROVIDERS, federated=not args.no_federate)
+    except ScholarError as exc:
+        print(f"scholar failed: {exc}", file=sys.stderr)
+        return 1
+    if not args.edges:
+        return _fetch_and_emit(lambda: src.fetch(args.query), args, fail="scholar failed")
+    try:
+        items, edges = src.graph(args.query)
+    except Exception as exc:
+        print(f"scholar failed: {exc}", file=sys.stderr)
+        return 1
+    return _emit_with_edges(items, edges, _scope(args), args.json, store=args.store)
+
+
+def _emit_with_edges(items, edges, scope, as_json, store=None) -> int:
+    """Emit scholar items plus citation-edge receipts, folding the edges into the same witnessed
+    digest as the papers, so the seal covers the graph (nodes and links), not just the nodes."""
+    from gather.digest import digest_of_receipts, verify_digest
+    from gather.scope import filter_scope
+    from gather.store import Corpus
+
+    kept, dropped = filter_scope(items, scope)
+    item_receipts = [
+        {"kind": i.kind, "id": i.id, "title": i.title, "source": i.provenance.source,
+         "ref": i.provenance.ref, "method": i.provenance.method, "sha256": i.provenance.sha256,
+         "derived_from": list(i.provenance.derived_from)}
+        for i in kept
+    ]
+    d = digest_of_receipts(item_receipts + edges)
+    stored = None
+    if store:
+        stored = Corpus(store).add(kept)
+    if as_json:
+        out = {
+            "papers": item_receipts, "edges": edges, "dropped": dropped,
+            "digest": {"seal": d.seal, "verified": verify_digest(d)},
+        }
+        if stored is not None:
+            out["stored"] = stored
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+        return 0
+    print(f"gathered {len(kept)} paper(s), {len(edges)} citation edge(s)"
+          f"{f', dropped {dropped} out of scope' if scope else ''}")
+    for i in kept:
+        print(f"  {i.kind:<14} {i.id:<28} {i.title[:44]}")
+    print(f"digest seal: {d.seal[:16]}... | verified: {verify_digest(d)} | covers papers + edges")
+    if stored is not None:
+        print(f"stored to {store}: {stored['added']} added, {stored['deduped']} deduped")
+    return 0
+
+
 def cmd_api(args) -> int:
     from gather.api import ApiSource
     return _fetch_and_emit(

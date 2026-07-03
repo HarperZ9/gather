@@ -18,8 +18,10 @@ def parse_browser_evidence(packet: Mapping, *, fetched_at: float) -> Item:
     target_ref = str(packet.get("target_ref") or "")
     if not target_ref:
         raise ValueError("browser evidence packet missing target_ref")
-    after = packet.get("after") if isinstance(packet.get("after"), Mapping) else {}
-    verification = packet.get("verification") if isinstance(packet.get("verification"), Mapping) else {}
+    raw_after = packet.get("after")
+    after: Mapping = raw_after if isinstance(raw_after, Mapping) else {}
+    raw_verification = packet.get("verification")
+    verification: Mapping = raw_verification if isinstance(raw_verification, Mapping) else {}
     title = str(after.get("title") or after.get("url") or target_ref)
     text = _summary(packet, after, verification)
     meta = {

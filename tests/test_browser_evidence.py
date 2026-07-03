@@ -1,7 +1,6 @@
 from gather.browser_evidence import parse_browser_evidence
 from gather.method import DIRECT, directness
 
-
 PACKET = {
     "schema": "project-telos.browser-evidence/v1",
     "tool": "telos.browser.evidence",
