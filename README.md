@@ -184,6 +184,7 @@ gather docs ./research-notes --scope "rubik,group theory"   # local files, offli
 gather web  "https://example.com/article" --store ./corpus  # static page, kept in a corpus
 gather feed "https://example.com/feed.xml" --json           # RSS or Atom
 gather arxiv "aperiodic monotile" --store ./corpus          # papers (abstracts + metadata)
+gather scholar "10.1234/monotile" --edges --json            # OpenAlex + Semantic Scholar + Crossref, deduped by DOI, with citation edges
 gather video "https://youtu.be/<id>" --comments --scope "rubik,group theory"
 gather corpus verify ./corpus                               # re-hash every stored body
 gather corpus availability ./corpus                         # witness a sealed availability rung per record
@@ -243,6 +244,7 @@ field of a witnessed rule or match breaks verification.
 - `gather.feed`: RSS and Atom feeds; pure parser handles both.
 - `gather.docs`: local text files or a directory of them; the impure edge is the filesystem.
 - `gather.arxiv`: papers from the arXiv API by id or query; pure parser, the Item carries the abstract and metadata.
+- `gather.scholar`: a scholarly-graph federation adapter unifying OpenAlex, Semantic Scholar, and Crossref into one intake. Citation edges (references and citations) are first-class provenance: each edge is its own re-checkable receipt (method `citation-edge`) recording which provider asserted the link, sealed into the digest alongside the papers. Records are deduped by normalized DOI into one unified `compiled` item whose `derived_from` points back at every provider's contribution (no provenance dropped); a DOI is the only join key, never a fuzzy title match. Pure per-provider parsers, one isolated impure edge, and an injectable fetcher so the whole federation is tested offline over recorded fixtures.
 - `gather.pdf`: text from a local PDF via `pdftotext` (an external tool, not a dependency); a best-effort reading, labelled as such.
 - `gather.store`: a durable, content-addressed `Corpus`. Bodies are deduped by hash while every distinct receipt is kept (no provenance dropped); the catalog streams; `verify` re-hashes every stored body (MATCH/MISSING/CORRUPT); the run history is kept too.
 - `gather.run`: the witnessed gather session. `gather_run` orchestrates fetch, scope, optional synthesis, digest, and store into one re-checkable `RunRecord` (its own seal plus the items' digest seal); the scope and synthesizer are composition seams that default to Null so the run stands alone.
@@ -282,6 +284,7 @@ Shipped:
 - The hard sources behind the same seam, as isolated external-tool edges: JavaScript pages (headless browser), scanned images (OCR), and audio (transcription).
 - A real model edge for the synthesizer seam, and a provenance-composition seam that folds an external origin verdict per item into the witnessed run.
 - A seal-covered availability rung per record (`gather corpus availability`): typed re-verification outcomes distinguish a source that no longer answers from one whose content changed, and a legacy record reports unwitnessed, never available.
+- A scholarly-graph federation adapter (`gather scholar`) unifying OpenAlex, Semantic Scholar, and Crossref: DOI-deduped unified records that keep every provider's provenance, and citation edges captured as first-class receipts sealed into the digest.
 
 Gather reached its organic completion at 1.5.0: every planned source and seam is shipped, and the
 accountability claims hold end to end across a final whole-system review. The item below is a scale
