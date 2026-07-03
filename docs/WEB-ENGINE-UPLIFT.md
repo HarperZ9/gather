@@ -152,9 +152,11 @@ and an honest benchmark table is published. Then, and only then, stop.
   - Tests: `tests/test_fastparse.py`, `tests/test_backends_browser.py`,
     `tests/test_backends_stealth.py`, plus the render-failure-degrade negative
     (18 across the group; full suite 356 passed).
-- Wedge 6: not started (web-search needs an external search API = the next
-  operator/external blocker; the intake+receipt abstraction is buildable).
-- Wedge 7 (DX + performance): PARTIAL, on the same branch.
+- Wedge 6: DONE (`src/gather/search.py`). Pluggable search-provider seam ->
+  SearchReceipt of SOURCE_LEADs; honest UNVERIFIABLE with no provider;
+  search_and_fetch chains leads into the accountable fetch path; searx_provider
+  is a no-API-key SearXNG backend. firecrawl search/agent parity.
+- Wedge 7 (DX + performance): DONE, on the same branch.
   - `src/gather/cache.py` — dev-mode response cache (Scrapling dev-mode parity):
     content-addressed store, offline replay, and conditional revalidation that
     serves the cached body on a 304.
@@ -164,9 +166,14 @@ and an honest benchmark table is published. Then, and only then, stop.
     from 1171 ms to 113 ms (about 10x). See Benchmarks below.
   - Tests: `tests/test_cache.py` + `tests/test_export.py` (9; full suite 345
     passed), including cache tamper detection and dev-mode replay-without-refetch.
-  - Not yet in wedge 7: CLI/MCP wiring of the new modules; a native fast-parse
-    backend (that is wedge 5-backends, blocked).
-- Wedge 8 (interop): not started; buildable (sibling repos are local).
+  - CLI wiring: `gather caps` (honest capability report), `gather extract`,
+    `gather markdown`, `gather crawl` (`src/gather/web_commands.py`), each
+    printing a receipt as JSON.
+- Wedge 8 (interop): DONE (`src/gather/interop.py`). Maps gather's receipts into
+  organ-bundle interchange entries; verified to validate against proof-surface's
+  real organ_receipt_bundle validator (0 issues), so gather composes on the same
+  spine as index/forum/learn/crucible/emet. crawl_entry reflects ledger
+  integrity (tampered chain -> failed entry).
 
 ## Benchmarks (honest, zero-dep)
 
