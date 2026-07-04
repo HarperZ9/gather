@@ -5,6 +5,12 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.6.0
+
+The web-data engine release (2026-07-04): a capability-superset web toolkit carrying gather's
+receipt discipline, plus scholarly-graph federation and source-federation contracts. 368+ tests;
+ruff + mypy clean.
+
 - **Web-data engine (1.6.0):** a capability-superset web toolkit carrying gather's receipt
   discipline, standing against browser-use, Scrapling, crawlee, and firecrawl on features and
   speed. `gather.dom`/`gather.extract` turn HTML into Markdown plus a per-block provenance
