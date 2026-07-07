@@ -23,7 +23,13 @@ from gather.corpus_cmd import cmd_corpus
 from gather.federation_cmd import cmd_federation
 from gather.flagship import cmd_demo, cmd_doctor, cmd_status
 from gather.mcp import serve as serve_mcp
-from gather.web_commands import cmd_caps, cmd_crawl, cmd_extract, cmd_markdown
+from gather.web_commands import (
+    cmd_caps,
+    cmd_crawl,
+    cmd_extract,
+    cmd_markdown,
+    cmd_monitor,
+)
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -195,6 +201,17 @@ def build_parser() -> argparse.ArgumentParser:
     crawl.add_argument("--depth", type=int, default=2, help="max crawl depth")
     crawl.add_argument("--max-pages", type=int, default=50, dest="max_pages", help="max pages to fetch")
     crawl.set_defaults(func=cmd_crawl)
+
+    monitor = sub.add_parser(
+        "monitor",
+        help="re-fetch a source set and diff against baselines; emit a "
+             "hash-chained change-custody ledger (NEW/UNCHANGED/CHANGED/GONE)")
+    monitor.add_argument("--sources", required=True,
+                         help="path to a text file of URLs (one per line, # comments ok)")
+    monitor.add_argument("--state", required=True,
+                         help="JSON state/ledger file (created if absent, appended if present)")
+    monitor.add_argument("--json", action="store_true", help="print the full report as JSON")
+    monitor.set_defaults(func=cmd_monitor)
 
     mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
     mcp.set_defaults(func=lambda _args: serve_mcp())

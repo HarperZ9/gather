@@ -60,3 +60,46 @@ def cmd_crawl(args) -> int:
     res = crawl([args.url], fetcher=fetcher, max_depth=args.depth, max_pages=args.max_pages)
     print(to_json(res.ledger))
     return 0
+
+
+def cmd_monitor(args) -> int:
+    """Scheduled re-fetch with change custody: diff each source against its
+    stored baseline, emit a report, and grow the hash-chained ledger."""
+    import json
+    import time
+    from pathlib import Path
+
+    from gather.fetch import fetch
+    from gather.monitor import monitor_pass, verify_ledger
+
+    src_path = Path(args.sources)
+    if not src_path.is_file():
+        raise SystemExit(f"monitor: --sources file not found: {src_path}")
+    sources = [ln.strip() for ln in src_path.read_text(encoding="utf-8").splitlines()
+               if ln.strip() and not ln.strip().startswith("#")]
+
+    state_path = Path(args.state)
+    state = {}
+    if state_path.is_file():
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if not verify_ledger(state):
+            raise SystemExit(f"monitor: existing ledger {state_path} FAILED its "
+                             "hash chain — refusing to append to a tampered record")
+
+    report, new_state = monitor_pass(sources, state, fetch, clock=time.time)
+    state_path.write_text(json.dumps(new_state, indent=2), encoding="utf-8")
+
+    if args.json:
+        print(to_json(report))
+    else:
+        c = report["counts"]
+        print(f"monitored {report['sources']} source(s): "
+              f"{c['NEW']} new, {c['CHANGED']} changed, {c['UNCHANGED']} unchanged, "
+              f"{c['GONE']} gone, {c['ERROR']} error")
+        for url in report["changed"]:
+            print(f"  CHANGED {url}")
+        for url in report["gone"]:
+            print(f"  GONE    {url}")
+        print(f"ledger -> {state_path} ({len(new_state['ledger'])} observations, "
+              f"root {new_state['root_hash'][:12]}…)")
+    return 1 if (report["counts"]["CHANGED"] or report["counts"]["GONE"]) else 0
