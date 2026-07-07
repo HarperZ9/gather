@@ -74,7 +74,7 @@ python examples/demo.py        # one video parsed, scoped, digested, then a tamp
 python examples/pipeline.py    # the whole pipeline: run -> store -> verify -> recall, offline
 ```
 
-`demo.py` prints each item with its hash and `verify=True`, then flips one receipt and shows the digest verification fail. The hash prefixes vary; the verify results are pinned by the test suite.
+`demo.py` prints each item with its hash and `verify=True`, then flips one receipt and shows the digest verification fail. The hash prefixes vary; the verify results are pinned by the test suite. For a browser-viewable version of the same proof, open [examples/gather-demo.html](examples/gather-demo.html).
 
 ## Worked example: a mixed-source corpus
 
@@ -143,15 +143,17 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
 
-## Receipts
+## Why it matters
 
-One rule underneath all of it: every item records how it was obtained. A quote fetched over HTTP, a page rendered in a browser, text recognized from a scan, and a statement synthesized from fragments are all valid items, but they are not equally direct, and the `method` field plus the digest seal keep that difference on the record and re-checkable. If that discipline matters to your workflow, gather was built for it; if you just need the intake, it never gets in your way.
+Research breaks when sources become a blur. One rule sits underneath all of it: every item records how it was obtained. A quote fetched over HTTP, a page rendered in a browser, text recognized from a scan, and a statement synthesized from fragments are all valid items, but they are not equally direct, and the `method` field plus the digest seal keep that difference on the record and re-checkable. If that discipline matters to your workflow, gather was built for it; if you just need the intake, it never gets in your way.
 
 ## License
 
 Gather is fair-source: open to read, run, and build on, with commercial use reserved so the project can fund its own development. See [LICENSE](LICENSE).
 
-## For developers
+## Work with it
+
+Bring papers, transcripts, local docs, or awkward public materials that need provenance before synthesis; source-adapter testing and research-lab feedback are the most useful pressure right now. To develop against a checkout:
 
 ```bash
 python -m pip install -e ".[dev]"
