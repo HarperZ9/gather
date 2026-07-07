@@ -5,6 +5,17 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.6.1 (2026-07-07)
+
+Docs and visual-identity release; no engine code changes since 1.6.0.
+
+- Visual-identity refresh: new spectrum banner (`.github/assets/banner.svg`) and a
+  feature-first README header, with the delivery contract in `tests/test_docs.py`
+  updated to pin the new assets.
+- Docs overhaul: the README body rewritten feature-first, and a new
+  `docs/INTRODUCTION.md` walkthrough covering the current toolkit end to end.
+- Live PyPI downloads badge added to the README.
+
 ## 1.6.0
 
 The web-data engine release (2026-07-04): a capability-superset web toolkit carrying gather's

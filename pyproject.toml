@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gather-engine"
-version = "1.6.0"
+version = "1.6.1"
 description = "Accountable research intake for difficult sources, with provenance receipts and witnessed digests."
 readme = "README.md"
 requires-python = ">=3.11"
