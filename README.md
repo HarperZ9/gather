@@ -139,7 +139,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 - [ARCHITECTURE.md](ARCHITECTURE.md): the design map, seams, and threat model.
 - [docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
-- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.6.0.
+- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.6.1.
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
 
