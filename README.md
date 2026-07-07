@@ -1,20 +1,17 @@
-<p align="center">
-  <img src="docs/brand/gather-hero.png" alt="Gather, capture sources into verified research packets">
-</p>
-<!-- Project mark: docs/brand/gather-mark.svg -->
+<p align="center"><img src=".github/assets/banner.svg" alt="gather: Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs." width="100%"></p>
 
-# gather
+**Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs.**
 
-> Capture sources as verified research packets.
+[![PyPI](https://img.shields.io/pypi/v/gather-engine?style=flat-square&labelColor=14041b&color=f8cc43)](https://pypi.org/project/gather-engine/)
+[![license](https://img.shields.io/badge/license-Gather_Fair--Source-8f8095?style=flat-square&labelColor=14041b)](LICENSE)
+[![CI](https://github.com/HarperZ9/gather/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/gather/actions/workflows/ci.yml)
+[![downloads](https://img.shields.io/pypi/dm/gather-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/gather-engine/)
+![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
+![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success?style=flat-square&labelColor=14041b)
+
+gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
-
-[![CI](https://github.com/HarperZ9/gather/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/gather/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/gather-engine.svg)](https://pypi.org/project/gather-engine/)
-[![downloads](https://img.shields.io/pypi/dm/gather-engine.svg?label=downloads)](https://pypi.org/project/gather-engine/)
-![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success.svg)
-![license: fair-source](https://img.shields.io/badge/license-fair--source-blue.svg)
 
 ## Try it
 
