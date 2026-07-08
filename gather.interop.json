@@ -1,0 +1,60 @@
+{
+  "organ": "gather",
+  "invoke": {
+    "cli": "gather",
+    "mcp_server": "gather.mcp:serve",
+    "python_import": "gather"
+  },
+  "emits": [
+    {
+      "capability": "project-telos.flagship-action/v1",
+      "title": "flagship-action envelope",
+      "module": "src/gather/flagship.py:envelope",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "gather.digest/1",
+      "title": "witnessed digest seal",
+      "module": "src/gather/digest.py:Digest.to_json",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "gather.items/1",
+      "title": "per-item provenance receipts",
+      "module": "src/gather/digest.py:_receipt",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "gather.catalog-digest/1",
+      "title": "docs/arxiv catalog + digest",
+      "module": "src/gather/payloads.py:catalog_digest_payload",
+      "summary": "",
+      "consumable_as": []
+    }
+  ],
+  "consumes": [
+    {
+      "capability": "provenance.verdict/1",
+      "title": "external provenance verdict",
+      "module": "src/gather/provenance.py:SubprocessProvenanceProvider.origin",
+      "summary": "",
+      "consumable_as": []
+    },
+    {
+      "capability": "gather.run-config/1",
+      "title": "multi-source run config",
+      "module": "src/gather/run_config.py:load_run_config",
+      "summary": "",
+      "consumable_as": []
+    }
+  ],
+  "evidence": [
+    "src/gather/interop.py",
+    "src/gather/digest.py",
+    "src/gather/payloads.py",
+    "src/gather/flagship.py"
+  ]
+}
