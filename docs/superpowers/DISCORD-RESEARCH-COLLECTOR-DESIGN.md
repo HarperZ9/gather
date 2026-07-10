@@ -1,7 +1,7 @@
 # Gather Discord Research Collector Design
 
 **Date:** 2026-07-10
-**Status:** Proposed; awaiting review
+**Status:** Approved for implementation
 **Default retention:** Durable redacted evidence; transient raw API responses
 **Transport:** Official Discord bot API only
 
@@ -365,10 +365,11 @@ share one validation and execution engine.
 
 ## Approval Gate
 
-Do not run the current prototype against live guilds and do not implement this
-design while its status is `Proposed`. After review, mark it `Approved`, write a
-test-first implementation plan, and implement against fixtures before asking the
-operator to provision or invite a bot.
+The operator approved durable redacted evidence through the official Discord
+bot on 2026-07-10. Write and review a test-first implementation plan, then
+implement against fixtures before asking the operator to provision or invite a
+bot. The current prototype remains prohibited from live guild use until every
+success criterion above is proven.
 
 ## Primary Discord References
 
