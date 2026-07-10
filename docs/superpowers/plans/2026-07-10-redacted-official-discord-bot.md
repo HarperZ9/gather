@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Implement against the approved design at `docs/superpowers/DISCORD-RESEARCH-COLLECTOR-DESIGN.md`.
-- Begin execution in a consent-recorded isolated worktree created with `superpowers:using-git-worktrees` from clean commit `e84f423`.
+- Begin execution in a consent-recorded isolated worktree created with `superpowers:using-git-worktrees` from the dynamically resolved, reviewed plan tip. The tip must descend from approved design commit `e84f423`, contain this plan, and have no committed prototype-file diff from `e84f423`.
 - Leave the dirty prototype files in `C:\dev\public\gather` untouched: `README.md`, `src/gather/method.py`, `src/gather/run_config.py`, `src/gather/discord.py`, and `tests/test_discord.py`.
 - Rebuild from failing tests in the isolated worktree. Do not copy or cherry-pick the unsafe prototype.
 - Runtime support remains Python `>=3.11` with zero mandatory third-party dependencies.
@@ -84,6 +84,7 @@ def redact_message(
     *,
     guild_id: str,
     channel_id: str,
+    thread_id: str | None,
     plan_digest: str,
     response_body_sha256: str,
 ) -> RedactedMessage: ...
@@ -93,9 +94,16 @@ def discovery_edge_item(edge: DiscoveryEdge, *, fetched_at: float) -> Item: ...
 
 def validate_plan(plan: SealedCapturePlan) -> PlanValidationReceipt: ...
 def preflight_plan(plan: SealedCapturePlan, *, client: DiscordClient) -> PreflightReceipt: ...
+def discover_guild_channels(
+    federation_id: str,
+    *,
+    federation_rows: Sequence[dict[str, Any]],
+    client: DiscordClient,
+) -> DiscoveryReceipt: ...
 def capture_plan(
     plan: SealedCapturePlan,
     *,
+    federation_rows: Sequence[dict[str, Any]],
     client: DiscordClient,
     store: DiscordCaptureStore,
 ) -> CaptureReceipt: ...
@@ -104,7 +112,36 @@ def status_plan(
     *,
     store: DiscordCaptureStore,
 ) -> CaptureStatusReceipt: ...
+
+def official_client_after_validation(
+    plan: SealedCapturePlan,
+    *,
+    federation_rows: Sequence[dict[str, Any]],
+    secret_reader: Callable[[str], str | None] = os.environ.get,
+) -> DiscordClient: ...
+
+def official_discovery_client_after_authorization(
+    federation_id: str,
+    *,
+    federation_rows: Sequence[dict[str, Any]],
+    secret_reader: Callable[[str], str | None] = os.environ.get,
+) -> DiscordClient: ...
 ~~~
+
+### Review-Integrated Safety Invariants
+
+These requirements are normative. Where an abbreviated code fragment later in the plan omits one, the implementation and tests in the same task must still satisfy this section:
+
+1. `capture_plan` runs `preflight_plan` before loading a checkpoint or issuing a search/history request and proceeds only on an exact `MATCH`. CLI and MCP capture call only `capture_plan`; they do not bypass this gate.
+2. A `MATCH` requires the returned guild ID to equal the sealed guild ID, a capability row for every approved channel, a nonempty approved channel set, all required permissions, and exact treatment of `include_public_threads`. Missing channels, private objects, malformed metadata, or permission gaps are terminal mismatches. No vacuous `all(...)` may produce `MATCH`.
+3. Search/history message locators are validated against the sealed lane before redaction. Expected IDs come from the sealed lane, never from the message payload. A response guild/channel/thread mismatch produces no message or edge Item and no durable raw data.
+4. Capture state is keyed by a stable lane identity, not a moving page cursor. The sealed next cursor is loaded before the first request; after a durable page commit, a restart begins at that cursor. A terminal transport response, `202`, malformed response, or indexing-incomplete response never advances it.
+5. Search remains the default. Channel history runs only for `history_channels`. Active and archived public-thread metadata are paginated when `include_public_threads` is true; private threads always fail closed; capture still requires every thread ID to be explicitly sealed.
+6. Manifests and receipts describe the whole run, including plan/policy identities, bounds and budgets, requested/accepted page counts, all retry/indexing events, skipped regions, transient-response hash aggregation, durable hashes, cursor movement, and worst-case aggregate completeness. A later successful page cannot erase an earlier warning.
+7. The sealed plan is reparsed against trusted federation rows and its invariants/digest are compared before `GATHER_DISCORD_BOT_TOKEN` is read. Tampering proves zero secret reads.
+8. Evidence preparation deterministically groups replies/threads, scores technical relevance, and extracts public-link leads before bounded packets reach a local model.
+9. Metadata discovery may enumerate accessible public channel IDs for a federation-authorized guild without granting capture authority. It persists no names or identities. Capture requires a newly sealed, nonempty channel allowlist.
+10. Manifest identity is deterministic and plan/lane/batch scoped. Identical existing bytes are idempotent; different bytes at the same identity fail without overwrite. Capture uses a single-writer lock.
 
 ### Task 0: Consent Record, Worktree Isolation, and Clean Baseline
 
@@ -115,22 +152,37 @@ def status_plan(
 - Preserve: `C:\dev\public\gather\src\gather\run_config.py`
 - Preserve: `C:\dev\public\gather\src\gather\discord.py`
 - Preserve: `C:\dev\public\gather\tests\test_discord.py`
-- Create worktree: `C:\dev\.worktrees\gather-discord-redacted`
+- Create worktree: `C:\dev\worktrees\gather-discord-redacted` (the verified centralized workspace convention).
 
 **Interfaces:**
-- Consumes: approved design commit `e84f423` and the recorded operator decision `redacted + official bot`.
-- Produces: clean branch `feat/discord-redacted-official-bot` whose initial tree excludes all five dirty prototype changes.
+- Consumes: approved design commit `e84f423`, the dynamically resolved reviewed plan tip, and the recorded operator decision `redacted + official bot`.
+- Produces: clean branch `feat/discord-redacted-official-bot` whose initial tree contains the reviewed plan but excludes all five dirty prototype changes.
 
 - [ ] **Step 1: Invoke the required worktree skill and verify the approval record**
 
 Run:
 
 ~~~powershell
-git -C C:\dev\public\gather show --no-patch --format="%H %s" e84f423
-git -C C:\dev\public\gather show e84f423:docs/superpowers/DISCORD-RESEARCH-COLLECTOR-DESIGN.md | Select-String -Pattern "Status: Approved for implementation","official Discord bot API only"
+$repo = "C:\dev\public\gather"
+$planPath = "docs/superpowers/plans/2026-07-10-redacted-official-discord-bot.md"
+$planTip = (git -C $repo rev-parse "HEAD^{commit}").Trim()
+if ($LASTEXITCODE -ne 0) { throw "cannot resolve reviewed plan tip" }
+git -C $repo merge-base --is-ancestor e84f423 $planTip
+if ($LASTEXITCODE -ne 0) { throw "reviewed plan tip does not descend from approved design" }
+git -C $repo cat-file -e "$($planTip):$planPath"
+if ($LASTEXITCODE -ne 0) { throw "reviewed plan is not committed at plan tip" }
+git -C $repo show e84f423:docs/superpowers/DISCORD-RESEARCH-COLLECTOR-DESIGN.md | Select-String -Pattern "Status: Approved for implementation","official Discord bot API only"
+
+$forbidden = @("README.md","src/gather/method.py","src/gather/run_config.py","src/gather/discord.py","tests/test_discord.py")
+$committedNames = @(git -C $repo diff --name-only e84f423..$planTip)
+$prototypeDiff = @($committedNames | Where-Object { $forbidden -contains $_ })
+if ($prototypeDiff.Count -ne 0) { throw "plan tip contains prototype files: $($prototypeDiff -join ', ')" }
+$env:GATHER_DISCORD_PLAN_TIP = $planTip
+Write-Output "reviewed-plan-tip=$planTip"
+$committedNames
 ~~~
 
-Expected: commit `e84f423` is found and both approval phrases are printed. If either check fails, stop before creating a worktree.
+Expected: the dynamic tip is a descendant of `e84f423`; the approved design phrases print; the committed plan object exists; the committed diff contains plan/design documentation only and none of the five protected prototype paths. Keep `GATHER_DISCORD_PLAN_TIP` in the execution shell. Do not paste a future plan-tip hash into this plan, because doing so would make the plan self-referential.
 
 - [ ] **Step 2: Record the dirty prototype identities without modifying them**
 
@@ -148,29 +200,31 @@ git status --short
 
 Expected: the three modified and two untracked files are listed; no file timestamp or content changes.
 
-- [ ] **Step 3: Create the isolated worktree from the clean approved commit**
+- [ ] **Step 3: Create the isolated worktree from the reviewed plan tip**
 
 Run:
 
 ~~~powershell
-git -C C:\dev\public\gather worktree add C:\dev\.worktrees\gather-discord-redacted -b feat/discord-redacted-official-bot e84f423
+if (-not $env:GATHER_DISCORD_PLAN_TIP) { throw "Task 0 Step 1 must run in this shell" }
+git -C C:\dev\public\gather worktree add C:\dev\worktrees\gather-discord-redacted -b feat/discord-redacted-official-bot $env:GATHER_DISCORD_PLAN_TIP
 ~~~
 
-Expected: Git reports a worktree at `e84f423` on `feat/discord-redacted-official-bot`.
+Expected: Git reports a worktree at the dynamically resolved reviewed plan tip on `feat/discord-redacted-official-bot`.
 
 - [ ] **Step 4: Prove the worktree is clean and the unsafe prototype is absent**
 
 Run:
 
 ~~~powershell
-Set-Location C:\dev\.worktrees\gather-discord-redacted
+Set-Location C:\dev\worktrees\gather-discord-redacted
 git status --porcelain=v1
 Test-Path src/gather/discord.py
 Test-Path tests/test_discord.py
-git diff --exit-code e84f423 --
+Test-Path docs/superpowers/plans/2026-07-10-redacted-official-discord-bot.md
+git diff --exit-code $env:GATHER_DISCORD_PLAN_TIP --
 ~~~
 
-Expected: status and diff output are empty; both `Test-Path` calls print `False`.
+Expected: status and diff output are empty; the prototype `Test-Path` calls print `False`; the plan `Test-Path` call prints `True`.
 
 - [ ] **Step 5: Run the clean baseline**
 
@@ -194,7 +248,7 @@ Expected: the clean baseline passes all three commands. Record the exact test co
 
 **Interfaces:**
 - Consumes: `gather.federation.validate_registry(rows) -> list[dict]` and `gather.federation.registry_digest(rows) -> Digest`.
-- Produces: `GuildScope`, `CapturePlan`, `SealedCapturePlan`, `PlanError`, `parse_capture_plan(data, *, federation_rows)`, and `load_approved_plan(plan_id, *, plan_root, federation_rows)`.
+- Produces: `GuildScope`, `CapturePlan`, `SealedCapturePlan`, `PlanError`, `authorized_guild_id(...)`, `parse_capture_plan(data, *, federation_rows)`, and `load_approved_plan(plan_id, *, plan_root, federation_rows)`.
 
 - [ ] **Step 1: Add a valid plan fixture and its federation authorization**
 
@@ -257,10 +311,9 @@ Create `src/gather/discord_plan.py` with:
 ~~~python
 from __future__ import annotations
 
-import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -342,6 +395,17 @@ def _authorized_guilds(rows: Sequence[dict[str, Any]]) -> tuple[dict[str, str], 
         if row["adapter"] == "discord" and row["access"] == "account_required" and row["url"].startswith(DISCORD_GUILD_PREFIX):
             authorized[row["id"]] = _snowflake(row["url"].removeprefix(DISCORD_GUILD_PREFIX), f"federation row {row['id']} guild")
     return authorized, registry_digest(clean).seal
+
+
+def authorized_guild_id(
+    federation_id: str,
+    federation_rows: Sequence[dict[str,Any]],
+) -> str:
+    authorized,_digest = _authorized_guilds(federation_rows)
+    try:
+        return authorized[federation_id]
+    except KeyError as exc:
+        raise PlanError("federation ID is not an authorized Discord guild") from exc
 ~~~
 
 - [ ] **Step 5: Add closed-shape parsing and sealing**
@@ -421,6 +485,8 @@ def parse_capture_plan(data: object, *, federation_rows: Sequence[dict[str, Any]
             raise PlanError("include_private_threads must be false")
         if not isinstance(row["include_public_threads"], bool):
             raise PlanError("include_public_threads must be boolean")
+        if threads and row["include_public_threads"] is not True:
+            raise PlanError("threads require include_public_threads=true")
         guilds.append(GuildScope(federation_id,guild_id,channels,threads,history,row["include_public_threads"],False))
     queries = _string_list(raw["queries"], "queries", allow_empty=False)
     if any(len(query) > 1024 for query in queries):
@@ -1015,7 +1081,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "discord" / "message-sensitive.js
 
 def test_redaction_removes_identity_and_signed_urls_but_preserves_technical_text() -> None:
     raw = FIXTURE.read_bytes()
-    redacted = redact_message(json.loads(raw),guild_id="1080142797870485606",channel_id="1081121447960915989",plan_digest="a" * 64,response_body_sha256=response_body_sha256(raw))
+    redacted = redact_message(json.loads(raw),guild_id="1080142797870485606",channel_id="1081121447960915989",thread_id=None,plan_digest="a" * 64,response_body_sha256=response_body_sha256(raw))
     durable = redacted.as_dict()
     encoded = json.dumps(durable,sort_keys=True,ensure_ascii=False)
     assert "PQ_M2 = 78.84375" in encoded
@@ -1186,7 +1252,7 @@ def assert_durable_private_data_free(value: object) -> None:
 Append to `src/gather/discord_redaction.py`:
 
 ~~~python
-def redact_message(message: Mapping[str,Any], *, guild_id: str, channel_id: str, plan_digest: str, response_body_sha256: str) -> RedactedMessage:
+def redact_message(message: Mapping[str,Any], *, guild_id: str, channel_id: str, thread_id: str | None, plan_digest: str, response_body_sha256: str) -> RedactedMessage:
     message_id = str(message.get("id",""))
     payload_channel = str(message.get("channel_id",channel_id))
     payload_guild = str(message.get("guild_id",guild_id))
@@ -1195,6 +1261,8 @@ def redact_message(message: Mapping[str,Any], *, guild_id: str, channel_id: str,
             raise RedactionError(f"{label} must be a Discord snowflake")
     if payload_channel != channel_id or payload_guild != guild_id:
         raise RedactionError("message locator does not match the approved scope")
+    if thread_id is not None and thread_id != channel_id:
+        raise RedactionError("thread locator does not match the approved lane")
     identities = _identity_lexicon(message)
     reference = message.get("message_reference")
     reply_to = None
@@ -1208,7 +1276,7 @@ def redact_message(message: Mapping[str,Any], *, guild_id: str, channel_id: str,
     for embed in message.get("embeds") or []:
         if isinstance(embed,Mapping) and (safe := _public_url(embed.get("url"))):
             links.add(safe)
-    redacted = RedactedMessage("gather.discord-message/v1","community_claim",guild_id,channel_id,None,message_id,str(message.get("timestamp") or ""),str(message["edited_timestamp"]) if message.get("edited_timestamp") is not None else None,_redact_text(str(message.get("content") or ""),identities),f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}",reply_to,attachments,tuple(sorted(links)),_canonical_hash(message),response_body_sha256,"discord-technical-v1",plan_digest)
+    redacted = RedactedMessage("gather.discord-message/v1","community_claim",guild_id,channel_id,thread_id,message_id,str(message.get("timestamp") or ""),str(message["edited_timestamp"]) if message.get("edited_timestamp") is not None else None,_redact_text(str(message.get("content") or ""),identities),f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}",reply_to,attachments,tuple(sorted(links)),_canonical_hash(message),response_body_sha256,"discord-technical-v1",plan_digest)
     assert_durable_private_data_free(redacted.as_dict())
     return redacted
 ~~~
@@ -1270,6 +1338,7 @@ def _redacted():
         json.loads(raw),
         guild_id="1080142797870485606",
         channel_id="1081121447960915989",
+        thread_id=None,
         plan_digest="a" * 64,
         response_body_sha256=response_body_sha256(raw),
     )
@@ -1282,6 +1351,7 @@ def test_message_receipt_is_neutral_across_discovery_queries() -> None:
         query_hash="b" * 64,
         guild_id="1080142797870485606",
         channel_id="1081121447960915989",
+        thread_id=None,
         message_id="1456789012345678901",
         message_receipt_sha256=message.provenance.sha256,
         discovery_method="discord-api-search-edge",
@@ -1547,7 +1617,9 @@ from gather.discord_preflight import (
     READ_MESSAGE_HISTORY,
     VIEW_CHANNEL,
     PreflightError,
+    discover_guild_channels,
     effective_channel_permissions,
+    preflight_plan,
 )
 
 
@@ -1600,7 +1672,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 
-from gather.discord_plan import GuildScope, SealedCapturePlan
+from gather.discord_plan import GuildScope, SealedCapturePlan, authorized_guild_id
 from gather.discord_transport import (
     DiscordClient,
     active_threads_request,
@@ -1609,6 +1681,7 @@ from gather.discord_transport import (
     current_user_request,
     guild_channels_request,
     guild_request,
+    public_archived_threads_request,
 )
 from gather.discord_redaction import assert_durable_private_data_free
 
@@ -1687,11 +1760,12 @@ class ChannelCapability:
 @dataclass(frozen=True, slots=True)
 class GuildPreflight:
     guild_id: str
+    returned_guild_id: str
     member: bool
     message_content: bool
     channels: tuple[ChannelCapability,...]
     public_thread_ids: tuple[str,...]
-    rejected_private_threads: int
+    approved_thread_ids: tuple[str,...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1701,6 +1775,20 @@ class PreflightReceipt:
     status: str
     guilds: tuple[GuildPreflight,...]
     message_routes_requested: int
+
+    def as_dict(self) -> dict[str,Any]:
+        value = asdict(self)
+        assert_durable_private_data_free(value)
+        return value
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveryReceipt:
+    schema: str
+    federation_id: str
+    guild_id: str
+    public_channel_ids: tuple[str,...]
+    status: str
 
     def as_dict(self) -> dict[str,Any]:
         value = asdict(self)
@@ -1728,6 +1816,80 @@ def _json_list(client: DiscordClient, request) -> list[dict[str,Any]]:
     return [row for row in value if isinstance(row,dict)]
 
 
+def _public_threads(
+    scope: GuildScope,
+    *,
+    client: DiscordClient,
+) -> tuple[str,...]:
+    if not scope.include_public_threads:
+        if scope.threads:
+            raise PreflightError("sealed threads require include_public_threads")
+        return ()
+    discovered: set[str] = set()
+    active = _json_object(client,active_threads_request(scope.guild_id))
+    for row in active.get("threads",[]):
+        if not isinstance(row,dict):
+            raise PreflightError("active thread metadata is malformed")
+        if int(row.get("type",-1)) == 12:
+            raise PreflightError("private Discord threads are prohibited")
+        if str(row.get("parent_id","")) not in set(scope.channels):
+            continue
+        discovered.add(classify_thread(row,approved_parents=set(scope.channels)))
+    for parent_id in scope.channels:
+        before: str | None = None
+        while True:
+            page = _json_object(
+                client,
+                public_archived_threads_request(parent_id,before=before,limit=100),
+            )
+            rows = page.get("threads")
+            if not isinstance(rows,list):
+                raise PreflightError("archived public thread metadata is malformed")
+            for row in rows:
+                if not isinstance(row,dict):
+                    raise PreflightError("archived public thread metadata is malformed")
+                discovered.add(classify_thread(row,approved_parents={parent_id}))
+            if page.get("has_more") is not True:
+                break
+            if not rows or not isinstance(rows[-1].get("thread_metadata"),dict):
+                raise PreflightError("archived public thread cursor is missing")
+            next_before = rows[-1]["thread_metadata"].get("archive_timestamp")
+            if not isinstance(next_before,str) or next_before == before:
+                raise PreflightError("archived public thread cursor did not advance")
+            before = next_before
+    return tuple(sorted(discovered))
+
+
+def _capabilities(
+    scope: GuildScope,
+    *,
+    user_id: str,
+    member_roles: Sequence[str],
+    roles: Mapping[str,int],
+    rows: Sequence[Mapping[str,Any]],
+) -> tuple[ChannelCapability,...]:
+    capabilities: list[ChannelCapability] = []
+    for row in rows:
+        channel_id = str(row.get("id",""))
+        channel_type = int(row.get("type",-1))
+        if channel_type in PRIVATE_CHANNEL_TYPES:
+            raise PreflightError("private channel metadata is prohibited")
+        if channel_type not in PUBLIC_CHANNEL_TYPES:
+            continue
+        permissions = effective_channel_permissions(
+            guild_id=scope.guild_id,user_id=user_id,
+            member_role_ids=member_roles,roles=roles,
+            overwrites=tuple(row.get("permission_overwrites") or ()),
+        )
+        capabilities.append(ChannelCapability(
+            scope.guild_id,channel_id,channel_type,
+            bool(permissions & VIEW_CHANNEL),
+            bool(permissions & READ_MESSAGE_HISTORY),
+            channel_id in scope.channels,
+        ))
+    return tuple(sorted(capabilities,key=lambda row: row.channel_id))
+
+
 def preflight_plan(plan: SealedCapturePlan, *, client: DiscordClient) -> PreflightReceipt:
     current_user = _json_object(client,current_user_request())
     application = _json_object(client,current_application_request())
@@ -1737,33 +1899,57 @@ def preflight_plan(plan: SealedCapturePlan, *, client: DiscordClient) -> Preflig
     guild_receipts: list[GuildPreflight] = []
     for scope in plan.plan.guilds:
         guild = _json_object(client,guild_request(scope.guild_id))
+        returned_guild_id = str(guild.get("id",""))
+        if returned_guild_id != scope.guild_id:
+            raise PreflightError("returned guild does not match sealed guild")
         member = _json_object(client,current_guild_member_request(scope.guild_id))
         roles = {str(row["id"]):int(row.get("permissions",0)) for row in guild.get("roles",[]) if isinstance(row,dict) and "id" in row}
         member_roles = tuple(str(role) for role in member.get("roles",[]))
         raw_channels = _json_list(client,guild_channels_request(scope.guild_id))
-        capabilities: list[ChannelCapability] = []
-        for row in raw_channels:
-            channel_id = str(row.get("id",""))
-            channel_type = int(row.get("type",-1))
-            if channel_type in PRIVATE_CHANNEL_TYPES:
-                raise PreflightError("DM, group DM, or private thread appeared in guild scope")
-            if channel_type not in PUBLIC_CHANNEL_TYPES:
-                continue
-            permissions = effective_channel_permissions(guild_id=scope.guild_id,user_id=user_id,member_role_ids=member_roles,roles=roles,overwrites=tuple(row.get("permission_overwrites") or ()))
-            capabilities.append(ChannelCapability(scope.guild_id,channel_id,channel_type,bool(permissions & VIEW_CHANNEL),bool(permissions & READ_MESSAGE_HISTORY),channel_id in scope.channels))
-        threads_payload = _json_object(client,active_threads_request(scope.guild_id))
-        public_threads: list[str] = []
-        rejected_private = 0
-        for row in threads_payload.get("threads",[]):
-            if not isinstance(row,dict):
-                continue
-            if int(row.get("type",-1)) == 12:
-                rejected_private += 1
-                continue
-            public_threads.append(classify_thread(row,approved_parents=set(scope.channels)))
-        guild_receipts.append(GuildPreflight(scope.guild_id,True,message_content,tuple(capabilities),tuple(sorted(public_threads)),rejected_private))
-    status = "MATCH" if all(channel.view_channel and channel.read_message_history for guild in guild_receipts for channel in guild.channels if channel.approved) and message_content else "UNVERIFIABLE"
+        capabilities = _capabilities(
+            scope,user_id=user_id,member_roles=member_roles,
+            roles=roles,rows=raw_channels,
+        )
+        approved = {row.channel_id:row for row in capabilities if row.approved}
+        if not scope.channels or set(approved) != set(scope.channels):
+            raise PreflightError("one or more sealed channels are missing")
+        public_threads = _public_threads(scope,client=client)
+        if not set(scope.threads) <= set(public_threads):
+            raise PreflightError("one or more sealed public threads are missing")
+        guild_receipts.append(GuildPreflight(
+            scope.guild_id,returned_guild_id,True,message_content,
+            capabilities,public_threads,tuple(sorted(scope.threads)),
+        ))
+    required = [row for guild in guild_receipts for row in guild.channels if row.approved]
+    status = "MATCH" if required and message_content and all(
+        row.view_channel and row.read_message_history for row in required
+    ) else "UNVERIFIABLE"
     return PreflightReceipt("gather.discord-preflight/v1",plan.digest,status,tuple(guild_receipts),0)
+
+
+def discover_guild_channels(
+    federation_id: str,
+    *,
+    federation_rows: Sequence[dict[str,Any]],
+    client: DiscordClient,
+) -> DiscoveryReceipt:
+    """Discover public IDs; this receipt is not a capture authorization."""
+    guild_id = authorized_guild_id(federation_id,federation_rows)
+    guild = _json_object(client,guild_request(guild_id))
+    if str(guild.get("id","")) != guild_id:
+        raise PreflightError("returned guild does not match authorized guild")
+    rows = _json_list(client,guild_channels_request(guild_id))
+    public_ids: list[str] = []
+    for row in rows:
+        channel_type = int(row.get("type",-1))
+        if channel_type in PRIVATE_CHANNEL_TYPES:
+            raise PreflightError("private channel metadata is prohibited")
+        if channel_type in PUBLIC_CHANNEL_TYPES:
+            public_ids.append(str(row["id"]))
+    return DiscoveryReceipt(
+        "gather.discord-discovery/v1",federation_id,guild_id,
+        tuple(sorted(public_ids)),"METADATA_ONLY_NOT_CAPTURE_AUTHORITY",
+    )
 ~~~
 
 - [ ] **Step 6: Add a fixture-driven no-message-route test**
@@ -1782,10 +1968,11 @@ def test_preflight_receipt_never_requests_search_or_message_history(monkeypatch)
     scripted = [
         {"id":"123456789012345678"},
         {"flags":1 << 18},
-        {"roles":[{"id":"1080142797870485606","permissions":str(VIEW_CHANNEL | READ_MESSAGE_HISTORY)}]},
+        {"id":"1080142797870485606","roles":[{"id":"1080142797870485606","permissions":str(VIEW_CHANNEL | READ_MESSAGE_HISTORY)}]},
         {"roles":[]},
         [{"id":"1081121447960915989","type":0,"permission_overwrites":[]}],
         {"threads":[]},
+        {"threads":[],"has_more":False},
     ]
 
     class MetadataTransport:
@@ -1798,8 +1985,97 @@ def test_preflight_receipt_never_requests_search_or_message_history(monkeypatch)
     transport = MetadataTransport()
     receipt = preflight_plan(plan,client=DiscordClient(transport,policy=RetryPolicy(0,0,0),sleep=lambda _:None))
     assert receipt.message_routes_requested == 0
+    assert receipt.status == "MATCH"
     assert all(request.operation not in {"guild-search","channel-history"} for request in transport.requests)
+
+
+@pytest.mark.parametrize(
+    ("scripted","match"),
+    [
+        (
+            [
+                {"id":"123456789012345678"},{"flags":1 << 18},
+                {"id":"999999999999999999","roles":[]},
+            ],
+            "returned guild",
+        ),
+        (
+            [
+                {"id":"123456789012345678"},{"flags":1 << 18},
+                {"id":"1080142797870485606","roles":[]},{"roles":[]},[],
+            ],
+            "sealed channels are missing",
+        ),
+        (
+            [
+                {"id":"123456789012345678"},{"flags":1 << 18},
+                {"id":"1080142797870485606","roles":[{"id":"1080142797870485606","permissions":str(VIEW_CHANNEL | READ_MESSAGE_HISTORY)}]},
+                {"roles":[]},
+                [{"id":"1081121447960915989","type":0,"permission_overwrites":[]}],
+                {"threads":[{"id":"345678901234567890","type":12,"parent_id":"1081121447960915989"}]},
+            ],
+            "private",
+        ),
+    ],
+)
+def test_preflight_fails_closed_on_guild_missing_channel_or_private_thread(
+    scripted,match,
+) -> None:
+    plan = _sealed_fixture_plan("plan-valid.json")
+    client,transport = _scripted_client(scripted)
+    with pytest.raises(PreflightError,match=match):
+        preflight_plan(plan,client=client)
+    assert all(
+        request.operation not in {"guild-search","channel-history"}
+        for request in transport.requests
+    )
+
+
+def test_public_thread_pagination_is_controlled_by_plan_flag() -> None:
+    enabled = _sealed_fixture_plan("plan-public-thread.json")
+    client,transport = _scripted_client([
+        {"id":"123456789012345678"},{"flags":1 << 18},
+        {"id":"1080142797870485606","roles":[{"id":"1080142797870485606","permissions":str(VIEW_CHANNEL | READ_MESSAGE_HISTORY)}]},
+        {"roles":[]},
+        [{"id":"1081121447960915989","type":0,"permission_overwrites":[]}],
+        {"threads":[]},
+        {"threads":[{"id":"345678901234567890","type":11,"parent_id":"1081121447960915989","thread_metadata":{"archive_timestamp":"2026-01-02T00:00:00Z"}}],"has_more":True},
+        {"threads":[],"has_more":False},
+    ])
+    receipt = preflight_plan(enabled,client=client)
+    assert receipt.status == "MATCH"
+    archived = [request for request in transport.requests if request.operation == "public-archived-threads"]
+    assert len(archived) == 2
+    assert dict(archived[1].query)["before"] == "2026-01-02T00:00:00Z"
+
+    disabled = _sealed_fixture_plan("plan-no-public-threads.json")
+    client,transport = _scripted_client([
+        {"id":"123456789012345678"},{"flags":1 << 18},
+        {"id":"1080142797870485606","roles":[{"id":"1080142797870485606","permissions":str(VIEW_CHANNEL | READ_MESSAGE_HISTORY)}]},
+        {"roles":[]},
+        [{"id":"1081121447960915989","type":0,"permission_overwrites":[]}],
+    ])
+    assert preflight_plan(disabled,client=client).status == "MATCH"
+    assert all("thread" not in request.operation for request in transport.requests)
+
+
+def test_metadata_discovery_returns_only_public_ids_and_does_not_authorize_capture() -> None:
+    client,_transport = _scripted_client([
+        {"id":"1080142797870485606","name":"must not persist"},
+        [{"id":"1081121447960915989","type":0,"name":"must not persist"}],
+    ])
+    receipt = discover_guild_channels(
+        "community-shaders-discord",federation_rows=_federation_rows(),client=client,
+    )
+    encoded = json.dumps(receipt.as_dict(),sort_keys=True)
+    assert receipt.status == "METADATA_ONLY_NOT_CAPTURE_AUTHORITY"
+    assert receipt.public_channel_ids == ("1081121447960915989",)
+    assert "must not persist" not in encoded
+    with pytest.raises(PlanError,match="non-empty"):
+        parse_capture_plan(_plan_with_channels([]),federation_rows=_federation_rows())
 ~~~
+
+Add `_scripted_client`, `_sealed_fixture_plan`, `_federation_rows`, and `_plan_with_channels` as deterministic fixture helpers in the same test file. Add `plan-public-thread.json` with the archived public thread explicitly in `threads`, and `plan-no-public-threads.json` with `include_public_threads=false` and an empty `threads` list. The discovery test deliberately proves that enumeration is not authority: the operator must copy selected public IDs into a new nonempty plan and seal it before capture.
 
 - [ ] **Step 7: Run preflight and transport tests**
 
@@ -1835,7 +2111,7 @@ Expected: one commit for metadata routes, permission logic, and preflight receip
 
 **Interfaces:**
 - Consumes: `SealedCapturePlan`, `DiscordClient`, `redact_message(...)`, and receipt builders.
-- Produces: `SearchCursor`, `SearchPage`, `PageObservation`, `query_hash(query)`, `parse_search_page(response)`, `advance_search_cursor(cursor, page)`, and `iter_search_pages(plan, *, client)`.
+- Produces: stable `LaneKey`, `CaptureLane`, moving `PageCursor`, `SearchPage`, `PageObservation`, `query_hash(query)`, `build_capture_lanes(plan)`, `validate_message_scope(message, lane)`, `parse_search_page(response)`, `parse_history_page(response)`, `advance_search_cursor(cursor, page)`, and `iter_lane_pages(lane, *, start_cursor, client, page_budget, message_budget)`.
 
 - [ ] **Step 1: Add a nested search fixture**
 
@@ -1852,11 +2128,18 @@ Create `tests/test_discord_search.py`:
 ~~~python
 from pathlib import Path
 
+import pytest
+
 from gather.discord_search import (
-    SearchCursor,
+    PageCursor,
+    ResponseScopeError,
     advance_search_cursor,
+    build_capture_lanes,
+    history_discovery_edges,
+    iter_lane_pages,
     parse_search_page,
     timestamp_snowflake_bound,
+    validate_message_scope,
 )
 from gather.discord_transport import DiscordResponse
 
@@ -1875,14 +2158,12 @@ def test_nested_search_messages_flatten_and_discard_member_payloads() -> None:
 
 
 def test_offset_ceiling_rolls_to_an_exclusive_snowflake_window() -> None:
-    cursor = SearchCursor(
-        query_hash="a" * 64,
-        guild_id="1080142797870485606",
-        channel_ids=("1081121447960915989",),
-        min_id=None,
-        max_id=None,
+    cursor = PageCursor(
         offset=9975,
+        max_id=None,
         window_index=0,
+        before=None,
+        done=False,
     )
     page = parse_search_page(DiscordResponse(200,(),FIXTURE.read_bytes()))
     next_cursor = advance_search_cursor(cursor,page)
@@ -1895,6 +2176,22 @@ def test_plan_time_bounds_compile_to_ordered_snowflakes() -> None:
     lower = timestamp_snowflake_bound("2023-01-01T00:00:00Z",upper=False)
     upper = timestamp_snowflake_bound("2026-07-10T00:00:00Z",upper=True)
     assert int(lower) < int(upper)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"id":"1","guild_id":"999999999999999999","channel_id":"1081121447960915989"},
+        {"id":"1","guild_id":"1080142797870485606","channel_id":"999999999999999999"},
+        {"id":"1","guild_id":"1080142797870485606","channel_id":"345678901234567890"},
+    ],
+)
+def test_malicious_response_locator_is_rejected_before_redaction_or_items(message) -> None:
+    lane = _search_lane(channels=("1081121447960915989",),threads=())
+    with pytest.raises(ResponseScopeError):
+        validate_message_scope(message,lane)
+    assert _redaction_spy.calls == []
+    assert _item_spy.calls == []
 ~~~
 
 - [ ] **Step 3: Run search tests and observe the red state**
@@ -1920,10 +2217,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Iterator, Mapping
 
-from gather.discord_plan import SealedCapturePlan
+from gather.discord_plan import (
+    PlanError, SealedCapturePlan, authorized_guild_id, parse_capture_plan,
+)
 from gather.discord_transport import (
     DiscordClient,
     DiscordResponse,
+    channel_history_request,
     guild_search_request,
 )
 
@@ -1936,15 +2236,44 @@ class SearchError(RuntimeError):
     pass
 
 
+class ResponseScopeError(SearchError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
-class SearchCursor:
-    query_hash: str
+class LaneKey:
+    plan_digest: str
+    redaction_digest: str
+    guild_id: str
+    method: str
+    query_hash: str | None
+    channel_ids: tuple[str,...]
+    min_id: str
+    max_id: str
+
+    def digest(self) -> str:
+        return hashlib.sha256(json.dumps(
+            asdict(self),sort_keys=True,separators=(",",":"),
+        ).encode()).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class CaptureLane:
+    key: LaneKey
     guild_id: str
     channel_ids: tuple[str,...]
-    min_id: str | None
-    max_id: str | None
+    thread_ids: tuple[str,...]
+    method: str
+    query: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PageCursor:
     offset: int
+    max_id: str | None
     window_index: int
+    before: str | None
+    done: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -1958,10 +2287,16 @@ class SearchPage:
 
 @dataclass(frozen=True, slots=True)
 class PageObservation:
-    cursor: SearchCursor
+    lane_key: LaneKey
+    cursor_before: PageCursor
+    cursor_after: PageCursor | None
     page: SearchPage
     retries: tuple[dict[str,Any],...]
     completeness: str
+
+    @property
+    def may_advance(self) -> bool:
+        return self.cursor_after is not None
 
 
 def query_hash(query: str) -> str:
@@ -2003,16 +2338,71 @@ def parse_search_page(response: DiscordResponse) -> SearchPage:
     return SearchPage(tuple(messages),int(payload.get("total_results",0)),bool(payload.get("doing_deep_historical_index",False)),hashlib.sha256(response.body).hexdigest())
 
 
-def advance_search_cursor(cursor: SearchCursor, page: SearchPage) -> SearchCursor:
+def parse_history_page(response: DiscordResponse) -> SearchPage:
+    if response.status != 200 or response.truncated:
+        raise SearchError("history page is not an accepted complete response")
+    try:
+        payload = json.loads(response.body)
+    except (UnicodeDecodeError,json.JSONDecodeError) as exc:
+        raise SearchError("history page was not complete JSON") from exc
+    if not isinstance(payload,list) or any(not isinstance(row,dict) for row in payload):
+        raise SearchError("history page must be a message list")
+    return SearchPage(
+        tuple(payload),len(payload),False,
+        hashlib.sha256(response.body).hexdigest(),False,
+    )
+
+
+def advance_search_cursor(cursor: PageCursor, page: SearchPage) -> PageCursor:
     next_offset = cursor.offset + SEARCH_LIMIT
     if next_offset <= MAX_OFFSET:
-        return SearchCursor(cursor.query_hash,cursor.guild_id,cursor.channel_ids,cursor.min_id,cursor.max_id,next_offset,cursor.window_index)
+        return PageCursor(next_offset,cursor.max_id,cursor.window_index,None,False)
     if not page.messages:
         raise SearchError("offset ceiling reached without a snowflake for the next window")
     oldest = min(str(message["id"]) for message in page.messages)
     if cursor.max_id is not None and int(oldest) >= int(cursor.max_id):
         raise SearchError("search window did not move backward")
-    return SearchCursor(cursor.query_hash,cursor.guild_id,cursor.channel_ids,cursor.min_id,oldest,0,cursor.window_index + 1)
+    return PageCursor(0,oldest,cursor.window_index + 1,None,False)
+
+
+def validate_message_scope(
+    message: Mapping[str,Any],
+    lane: CaptureLane,
+) -> tuple[str,str,str | None]:
+    """Return trusted locator values sourced from the sealed lane."""
+    guild_id = str(message.get("guild_id",""))
+    channel_id = str(message.get("channel_id",""))
+    if guild_id != lane.guild_id:
+        raise ResponseScopeError("response guild does not match sealed lane")
+    if channel_id not in lane.channel_ids:
+        raise ResponseScopeError("response channel/thread does not match sealed lane")
+    thread_id = channel_id if channel_id in lane.thread_ids else None
+    return lane.guild_id,channel_id,thread_id
+
+
+def build_capture_lanes(plan: SealedCapturePlan) -> tuple[CaptureLane,...]:
+    lanes: list[CaptureLane] = []
+    for scope in plan.plan.guilds:
+        searchable = tuple(sorted(set(scope.channels) | set(scope.threads)))
+        min_id = timestamp_snowflake_bound(plan.plan.after,upper=False)
+        max_id = timestamp_snowflake_bound(plan.plan.before,upper=True)
+        for query in plan.plan.queries:
+            key = LaneKey(
+                plan.digest,plan.redaction_digest,scope.guild_id,"search",
+                query_hash(query),searchable,min_id,max_id,
+            )
+            lanes.append(CaptureLane(
+                key,scope.guild_id,searchable,scope.threads,"search",query,
+            ))
+        for channel_id in scope.history_channels:
+            key = LaneKey(
+                plan.digest,plan.redaction_digest,scope.guild_id,"history",
+                None,(channel_id,),min_id,max_id,
+            )
+            lanes.append(CaptureLane(
+                key,scope.guild_id,(channel_id,),(),"history",None,
+            ))
+    return tuple(sorted(lanes,key=lambda lane: lane.key.digest()))
 ~~~
 
 - [ ] **Step 5: Add bounded query iteration and truthful completeness**
@@ -2020,47 +2410,97 @@ def advance_search_cursor(cursor: SearchCursor, page: SearchPage) -> SearchCurso
 Append to `src/gather/discord_search.py`:
 
 ~~~python
-def iter_search_pages(
-    plan: SealedCapturePlan,
+def iter_lane_pages(
+    lane: CaptureLane,
     *,
+    start_cursor: PageCursor,
     client: DiscordClient,
+    page_budget: int,
+    message_budget: int,
 ) -> Iterator[PageObservation]:
+    cursor = start_cursor
     pages_used = messages_seen = 0
-    for scope in plan.plan.guilds:
-        for query in plan.plan.queries:
-            cursor = SearchCursor(
-                query_hash(query),
-                scope.guild_id,
-                scope.channels,
-                timestamp_snowflake_bound(plan.plan.after,upper=False),
-                timestamp_snowflake_bound(plan.plan.before,upper=True),
-                0,
-                0,
+    previous_total: int | None = None
+    while not cursor.done and pages_used < page_budget and messages_seen < message_budget:
+        remaining = message_budget - messages_seen
+        if lane.method == "search":
+            request = guild_search_request(
+                lane.guild_id,content=lane.query or "",
+                channel_ids=lane.channel_ids,limit=min(SEARCH_LIMIT,remaining),
+                offset=cursor.offset,min_id=lane.key.min_id,
+                max_id=cursor.max_id or lane.key.max_id,
             )
-            previous_total: int | None = None
-            while pages_used < plan.plan.page_budget and messages_seen < plan.plan.message_budget:
-                remaining = plan.plan.message_budget - messages_seen
-                limit = min(SEARCH_LIMIT,remaining)
-                exchange = client.execute(guild_search_request(scope.guild_id,content=query,channel_ids=scope.channels,limit=limit,offset=cursor.offset,min_id=cursor.min_id,max_id=cursor.max_id),indexing=True)
-                if exchange.response.status != 200:
-                    yield PageObservation(cursor,SearchPage((),0,exchange.response.status == 202,hashlib.sha256(exchange.response.body).hexdigest()),tuple({"kind":event.kind,"status":event.status,"wait_seconds":event.wait_seconds,"scope":event.scope,"attempt":event.attempt} for event in exchange.events),"indexing_incomplete" if exchange.response.status == 202 else "transport_incomplete")
-                    break
-                page = parse_search_page(exchange.response)
-                pages_used += 1
-                messages_seen += len(page.messages)
-                completeness = "bounded_observed"
-                if previous_total is not None and previous_total != page.total_results:
-                    completeness = "changing_total"
-                if pages_used >= plan.plan.page_budget or messages_seen >= plan.plan.message_budget:
-                    completeness = "budget_exhausted"
-                yield PageObservation(cursor,page,tuple({"kind":event.kind,"status":event.status,"wait_seconds":event.wait_seconds,"scope":event.scope,"attempt":event.attempt} for event in exchange.events),completeness)
-                previous_total = page.total_results
-                if not page.messages:
-                    break
-                cursor = advance_search_cursor(cursor,page)
+            indexing = True
+        elif lane.method == "history":
+            request = channel_history_request(
+                lane.channel_ids[0],before=cursor.before,
+                limit=min(100,remaining),
+            )
+            indexing = False
+        else:
+            raise SearchError("unknown capture lane method")
+        exchange = client.execute(request,indexing=indexing)
+        events = tuple(
+            {"kind":event.kind,"status":event.status,
+             "wait_seconds":event.wait_seconds,"scope":event.scope,
+             "attempt":event.attempt}
+            for event in exchange.events
+        )
+        if exchange.response.status != 200:
+            empty = SearchPage(
+                (),0,exchange.response.status == 202,
+                hashlib.sha256(exchange.response.body).hexdigest(),False,
+            )
+            yield PageObservation(
+                lane.key,cursor,None,empty,events,
+                "indexing_incomplete" if exchange.response.status == 202
+                else "transport_incomplete",
+            )
+            return
+        try:
+            page = parse_search_page(exchange.response) if lane.method == "search" else parse_history_page(exchange.response)
+        except SearchError:
+            empty = SearchPage(
+                (),0,False,hashlib.sha256(exchange.response.body).hexdigest(),False,
+            )
+            yield PageObservation(lane.key,cursor,None,empty,events,"malformed")
+            return
+        if page.doing_deep_historical_index:
+            yield PageObservation(
+                lane.key,cursor,None,page,events,"indexing_incomplete",
+            )
+            return
+        for message in page.messages:
+            validate_message_scope(message,lane)
+        pages_used += 1
+        messages_seen += len(page.messages)
+        if not page.messages:
+            next_cursor = PageCursor(
+                cursor.offset,cursor.max_id,cursor.window_index,
+                cursor.before,True,
+            )
+        elif lane.method == "search":
+            next_cursor = advance_search_cursor(cursor,page)
+        else:
+            oldest = min(str(message["id"]) for message in page.messages)
+            if cursor.before is not None and int(oldest) >= int(cursor.before):
+                raise SearchError("history cursor did not move backward")
+            next_cursor = PageCursor(0,None,0,oldest,False)
+        completeness = "bounded_observed"
+        if previous_total is not None and previous_total != page.total_results:
+            completeness = "changing_total"
+        if pages_used >= page_budget or messages_seen >= message_budget:
+            completeness = "budget_exhausted"
+        yield PageObservation(
+            lane.key,cursor,next_cursor,page,events,completeness,
+        )
+        previous_total = page.total_results
+        cursor = next_cursor
 ~~~
 
-- [ ] **Step 6: Add explicit channel-history route and allowlist test**
+The caller must commit each yielded observation before requesting the next generator element. It may persist `cursor_after` only when non-`None`. A `202`, malformed body, `doing_deep_historical_index=true`, or any terminal status records an event but leaves the prior cursor unchanged.
+
+- [ ] **Step 6: Add the explicit channel-history fallback, route/edge tests, and resume-input test**
 
 Append to `src/gather/discord_transport.py`:
 
@@ -2090,9 +2530,59 @@ Append to `tests/test_discord_search.py`:
 ~~~python
 def test_history_fallback_scope_is_explicit_in_the_plan() -> None:
     from gather.discord_plan import GuildScope
-    scope = GuildScope("community-shaders-discord","1080142797870485606",("1081121447960915989",),(),(),True,False)
-    assert "1081121447960915989" not in scope.history_channels
+    scope = GuildScope("community-shaders-discord","1080142797870485606",("1081121447960915989",),(),(),False,False)
+    plan = _sealed_plan_with_scope(scope)
+    assert all(lane.method == "search" for lane in build_capture_lanes(plan))
+
+
+def test_only_allowlisted_history_channel_gets_history_lane_and_edge() -> None:
+    scope = GuildScope(
+        "community-shaders-discord","1080142797870485606",
+        ("1081121447960915989","2081121447960915989"),(),
+        ("1081121447960915989",),False,False,
+    )
+    lanes = build_capture_lanes(_sealed_plan_with_scope(scope))
+    history = [lane for lane in lanes if lane.method == "history"]
+    assert [lane.channel_ids for lane in history] == [("1081121447960915989",)]
+    client,transport = _history_client([
+        [{"id":"1456789012345678901","guild_id":"1080142797870485606","channel_id":"1081121447960915989","content":"PQ"}],
+        [],
+    ])
+    observations = list(iter_lane_pages(
+        history[0],start_cursor=PageCursor(0,None,0,None,False),client=client,
+        page_budget=2,message_budget=10,
+    ))
+    assert [request.operation for request in transport.requests] == [
+        "channel-history","channel-history",
+    ]
+    assert dict(transport.requests[1].query)["before"] == "1456789012345678901"
+    edges = history_discovery_edges(observations[0])
+    assert edges and all(edge.method == "discord-api-history-edge" for edge in edges)
+
+
+def test_resume_cursor_is_used_for_the_first_request() -> None:
+    lane = _search_lane(channels=("1081121447960915989",),threads=())
+    client,transport = _search_client([{"messages":[],"total_results":0,"doing_deep_historical_index":False}])
+    list(iter_lane_pages(
+        lane,start_cursor=PageCursor(75,None,0,None,False),client=client,
+        page_budget=1,message_budget=25,
+    ))
+    assert dict(transport.requests[0].query)["offset"] == "75"
+
+
+@pytest.mark.parametrize("status",[202,403,500])
+def test_terminal_or_indexing_response_never_exposes_next_cursor(status) -> None:
+    lane = _search_lane(channels=("1081121447960915989",),threads=())
+    observation = next(iter_lane_pages(
+        lane,start_cursor=PageCursor(25,None,0,None,False),
+        client=_status_client(status),page_budget=1,message_budget=25,
+    ))
+    assert observation.cursor_before.offset == 25
+    assert observation.cursor_after is None
+    assert observation.may_advance is False
 ~~~
+
+Add fixture helpers used above and `history_discovery_edges(observation)` beside the existing search-edge builder. It must create one `DiscoveryEdge(method="discord-api-history-edge", ...)` per accepted history message. Search and history edges remain different methods; neither is emitted until every message locator in the page passes `validate_message_scope`.
 
 - [ ] **Step 7: Run search, transport, and redaction tests**
 
@@ -2126,7 +2616,7 @@ Expected: one commit containing search/window behavior and its typed routes.
 
 **Interfaces:**
 - Consumes: `Corpus.add(items) -> dict[str,int]` and privacy-safe Items/manifest/checkpoint values.
-- Produces: `CheckpointKey`, `CaptureCheckpoint`, `CaptureManifest`, `BatchCommitReceipt`, and `DiscordCaptureStore.commit_batch(...)`.
+- Produces: stable search `LaneKey`, `CaptureCheckpoint`, truthful `CaptureManifest`, `BatchCommitReceipt`, `aggregate_completeness(...)`, `manifest_identity(...)`, and single-writer `DiscordCaptureStore.commit_batch(...)`.
 
 - [ ] **Step 1: Write failing ordered-commit and replay tests**
 
@@ -2140,9 +2630,11 @@ import pytest
 from gather.discord_store import (
     CaptureCheckpoint,
     CaptureManifest,
-    CheckpointKey,
+    CaptureStateError,
     DiscordCaptureStore,
+    manifest_identity,
 )
+from gather.discord_search import LaneKey, PageCursor
 from gather.item import make_item
 from gather.store import Corpus
 
@@ -2152,10 +2644,20 @@ def _item():
 
 
 def _state():
-    key = CheckpointKey("a" * 64,"b" * 64,"c" * 64,"1080142797870485606",("1081121447960915989",),None,None)
-    before = CaptureCheckpoint(key,0,0,None,"bounded_observed")
-    after = CaptureCheckpoint(key,1,1,"1456789012345678901","bounded_observed")
-    manifest = CaptureManifest("gather.discord-capture-manifest/v1","batch-000001","a" * 64,("d" * 64,),("e" * 64,),before,after,(), "bounded_observed")
+    key = LaneKey("a" * 64,"b" * 64,"1080142797870485606","search","c" * 64,("1081121447960915989",),"1","9")
+    cursor_before = PageCursor(0,None,0,None,False)
+    cursor_after = PageCursor(25,None,0,None,False)
+    before = CaptureCheckpoint(key,cursor_before,0,0,0,"bounded_observed",())
+    after = CaptureCheckpoint(key,cursor_after,1,1,1,"bounded_observed",())
+    identity = manifest_identity("a" * 64,key.digest(),1,cursor_before)
+    manifest = CaptureManifest(
+        "gather.discord-capture-manifest/v1",identity,"hdr-plan","a" * 64,
+        "discord-technical-v1","b" * 64,key.digest(),"c" * 64,"search",
+        ("2023-01-01T00:00:00Z","2026-07-10T00:00:00Z"),("1","9"),
+        {"page_budget":2,"message_budget":10,"batch_size":5,"retry_budget":1,"indexing_retry_budget":1},
+        1,1,(),(),(),("d" * 64,),"f" * 64,("e" * 64,),
+        cursor_before,cursor_after,before,after,"bounded_observed",
+    )
     return before,after,manifest
 
 
@@ -2204,11 +2706,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from gather.discord_redaction import assert_durable_private_data_free
+from gather.discord_search import LaneKey, PageCursor
 from gather.item import Item
 from gather.store import Corpus
 
@@ -2218,38 +2722,42 @@ class CaptureStateError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
-class CheckpointKey:
-    plan_digest: str
-    redaction_digest: str
-    query_hash: str
-    guild_id: str
-    channel_ids: tuple[str,...]
-    min_id: str | None
-    max_id: str | None
-
-    def digest(self) -> str:
-        return hashlib.sha256(_json(asdict(self)).encode("utf-8")).hexdigest()
-
-
-@dataclass(frozen=True, slots=True)
 class CaptureCheckpoint:
-    key: CheckpointKey
-    pages_committed: int
+    key: LaneKey
+    next_cursor: PageCursor
+    pages_requested: int
+    pages_accepted: int
     messages_committed: int
-    last_message_id: str | None
     completeness: str
+    warnings: tuple[str,...]
 
 
 @dataclass(frozen=True, slots=True)
 class CaptureManifest:
     schema: str
-    batch_id: str
+    manifest_id: str
+    plan_id: str
     plan_digest: str
-    response_body_hashes: tuple[str,...]
+    redaction_policy: str
+    redaction_digest: str
+    lane_digest: str
+    query_hash: str | None
+    method: str
+    time_bounds: tuple[str,str]
+    snowflake_bounds: tuple[str,str]
+    sealed_budgets: dict[str,int]
+    requested_pages: int
+    accepted_pages: int
+    retry_events: tuple[dict[str,Any],...]
+    indexing_events: tuple[dict[str,Any],...]
+    skipped_regions: tuple[dict[str,Any],...]
+    transient_response_hashes: tuple[str,...]
+    transient_response_aggregate: str
     durable_item_hashes: tuple[str,...]
+    cursor_before: PageCursor
+    cursor_after: PageCursor
     checkpoint_before: CaptureCheckpoint
     checkpoint_after: CaptureCheckpoint
-    events: tuple[dict[str,Any],...]
     completeness: str
 
 
@@ -2262,6 +2770,34 @@ class BatchCommitReceipt:
 
 def _json(value: object) -> str:
     return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False)
+
+
+COMPLETENESS_SEVERITY = {
+    "complete":0,"bounded_observed":1,"changing_total":2,
+    "budget_exhausted":3,"indexing_incomplete":4,"malformed":5,
+    "transport_incomplete":6,
+}
+
+
+def aggregate_completeness(values: Sequence[str]) -> str:
+    if not values:
+        return "bounded_observed"
+    unknown = set(values) - set(COMPLETENESS_SEVERITY)
+    if unknown:
+        raise CaptureStateError(f"unknown completeness state: {sorted(unknown)}")
+    return max(values,key=COMPLETENESS_SEVERITY.__getitem__)
+
+
+def manifest_identity(
+    plan_digest: str,
+    lane_digest: str,
+    batch_sequence: int,
+    cursor_before: PageCursor,
+) -> str:
+    return hashlib.sha256(_json({
+        "plan_digest":plan_digest,"lane_digest":lane_digest,
+        "batch_sequence":batch_sequence,"cursor_before":asdict(cursor_before),
+    }).encode()).hexdigest()
 ~~~
 
 - [ ] **Step 4: Add atomic JSON replacement and ordered commit**
@@ -2275,51 +2811,116 @@ class DiscordCaptureStore:
         self._state_root = state_root
         self._fsync = fsync
         self._failpoint = failpoint
+        self._writer_depth = 0
 
     def _path(self, kind: str, digest: str) -> Path:
         if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
             raise CaptureStateError("state digest must be 64 lowercase hexadecimal characters")
         return self._state_root / kind / f"{digest}.json"
 
-    def _replace_json(self, path: Path, value: object) -> str:
+    def _encoded(self, value: object) -> tuple[bytes,str]:
         assert_durable_private_data_free(value)
-        text = _json(value)
-        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        encoded = (_json(value) + "\n").encode("utf-8")
+        return encoded,hashlib.sha256(encoded).hexdigest()
+
+    def _replace_json(self, path: Path, value: object) -> str:
+        encoded,digest = self._encoded(value)
         path.parent.mkdir(parents=True,exist_ok=True)
         temporary = path.with_suffix(path.suffix + ".tmp")
-        with temporary.open("w",encoding="utf-8",newline="\n") as stream:
-            stream.write(text + "\n")
+        with temporary.open("wb") as stream:
+            stream.write(encoded)
             stream.flush()
             if self._fsync:
                 os.fsync(stream.fileno())
         os.replace(temporary,path)
         return digest
 
+    def _write_json_once(self, path: Path, value: object) -> str:
+        encoded,digest = self._encoded(value)
+        path.parent.mkdir(parents=True,exist_ok=True)
+        try:
+            with path.open("xb") as stream:
+                stream.write(encoded)
+                stream.flush()
+                if self._fsync:
+                    os.fsync(stream.fileno())
+        except FileExistsError:
+            if path.read_bytes() != encoded:
+                raise CaptureStateError(
+                    "manifest identity already exists with different bytes"
+                )
+        return digest
+
+    @contextmanager
+    def capture_session(self):
+        if self._writer_depth:
+            self._writer_depth += 1
+            try:
+                yield
+            finally:
+                self._writer_depth -= 1
+            return
+        lock = self._state_root / "capture.lock"
+        lock.parent.mkdir(parents=True,exist_ok=True)
+        try:
+            descriptor = os.open(lock,os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError as exc:
+            raise CaptureStateError("capture store already has an active writer") from exc
+        try:
+            os.write(descriptor,str(os.getpid()).encode("ascii"))
+            os.close(descriptor)
+            self._writer_depth = 1
+            yield
+        finally:
+            self._writer_depth = 0
+            if lock.exists():
+                lock.unlink()
+
     def commit_batch(self, *, items: list[Item], manifest: CaptureManifest, checkpoint: CaptureCheckpoint) -> BatchCommitReceipt:
         if manifest.checkpoint_after != checkpoint:
             raise CaptureStateError("manifest and checkpoint commit targets differ")
+        expected_id = manifest_identity(
+            manifest.plan_digest,manifest.lane_digest,
+            checkpoint.pages_requested,manifest.cursor_before,
+        )
+        if manifest.manifest_id != expected_id:
+            raise CaptureStateError("manifest identity is not deterministic")
+        if manifest.cursor_after != checkpoint.next_cursor:
+            raise CaptureStateError("manifest cursor and checkpoint cursor differ")
         assert_durable_private_data_free(asdict(manifest))
         assert_durable_private_data_free(asdict(checkpoint))
         for item in items:
             assert_durable_private_data_free(json.loads(item.text))
-        self._failpoint("before-corpus")
-        stored = self._corpus.add(items)
-        self._failpoint("after-corpus")
-        manifest_digest = self._replace_json(self._path("manifests",hashlib.sha256(manifest.batch_id.encode()).hexdigest()),asdict(manifest))
-        self._failpoint("after-manifest")
-        checkpoint_digest = self._replace_json(self._path("checkpoints",checkpoint.key.digest()),asdict(checkpoint))
-        self._failpoint("after-checkpoint")
+        with self.capture_session():
+            self._failpoint("before-corpus")
+            stored = self._corpus.add(items)
+            self._failpoint("after-corpus")
+            manifest_digest = self._write_json_once(
+                self._path("manifests",manifest.manifest_id),asdict(manifest),
+            )
+            self._failpoint("after-manifest")
+            checkpoint_digest = self._replace_json(
+                self._path("checkpoints",checkpoint.key.digest()),asdict(checkpoint),
+            )
+            self._failpoint("after-checkpoint")
         return BatchCommitReceipt(stored,manifest_digest,checkpoint_digest)
 
-    def load_checkpoint(self, key: CheckpointKey) -> CaptureCheckpoint | None:
+    def load_checkpoint(self, key: LaneKey) -> CaptureCheckpoint | None:
         path = self._path("checkpoints",key.digest())
         if not path.exists():
             return None
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
-            loaded_key = CheckpointKey(**value["key"])
-            loaded_key = CheckpointKey(loaded_key.plan_digest,loaded_key.redaction_digest,loaded_key.query_hash,loaded_key.guild_id,tuple(loaded_key.channel_ids),loaded_key.min_id,loaded_key.max_id)
-            return CaptureCheckpoint(loaded_key,int(value["pages_committed"]),int(value["messages_committed"]),value.get("last_message_id"),str(value["completeness"]))
+            raw_key = dict(value["key"])
+            raw_key["channel_ids"] = tuple(raw_key["channel_ids"])
+            loaded_key = LaneKey(**raw_key)
+            raw_cursor = dict(value["next_cursor"])
+            return CaptureCheckpoint(
+                loaded_key,PageCursor(**raw_cursor),
+                int(value["pages_requested"]),int(value["pages_accepted"]),
+                int(value["messages_committed"]),str(value["completeness"]),
+                tuple(str(row) for row in value.get("warnings",[])),
+            )
         except (KeyError,TypeError,ValueError,json.JSONDecodeError) as exc:
             raise CaptureStateError("checkpoint is corrupt") from exc
 ~~~
@@ -2331,7 +2932,7 @@ Append to `tests/test_discord_store.py`:
 ~~~python
 def test_changed_plan_or_redaction_digest_forks_checkpoint_key() -> None:
     before,after,_ = _state()
-    changed = CheckpointKey("f" * 64,after.key.redaction_digest,after.key.query_hash,after.key.guild_id,after.key.channel_ids,after.key.min_id,after.key.max_id)
+    changed = LaneKey("f" * 64,after.key.redaction_digest,after.key.guild_id,after.key.method,after.key.query_hash,after.key.channel_ids,after.key.min_id,after.key.max_id)
     assert changed.digest() != after.key.digest()
 
 
@@ -2343,7 +2944,51 @@ def test_corrupt_checkpoint_fails_closed(tmp_path) -> None:
     path.write_text("{broken",encoding="utf-8")
     with pytest.raises(Exception,match="corrupt"):
         store.load_checkpoint(after.key)
+
+
+def test_same_manifest_bytes_are_idempotent_but_conflict_never_overwrites(tmp_path) -> None:
+    from dataclasses import replace
+    _,after,manifest = _state()
+    store = DiscordCaptureStore(
+        Corpus(str(tmp_path / "corpus"),fsync=False),
+        state_root=tmp_path / "state",fsync=False,
+    )
+    first = store.commit_batch(items=[_item()],manifest=manifest,checkpoint=after)
+    second = store.commit_batch(items=[_item()],manifest=manifest,checkpoint=after)
+    assert first.manifest_digest == second.manifest_digest
+    path = store._path("manifests",manifest.manifest_id)
+    original = path.read_bytes()
+    conflicting = replace(manifest,completeness="transport_incomplete")
+    with pytest.raises(CaptureStateError,match="different bytes"):
+        store.commit_batch(items=[_item()],manifest=conflicting,checkpoint=after)
+    assert path.read_bytes() == original
+
+
+def test_second_writer_fails_closed(tmp_path) -> None:
+    first = DiscordCaptureStore(
+        Corpus(str(tmp_path / "corpus"),fsync=False),
+        state_root=tmp_path / "state",fsync=False,
+    )
+    second = DiscordCaptureStore(
+        Corpus(str(tmp_path / "corpus"),fsync=False),
+        state_root=tmp_path / "state",fsync=False,
+    )
+    with first.capture_session():
+        with pytest.raises(CaptureStateError,match="active writer"):
+            with second.capture_session():
+                raise AssertionError("second writer entered")
+
+
+def test_aggregate_completeness_never_hides_earlier_warning() -> None:
+    assert aggregate_completeness(
+        ["changing_total","bounded_observed","complete"]
+    ) == "changing_total"
+    assert aggregate_completeness(
+        ["indexing_incomplete","bounded_observed"]
+    ) == "indexing_incomplete"
 ~~~
+
+Document the store as single-writer. A stale `capture.lock` is a fail-closed operational condition: status/doctor reports it, and an operator may remove it only after proving that no capture process is active. Never auto-break or overwrite the lock.
 
 - [ ] **Step 6: Run crash recovery and corpus regressions**
 
@@ -2380,7 +3025,7 @@ Expected: one state-store commit with deterministic crash tests.
 
 **Interfaces:**
 - Consumes: sealed plans, `DiscordClient`, preflight/search/redaction/receipt functions, and `DiscordCaptureStore`.
-- Produces: `PlanValidationReceipt`, `CaptureReceipt`, `CaptureStatusReceipt`, `DiscordDoctorReceipt`, `validate_plan(plan)`, `preflight_plan(plan, *, client)`, `capture_plan(plan, *, client, store)`, `status_plan(plan, *, store)`, and `official_client_after_validation(plan, *, secret_reader)`.
+- Produces: `PlanValidationReceipt`, `CaptureReceipt`, `CaptureStatusReceipt`, `DiscordDoctorReceipt`, `verify_sealed_plan(plan, *, federation_rows)`, `validate_plan(plan)`, `preflight_plan(plan, *, client)`, `capture_plan(plan, *, federation_rows, client, store)`, `status_plan(plan, *, store)`, and `official_client_after_validation(plan, *, federation_rows, secret_reader)`.
 
 - [ ] **Step 1: Write the failing credential-order and receipt-only engine tests**
 
@@ -2388,6 +3033,7 @@ Create `tests/test_discord_engine.py`:
 
 ~~~python
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -2437,9 +3083,27 @@ def test_official_client_reads_only_the_fixed_bot_variable_after_validation() ->
     def reader(name: str) -> str:
         names.append(name)
         return "fixture-secret"
-    client = official_client_after_validation(_plan(),secret_reader=reader)
+    client = official_client_after_validation(_plan(),federation_rows=_rows(),secret_reader=reader)
     assert names == ["GATHER_DISCORD_BOT_TOKEN"]
     assert "fixture-secret" not in repr(client)
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        lambda plan: replace(plan,digest="f" * 64),
+        lambda plan: replace(plan,canonical_json=plan.canonical_json.replace("PQ","forged")),
+        lambda plan: replace(plan,authorization_digest="f" * 64),
+    ],
+)
+def test_tampered_seal_is_rejected_before_any_secret_read(forged) -> None:
+    names: list[str] = []
+    with pytest.raises(PlanError,match="sealed plan"):
+        official_client_after_validation(
+            forged(_plan()),federation_rows=_rows(),
+            secret_reader=lambda name: names.append(name) or "fixture-secret",
+        )
+    assert names == []
 ~~~
 
 - [ ] **Step 2: Run engine tests and observe the red state**
@@ -2485,8 +3149,9 @@ Create `src/gather/discord.py`:
 ~~~python
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from gather.credentials import require_secret, secret_state
 from gather.discord_plan import SealedCapturePlan
@@ -2525,7 +3190,8 @@ class CaptureReceipt:
     plan_digest: str
     messages: int
     discovery_edges: int
-    pages: int
+    requested_pages: int
+    accepted_pages: int
     manifests: tuple[str,...]
     checkpoint_refs: tuple[str,...]
     warnings: tuple[str,...]
@@ -2571,12 +3237,30 @@ def validate_plan(plan: SealedCapturePlan) -> PlanValidationReceipt:
     return PlanValidationReceipt("gather.discord-plan-validation/v1","MATCH",plan.plan.plan_id,plan.digest,plan.authorization_digest,plan.redaction_digest)
 
 
+def verify_sealed_plan(
+    plan: SealedCapturePlan,
+    *,
+    federation_rows: Sequence[dict[str,Any]],
+) -> PlanValidationReceipt:
+    """Reparse trusted canonical bytes and compare every seal before secrets."""
+    try:
+        reparsed = parse_capture_plan(
+            json.loads(plan.canonical_json),federation_rows=federation_rows,
+        )
+    except (json.JSONDecodeError,PlanError) as exc:
+        raise PlanError("sealed plan failed invariant verification") from exc
+    if reparsed != plan:
+        raise PlanError("sealed plan digest or authorization is forged")
+    return validate_plan(reparsed)
+
+
 def official_client_after_validation(
     plan: SealedCapturePlan,
     *,
+    federation_rows: Sequence[dict[str,Any]],
     secret_reader: Callable[[str],str] = require_secret,
 ) -> DiscordClient:
-    validate_plan(plan)
+    verify_sealed_plan(plan,federation_rows=federation_rows)
     token = secret_reader(DISCORD_TOKEN_ENV)
     return DiscordClient(
         DiscordHTTPTransport(f"Bot {token}"),
@@ -2585,6 +3269,20 @@ def official_client_after_validation(
             indexing_retries=plan.plan.indexing_retry_budget,
             server_retries=plan.plan.retry_budget,
         ),
+    )
+
+
+def official_discovery_client_after_authorization(
+    federation_id: str,
+    *,
+    federation_rows: Sequence[dict[str,Any]],
+    secret_reader: Callable[[str],str] = require_secret,
+) -> DiscordClient:
+    authorized_guild_id(federation_id,federation_rows)  # raises before secret read
+    token = secret_reader(DISCORD_TOKEN_ENV)
+    return DiscordClient(
+        DiscordHTTPTransport(f"Bot {token}"),
+        policy=RetryPolicy(rate_retries=2,indexing_retries=0,server_retries=2),
     )
 
 
@@ -2599,7 +3297,6 @@ def discord_doctor(*, plan_root_configured: bool, corpus_root_configured: bool) 
 Append to `src/gather/discord.py`:
 
 ~~~python
-import hashlib
 import time
 
 from gather.discord_receipts import (
@@ -2608,49 +3305,205 @@ from gather.discord_receipts import (
     message_item,
 )
 from gather.discord_redaction import redact_message
-from gather.discord_search import iter_search_pages
+from gather.discord_search import (
+    PageCursor,
+    build_capture_lanes,
+    iter_lane_pages,
+    validate_message_scope,
+)
 from gather.discord_store import (
     CaptureCheckpoint,
     CaptureManifest,
-    CheckpointKey,
+    aggregate_completeness,
+    manifest_identity,
 )
 
 
 def capture_plan(
     plan: SealedCapturePlan,
     *,
+    federation_rows: Sequence[dict[str,Any]],
     client: DiscordClient,
     store: DiscordCaptureStore,
 ) -> CaptureReceipt:
-    message_count = edge_count = page_count = 0
+    verify_sealed_plan(plan,federation_rows=federation_rows)
+    preflight = preflight_plan(plan,client=client)
+    if preflight.status != "MATCH":
+        raise CapturePreflightError("capture requires an exact preflight MATCH")
+    message_count = edge_count = requested_pages = accepted_pages = 0
     manifest_refs: list[str] = []
     checkpoint_refs: list[str] = []
     warnings: list[str] = []
-    completeness: list[str] = []
-    for observation in iter_search_pages(plan,client=client):
-        page_count += 1
-        items = []
-        for rank,raw_message in enumerate(observation.page.messages):
-            channel_id = str(raw_message["channel_id"])
-            redacted = redact_message(raw_message,guild_id=observation.cursor.guild_id,channel_id=channel_id,plan_digest=plan.digest,response_body_sha256=observation.page.response_body_sha256)
-            message = message_item(redacted,fetched_at=time.time())
-            edge = discovery_edge_item(DiscoveryEdge(plan.digest,observation.cursor.query_hash,observation.cursor.guild_id,channel_id,redacted.message_id,message.provenance.sha256,"discord-api-search-edge",observation.cursor.min_id,observation.cursor.max_id,observation.cursor.offset,rank,observation.page.response_body_sha256),fetched_at=time.time())
-            items.extend((message,edge))
-            message_count += 1
-            edge_count += 1
-        key = CheckpointKey(plan.digest,plan.redaction_digest,observation.cursor.query_hash,observation.cursor.guild_id,observation.cursor.channel_ids,observation.cursor.min_id,observation.cursor.max_id)
-        before = store.load_checkpoint(key) or CaptureCheckpoint(key,0,0,None,"bounded_observed")
-        after = CaptureCheckpoint(key,before.pages_committed + 1,before.messages_committed + len(observation.page.messages),str(observation.page.messages[-1]["id"]) if observation.page.messages else before.last_message_id,observation.completeness)
-        batch_id = hashlib.sha256(f"{key.digest()}:{after.pages_committed}".encode()).hexdigest()
-        manifest = CaptureManifest("gather.discord-capture-manifest/v1",batch_id,plan.digest,(observation.page.response_body_sha256,),tuple(item.provenance.sha256 for item in items),before,after,observation.retries,observation.completeness)
-        committed = store.commit_batch(items=items,manifest=manifest,checkpoint=after)
-        manifest_refs.append(committed.manifest_digest)
-        checkpoint_refs.append(committed.checkpoint_digest)
-        completeness.append(observation.completeness)
-        if observation.completeness != "bounded_observed":
-            warnings.append(observation.completeness)
-    return CaptureReceipt("gather.discord-capture/v1","MATCH" if not warnings else "MATCH_WITH_WARNINGS",plan.plan.plan_id,plan.digest,message_count,edge_count,page_count,tuple(manifest_refs),tuple(checkpoint_refs),tuple(sorted(set(warnings))),"bounded_observed" if not completeness else completeness[-1])
+    states: list[str] = []
+    for lane in build_capture_lanes(plan):
+        initial = PageCursor(0,None,0,None,False)
+        before = store.load_checkpoint(lane.key) or CaptureCheckpoint(
+            lane.key,initial,0,0,0,"bounded_observed",(),
+        )
+        # The checkpoint is loaded before the generator can make a request.
+        observations = iter_lane_pages(
+            lane,start_cursor=before.next_cursor,client=client,
+            page_budget=max(0,plan.plan.page_budget-requested_pages),
+            message_budget=max(0,plan.plan.message_budget-message_count),
+        )
+        for observation in observations:
+            requested_pages += 1
+            items: list[Item] = []
+            if observation.cursor_after is not None:
+                for rank,raw_message in enumerate(observation.page.messages):
+                    guild_id,channel_id,thread_id = validate_message_scope(raw_message,lane)
+                    redacted = redact_message(
+                        raw_message,guild_id=guild_id,channel_id=channel_id,
+                        thread_id=thread_id,plan_digest=plan.digest,
+                        response_body_sha256=observation.page.response_body_sha256,
+                    )
+                    message = message_item(redacted,fetched_at=time.time())
+                    edge_method = (
+                        "discord-api-search-edge" if lane.method == "search"
+                        else "discord-api-history-edge"
+                    )
+                    edge = discovery_edge_item(
+                        DiscoveryEdge.from_lane(
+                            plan_digest=plan.digest,lane=lane,message=redacted,
+                            message_ref=message.provenance.sha256,
+                            method=edge_method,cursor=observation.cursor_before,
+                            rank=rank,response_body_sha256=observation.page.response_body_sha256,
+                        ),
+                        fetched_at=time.time(),
+                    )
+                    items.extend((message,edge))
+                accepted_pages += 1
+            next_cursor = observation.cursor_after or before.next_cursor
+            page_states = [before.completeness,observation.completeness]
+            after = CaptureCheckpoint(
+                lane.key,next_cursor,before.pages_requested + 1,
+                before.pages_accepted + (observation.cursor_after is not None),
+                before.messages_committed + len(observation.page.messages),
+                aggregate_completeness(page_states),
+                tuple(sorted(set(before.warnings + (
+                    () if observation.completeness == "bounded_observed"
+                    else (observation.completeness,)
+                )))),
+            )
+            manifest = _manifest_for_observation(
+                plan=plan,lane=lane,observation=observation,
+                items=items,before=before,after=after,
+            )
+            committed = store.commit_batch(
+                items=items,manifest=manifest,checkpoint=after,
+            )
+            # Only now may the generator request the following page.
+            before = after
+            message_count += len(observation.page.messages)
+            edge_count += len(observation.page.messages)
+            manifest_refs.append(committed.manifest_digest)
+            checkpoint_refs.append(committed.checkpoint_digest)
+            states.append(observation.completeness)
+            if observation.completeness != "bounded_observed":
+                warnings.append(observation.completeness)
+    overall = aggregate_completeness(states)
+    return CaptureReceipt(
+        "gather.discord-capture/v1",
+        "MATCH" if not warnings else "MATCH_WITH_WARNINGS",
+        plan.plan.plan_id,plan.digest,message_count,edge_count,
+        requested_pages,accepted_pages,tuple(manifest_refs),
+        tuple(checkpoint_refs),tuple(sorted(set(warnings))),overall,
+    )
 ~~~
+
+Implement `_manifest_for_observation` as a pure constructor of the Task 8 `CaptureManifest`. It must populate every declared field from the sealed plan, lane, observation, and before/after checkpoints; split retry versus indexing events; record a skipped-region entry when `cursor_after is None`; compute the ordered transient aggregate as `sha256(canonical_json(response_hashes))`; use `manifest_identity(plan.digest,lane.key.digest(),after.pages_requested,observation.cursor_before)`; and set completeness with `aggregate_completeness((before.completeness, observation.completeness))`. No raw response or message mapping may enter the manifest.
+
+After seal verification and exact preflight `MATCH`, execute the entire lane/checkpoint/request/commit loop—not merely each batch—inside `with store.capture_session():`. Factor the displayed loop into `_capture_plan_locked(...)` if needed to keep indentation readable. This makes checkpoint load through final commit one single-writer session; the reentrant `commit_batch` call uses the already-held lock.
+
+Append mandatory gate/resumption tests to `tests/test_discord_engine.py`:
+
+~~~python
+@pytest.mark.parametrize("failure",["missing-channel","permission-mismatch","guild-mismatch"])
+def test_capture_preflight_failure_makes_zero_message_requests(tmp_path,failure) -> None:
+    client,transport = _metadata_failure_client(failure)
+    with pytest.raises((PreflightError,CapturePreflightError)):
+        capture_plan(
+            _plan(),federation_rows=_rows(),client=client,
+            store=_store(tmp_path),
+        )
+    assert all(
+        request.operation not in {"guild-search","channel-history"}
+        for request in transport.requests
+    )
+    assert list((tmp_path / "state").rglob("*.json")) == []
+
+
+def test_restart_uses_committed_next_cursor_without_replaying_accepted_page(tmp_path) -> None:
+    store = _store(tmp_path)
+    first_client,first_transport = _preflight_then_search_client([
+        _search_page([_message("1456789012345678901")]),
+    ])
+    first = capture_plan(
+        _one_page_plan(),federation_rows=_rows(),client=first_client,store=store,
+    )
+    assert first.accepted_pages == 1
+    assert dict(_message_requests(first_transport)[0].query)["offset"] == "0"
+
+    restarted_client,restarted_transport = _preflight_then_search_client([
+        _search_page([]),
+    ])
+    capture_plan(
+        _one_page_plan(),federation_rows=_rows(),
+        client=restarted_client,store=store,
+    )
+    requests = _message_requests(restarted_transport)
+    assert len(requests) == 1
+    assert dict(requests[0].query)["offset"] == "25"
+
+
+@pytest.mark.parametrize("failure",["202","malformed","deep-indexing","terminal"])
+def test_unaccepted_page_does_not_advance_restart_cursor(tmp_path,failure) -> None:
+    store = _store(tmp_path)
+    client,_ = _preflight_then_failure_client(failure)
+    capture_plan(_one_page_plan(),federation_rows=_rows(),client=client,store=store)
+    restarted,transport = _preflight_then_search_client([_search_page([])])
+    capture_plan(_one_page_plan(),federation_rows=_rows(),client=restarted,store=store)
+    assert dict(_message_requests(transport)[0].query)["offset"] == "0"
+
+
+@pytest.mark.parametrize("field",["guild_id","channel_id"])
+def test_malicious_response_scope_mismatch_writes_no_items_or_state(tmp_path,field) -> None:
+    message = _message("1456789012345678901")
+    message[field] = "999999999999999999"
+    client,_ = _preflight_then_search_client([_search_page([message])])
+    with pytest.raises(ResponseScopeError):
+        capture_plan(
+            _one_page_plan(),federation_rows=_rows(),client=client,
+            store=_store(tmp_path),
+        )
+    assert _corpus_rows(tmp_path) == []
+    assert _read_manifests(tmp_path) == []
+
+
+def test_manifest_and_receipt_keep_earlier_warning_after_later_page(tmp_path) -> None:
+    client,_ = _preflight_then_search_client([
+        _search_page([_message("1456789012345678901")],total=2),
+        _search_page([],total=1),
+    ])
+    receipt = capture_plan(
+        _two_page_plan(),federation_rows=_rows(),client=client,store=_store(tmp_path),
+    )
+    assert "changing_total" in receipt.warnings
+    assert receipt.completeness == "changing_total"
+    manifests = _read_manifests(tmp_path)
+    assert manifests[-1]["completeness"] == "changing_total"
+    assert manifests[-1]["requested_pages"] >= manifests[-1]["accepted_pages"]
+    for field in (
+        "plan_id","plan_digest","redaction_policy","redaction_digest",
+        "query_hash","time_bounds","snowflake_bounds","sealed_budgets",
+        "retry_events","indexing_events","skipped_regions",
+        "transient_response_aggregate","durable_item_hashes",
+        "cursor_before","cursor_after",
+    ):
+        assert field in manifests[-1]
+~~~
+
+The test helpers are fixture-only and script all metadata routes before message routes. They assert exact request order, not merely final counts. In CLI/MCP tests in Task 10, reuse the same failing engine spy so `capture` on any non-`MATCH` preflight also proves zero search/history calls.
 
 - [ ] **Step 6: Add read-only status and stable exports**
 
@@ -2750,7 +3603,7 @@ Expected: one commit for the shared engine, read-only status, credential-state d
 
 **Interfaces:**
 - Consumes: high-level receipt types and functions from `gather.discord`.
-- Produces: nested `gather discord` commands and five closed MCP tools that emit the same receipt dictionaries.
+- Produces: nested `gather discord` commands and six closed MCP tools that emit the same receipt dictionaries; discovery accepts only a federation ID and never authorizes capture.
 
 - [ ] **Step 1: Write failing CLI shape and dry validation tests**
 
@@ -2798,16 +3651,19 @@ def test_discord_tools_are_advertised_with_closed_plan_id_inputs() -> None:
     tools = {tool["name"]:tool for tool in response["result"]["tools"]}
     expected = {
         "gather.discord.validate",
+        "gather.discord.discover",
         "gather.discord.preflight",
         "gather.discord.capture",
         "gather.discord.status",
         "gather.discord.doctor",
     }
     assert expected <= set(tools)
-    for name in expected - {"gather.discord.doctor"}:
+    for name in expected - {"gather.discord.doctor","gather.discord.discover"}:
         schema = tools[name]["inputSchema"]
         assert schema["required"] == ["plan_id"]
         assert schema["additionalProperties"] is False
+    assert tools["gather.discord.discover"]["inputSchema"]["required"] == ["federation_id"]
+    assert tools["gather.discord.discover"]["inputSchema"]["additionalProperties"] is False
 
 
 def test_mcp_rejects_inline_scope_and_paths() -> None:
@@ -2840,11 +3696,13 @@ from pathlib import Path
 from gather.discord import (
     capture_plan,
     discord_doctor,
+    official_discovery_client_after_authorization,
     official_client_after_validation,
     preflight_plan,
     status_plan,
     validate_plan,
 )
+from gather.discord_preflight import discover_guild_channels
 from gather.discord_plan import load_approved_plan, parse_capture_plan
 from gather.discord_store import DiscordCaptureStore
 from gather.store import Corpus
@@ -2881,6 +3739,21 @@ def cmd_discord_plan_validate(args) -> int:
 
 def cmd_discord_doctor(args) -> int:
     return _emit(discord_doctor(plan_root_configured=bool(args.plan_root),corpus_root_configured=bool(args.corpus_root)).as_dict(),args.json)
+
+
+def cmd_discord_discover(args) -> int:
+    try:
+        rows = _rows(args.registry)
+        client = official_discovery_client_after_authorization(
+            args.federation_id,federation_rows=rows,
+        )
+        receipt = discover_guild_channels(
+            args.federation_id,federation_rows=rows,client=client,
+        )
+    except Exception as exc:
+        print(f"discord discover failed: {exc}",file=sys.stderr)
+        return 1
+    return _emit(receipt.as_dict(),args.json)
 ~~~
 
 Append the remaining handlers to the same file:
@@ -2888,8 +3761,9 @@ Append the remaining handlers to the same file:
 ~~~python
 def cmd_discord_preflight(args) -> int:
     try:
-        plan = _plan(args.plan,args.registry)
-        client = official_client_after_validation(plan)
+        rows = _rows(args.registry)
+        plan = parse_capture_plan(json.loads(Path(args.plan).read_text(encoding="utf-8")),federation_rows=rows)
+        client = official_client_after_validation(plan,federation_rows=rows)
         receipt = preflight_plan(plan,client=client)
     except Exception as exc:
         print(f"discord preflight failed: {exc}",file=sys.stderr)
@@ -2907,10 +3781,12 @@ def _capture_store(path: str) -> DiscordCaptureStore:
 
 def cmd_discord_capture(args) -> int:
     try:
-        plan = _plan(args.plan,args.registry)
-        client = official_client_after_validation(plan)
+        rows = _rows(args.registry)
+        plan = parse_capture_plan(json.loads(Path(args.plan).read_text(encoding="utf-8")),federation_rows=rows)
+        client = official_client_after_validation(plan,federation_rows=rows)
         receipt = capture_plan(
             plan,
+            federation_rows=rows,
             client=client,
             store=_capture_store(args.store),
         )
@@ -2938,6 +3814,7 @@ Add `_add_discord_parser(sub)` to `src/gather/cli.py`:
 def _add_discord_parser(sub) -> None:
     from gather.discord_cmd import (
         cmd_discord_capture,
+        cmd_discord_discover,
         cmd_discord_doctor,
         cmd_discord_plan_validate,
         cmd_discord_preflight,
@@ -2952,6 +3829,11 @@ def _add_discord_parser(sub) -> None:
     validate.add_argument("--registry",required=True)
     validate.add_argument("--json",action="store_true")
     validate.set_defaults(func=cmd_discord_plan_validate)
+    discover = actions.add_parser("discover",help="enumerate public IDs without capture authority")
+    discover.add_argument("federation_id")
+    discover.add_argument("--registry",required=True)
+    discover.add_argument("--json",action="store_true")
+    discover.set_defaults(func=cmd_discord_discover)
     for name,handler in (("preflight",cmd_discord_preflight),("capture",cmd_discord_capture),("status",cmd_discord_status)):
         parser = actions.add_parser(name)
         parser.add_argument("plan")
@@ -2974,12 +3856,19 @@ Call `_add_discord_parser(sub)` immediately after `_add_flagship_commands(sub)`.
 Add these tool definitions to `_tool_defs()` in `src/gather/mcp.py`:
 
 ~~~python
-def _discord_schema(*, plan: bool) -> dict:
-    properties = {"plan_id":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$"}} if plan else {}
-    return {"type":"object","properties":properties,"required":["plan_id"] if plan else [],"additionalProperties":False}
+def _discord_schema(kind: str) -> dict:
+    properties = {}
+    required = []
+    if kind == "plan":
+        properties = {"plan_id":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$"}}
+        required = ["plan_id"]
+    elif kind == "discovery":
+        properties = {"federation_id":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$"}}
+        required = ["federation_id"]
+    return {"type":"object","properties":properties,"required":required,"additionalProperties":False}
 ~~~
 
-Each definition uses one of the five names above and `_discord_schema(plan=name != "gather.discord.doctor")`.
+Each definition uses one of the six names above. Use `_discord_schema("none")` for doctor, `_discord_schema("discovery")` for discover, and `_discord_schema("plan")` for the other four.
 
 Add:
 
@@ -3024,11 +3913,13 @@ def _discord_tool(name: str, args: dict) -> str:
     from gather.discord import (
         capture_plan,
         discord_doctor,
+        official_discovery_client_after_authorization,
         official_client_after_validation,
         preflight_plan,
         status_plan,
         validate_plan,
     )
+    from gather.discord_preflight import discover_guild_channels
     from gather.discord_plan import load_approved_plan
     from gather.discord_store import DiscordCaptureStore
     from gather.store import Corpus
@@ -3038,6 +3929,19 @@ def _discord_tool(name: str, args: dict) -> str:
         receipt = discord_doctor(
             plan_root_configured=bool(os.environ.get("GATHER_DISCORD_PLAN_ROOT")),
             corpus_root_configured=bool(os.environ.get("GATHER_DISCORD_CORPUS_ROOT")),
+        )
+        return json.dumps(receipt.as_dict(),indent=2,sort_keys=True)
+    if name == "gather.discord.discover":
+        _closed_args(args,allowed={"federation_id"},required={"federation_id"})
+        federation_id = args["federation_id"]
+        if not isinstance(federation_id,str):
+            raise ValueError("federation_id must be a string")
+        _plan_root,_registry_path,_corpus_root,rows = _discord_runtime()
+        client = official_discovery_client_after_authorization(
+            federation_id,federation_rows=rows,
+        )
+        receipt = discover_guild_channels(
+            federation_id,federation_rows=rows,client=client,
         )
         return json.dumps(receipt.as_dict(),indent=2,sort_keys=True)
     _closed_args(args,allowed={"plan_id"},required={"plan_id"})
@@ -3055,12 +3959,13 @@ def _discord_tool(name: str, args: dict) -> str:
     elif name == "gather.discord.preflight":
         receipt = preflight_plan(
             plan,
-            client=official_client_after_validation(plan),
+            client=official_client_after_validation(plan,federation_rows=rows),
         )
     elif name == "gather.discord.capture":
         receipt = capture_plan(
             plan,
-            client=official_client_after_validation(plan),
+            federation_rows=rows,
+            client=official_client_after_validation(plan,federation_rows=rows),
             store=store,
         )
     elif name == "gather.discord.status":
@@ -3074,7 +3979,7 @@ In `call_tool`, dispatch names beginning with `gather.discord.` to `_discord_too
 
 - [ ] **Step 7: Align status and doctor advertising**
 
-Modify `PRIMARY_COMMANDS` and `status_payload()["native"]["mcp_tools"]` in `src/gather/flagship.py` to advertise `discord` and the five Discord MCP names.
+Modify `PRIMARY_COMMANDS` and `status_payload()["native"]["mcp_tools"]` in `src/gather/flagship.py` to advertise `discord` and the six Discord MCP names.
 
 Add one privacy-safe check to `doctor_payload()`:
 
@@ -3127,7 +4032,7 @@ git add src/gather/discord_cmd.py src/gather/cli.py src/gather/mcp.py src/gather
 git commit -m "feat(discord): expose receipt-only host surfaces"
 ~~~
 
-Expected: one host-surface commit; `src/gather/run_config.py` remains unchanged from `e84f423`.
+Expected: one host-surface commit; `src/gather/run_config.py` remains unchanged from `$env:GATHER_DISCORD_PLAN_TIP`.
 
 ### Task 11: Token-Efficient Local Evidence Packets and Claim Gate
 
@@ -3137,7 +4042,7 @@ Expected: one host-surface commit; `src/gather/run_config.py` remains unchanged 
 
 **Interfaces:**
 - Consumes: stored `discord-api-message` Items only.
-- Produces: `EvidencePacket`, `ClaimRecord`, `LocalClaimModel`, `build_evidence_packets(items, *, max_chars)`, and `extract_claims(model, packets)`.
+- Produces: `TechnicalEvidence`, `EvidenceGroup`, `PublicLinkLead`, `EvidencePacket`, `ClaimRecord`, `LocalClaimModel`, `group_thread_replies(...)`, `technical_score(...)`, `extract_public_link_leads(...)`, `build_evidence_packets(items, *, max_chars)`, and `extract_claims(model, packets)`.
 
 - [ ] **Step 1: Write failing bounded-packet and evidence-reference tests**
 
@@ -3156,8 +4061,8 @@ from gather.discord_synthesis import (
 from gather.item import make_item
 
 
-def _message(message_id: str, content: str):
-    text = json.dumps({"schema":"gather.discord-message/v1","classification":"community_claim","message_id":message_id,"content":content,"plan_digest":"a" * 64},sort_keys=True)
+def _message(message_id: str, content: str, *, channel_id="10", thread_id=None, reply_to=None, public_links=()):
+    text = json.dumps({"schema":"gather.discord-message/v1","classification":"community_claim","message_id":message_id,"guild_id":"9","channel_id":channel_id,"thread_id":thread_id,"reply_to":reply_to,"content":content,"public_links":list(public_links),"plan_digest":"a" * 64},sort_keys=True)
     return make_item(kind="community_claim",id=message_id,title=f"Discord technical message {message_id}",text=text,source="discord",ref=f"discord://message/{message_id}",method="discord-api-message",fetched_at=1.0,meta={})
 
 
@@ -3176,6 +4081,34 @@ def test_model_claim_with_unknown_evidence_ref_is_rejected() -> None:
     packets = build_evidence_packets([_message("1","PQ evidence")],max_chars=180)
     with pytest.raises(ClaimError,match="unknown evidence"):
         extract_claims(LocalModel(),packets)
+
+
+def test_thread_and_reply_grouping_precedes_relevance_ranking_and_packets() -> None:
+    parent = _message("1","PQ EOTF maps paper white at 203 nits",thread_id="20")
+    reply = _message(
+        "2","BT.2390 changes the shoulder transform",thread_id="20",
+        reply_to={"guild_id":"9","channel_id":"20","message_id":"1"},
+    )
+    low = _message("3","looks nice today")
+    packets = build_evidence_packets([low,reply,parent],max_chars=240)
+    assert packets[0].evidence_refs == (
+        parent.provenance.sha256,reply.provenance.sha256,
+    )
+    assert packets[0].technical_score > packets[-1].technical_score
+    assert "PQ EOTF" in packets[0].text and "BT.2390" in packets[0].text
+
+
+def test_public_link_leads_are_deterministic_and_evidence_bound() -> None:
+    item = _message(
+        "1","See the tone-mapping paper",public_links=(
+            "https://doi.org/10.1000/example","https://example.com/paper",
+        ),
+    )
+    packet = build_evidence_packets([item],max_chars=240)[0]
+    assert [lead.url for lead in packet.public_link_leads] == [
+        "https://doi.org/10.1000/example","https://example.com/paper",
+    ]
+    assert all(lead.evidence_refs == (item.provenance.sha256,) for lead in packet.public_link_leads)
 ~~~
 
 - [ ] **Step 2: Run synthesis tests and observe the red state**
@@ -3209,9 +4142,36 @@ class ClaimError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class TechnicalEvidence:
+    evidence_ref: str
+    message_id: str
+    channel_id: str
+    thread_id: str | None
+    reply_to_id: str | None
+    content: str
+    public_links: tuple[str,...]
+
+
+@dataclass(frozen=True, slots=True)
+class PublicLinkLead:
+    url: str
+    evidence_refs: tuple[str,...]
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceGroup:
+    group_id: str
+    evidence: tuple[TechnicalEvidence,...]
+    score: int
+    leads: tuple[PublicLinkLead,...]
+
+
+@dataclass(frozen=True, slots=True)
 class EvidencePacket:
     packet_id: str
     evidence_refs: tuple[str,...]
+    technical_score: int
+    public_link_leads: tuple[PublicLinkLead,...]
     text: str
 
 
@@ -3238,10 +4198,66 @@ def _near_duplicate(left: str, right: str) -> bool:
     return bool(union) and len(a & b) / len(union) >= 0.9
 
 
+TECHNICAL_TERMS = frozenset({
+    "pq","hlg","scrgb","eotf","oetf","gamut","matrix","lut","icc",
+    "nits","luminance","chromaticity","tone","mapping","bt","2390",
+    "rec2020","display","calibration","paper","white","shader","hdr",
+})
+
+
+def technical_score(evidence: Sequence[TechnicalEvidence]) -> int:
+    tokens = _tokens(" ".join(row.content for row in evidence))
+    term_score = 3 * len(tokens & TECHNICAL_TERMS)
+    numeric_score = min(5,sum(ch.isdigit() for row in evidence for ch in row.content))
+    source_score = 2 * len({url for row in evidence for url in row.public_links})
+    reply_score = sum(row.reply_to_id is not None for row in evidence)
+    return term_score + numeric_score + source_score + reply_score
+
+
+def extract_public_link_leads(
+    evidence: Sequence[TechnicalEvidence],
+) -> tuple[PublicLinkLead,...]:
+    refs_by_url: dict[str,set[str]] = {}
+    for row in evidence:
+        for url in row.public_links:
+            refs_by_url.setdefault(url,set()).add(row.evidence_ref)
+    return tuple(
+        PublicLinkLead(url,tuple(sorted(refs)))
+        for url,refs in sorted(refs_by_url.items())
+    )
+
+
+def group_thread_replies(
+    evidence: Sequence[TechnicalEvidence],
+) -> tuple[EvidenceGroup,...]:
+    by_id = {row.message_id:row for row in evidence}
+    def root(row: TechnicalEvidence) -> str:
+        if row.thread_id:
+            return f"thread:{row.thread_id}"
+        seen = {row.message_id}
+        parent = row.reply_to_id
+        while parent and parent in by_id and parent not in seen:
+            seen.add(parent)
+            row = by_id[parent]
+            parent = row.reply_to_id
+        return f"reply:{row.message_id}" if len(seen) > 1 else f"message:{row.message_id}"
+    grouped: dict[str,list[TechnicalEvidence]] = {}
+    for row in evidence:
+        grouped.setdefault(root(row),[]).append(row)
+    result: list[EvidenceGroup] = []
+    for group_id,rows in grouped.items():
+        ordered = tuple(sorted(rows,key=lambda row: int(row.message_id)))
+        result.append(EvidenceGroup(
+            group_id,ordered,technical_score(ordered),
+            extract_public_link_leads(ordered),
+        ))
+    return tuple(sorted(result,key=lambda group: (-group.score,group.group_id)))
+
+
 def build_evidence_packets(items: Sequence[Item], *, max_chars: int) -> tuple[EvidencePacket,...]:
     if max_chars <= 0:
         raise ClaimError("max_chars must be positive")
-    admitted: list[tuple[str,str]] = []
+    admitted: list[TechnicalEvidence] = []
     for item in items:
         if item.provenance.method != "discord-api-message" or not item.verify():
             continue
@@ -3249,16 +4265,33 @@ def build_evidence_packets(items: Sequence[Item], *, max_chars: int) -> tuple[Ev
         if payload.get("classification") != "community_claim":
             continue
         content = str(payload.get("content",""))
-        if any(_near_duplicate(content,prior) for _,prior in admitted):
+        if any(_near_duplicate(content,prior.content) for prior in admitted):
             continue
-        admitted.append((item.provenance.sha256,content))
+        reply = payload.get("reply_to")
+        admitted.append(TechnicalEvidence(
+            item.provenance.sha256,str(payload["message_id"]),
+            str(payload["channel_id"]),
+            str(payload["thread_id"]) if payload.get("thread_id") else None,
+            str(reply["message_id"]) if isinstance(reply,dict) and reply.get("message_id") else None,
+            content,tuple(sorted(str(url) for url in payload.get("public_links",[]))),
+        ))
     packets: list[EvidencePacket] = []
-    for evidence_ref,content in admitted:
-        text = content[:max_chars]
-        packet_id = hashlib.sha256(f"{evidence_ref}:{text}".encode()).hexdigest()
-        packets.append(EvidencePacket(packet_id,(evidence_ref,),text))
+    for group in group_thread_replies(admitted):
+        refs = tuple(row.evidence_ref for row in group.evidence)
+        text = "\n".join(
+            f"[{row.message_id}] {row.content}" for row in group.evidence
+        )[:max_chars]
+        packet_id = hashlib.sha256(_canonical({
+            "refs":refs,"score":group.score,"leads":[asdict(lead) for lead in group.leads],
+            "text":text,
+        }).encode()).hexdigest()
+        packets.append(EvidencePacket(
+            packet_id,refs,group.score,group.leads,text,
+        ))
     return tuple(packets)
 ~~~
+
+Add `asdict` to the dataclass import and define `_canonical(value)` as sorted compact JSON. The stage order is fixed and tested: verify/redacted parse → exact/near dedupe → reply/thread grouping → technical scoring → public-link lead extraction → bounded packet construction → local model. The model cannot reorder or invent those deterministic stages.
 
 - [ ] **Step 4: Add the closed claim/evidence-reference gate**
 
@@ -3451,9 +4484,10 @@ from gather.discord_redaction import (
 from gather.discord_store import (
     CaptureCheckpoint,
     CaptureManifest,
-    CheckpointKey,
     DiscordCaptureStore,
+    manifest_identity,
 )
+from gather.discord_search import LaneKey, PageCursor
 from gather.discord_plan import parse_capture_plan
 from gather.store import Corpus
 
@@ -3465,6 +4499,7 @@ def test_fixture_corpus_and_state_have_no_private_values(tmp_path) -> None:
         json.loads(raw),
         guild_id="1080142797870485606",
         channel_id="1081121447960915989",
+        thread_id=None,
         plan_digest="a" * 64,
         response_body_sha256=response_body_sha256(raw),
     )
@@ -3484,27 +4519,16 @@ def test_fixture_corpus_and_state_have_no_private_values(tmp_path) -> None:
         redacted.response_body_sha256,
     ),fetched_at=1.0)
     corpus = Corpus(str(tmp_path / "corpus"),fsync=False)
-    key = CheckpointKey(
-        "a" * 64,
-        "c" * 64,
-        "b" * 64,
-        redacted.guild_id,
-        (redacted.channel_id,),
-        None,
-        None,
-    )
-    before = CaptureCheckpoint(key,0,0,None,"bounded_observed")
-    after = CaptureCheckpoint(key,1,1,redacted.message_id,"bounded_observed")
-    manifest = CaptureManifest(
-        "gather.discord-capture-manifest/v1",
-        hashlib.sha256(b"fixture-batch").hexdigest(),
-        "a" * 64,
-        (redacted.response_body_sha256,),
-        (message.provenance.sha256,edge.provenance.sha256),
-        before,
-        after,
-        (),
-        "bounded_observed",
+    key = LaneKey("a" * 64,"c" * 64,redacted.guild_id,"search","b" * 64,(redacted.channel_id,),"1","9")
+    cursor_before = PageCursor(0,None,0,None,False)
+    cursor_after = PageCursor(25,None,0,None,False)
+    before = CaptureCheckpoint(key,cursor_before,0,0,0,"bounded_observed",())
+    after = CaptureCheckpoint(key,cursor_after,1,1,1,"bounded_observed",())
+    manifest = _acceptance_manifest(
+        manifest_id=manifest_identity("a" * 64,key.digest(),1,cursor_before),
+        key=key,cursor_before=cursor_before,cursor_after=cursor_after,
+        before=before,after=after,response_hash=redacted.response_body_sha256,
+        item_hashes=(message.provenance.sha256,edge.provenance.sha256),
     )
     store = DiscordCaptureStore(
         corpus,
@@ -3550,6 +4574,8 @@ def test_three_guild_fixture_plan_is_sealed_without_network() -> None:
     assert len(sealed.digest) == 64
 ~~~
 
+Define `_acceptance_manifest` in the acceptance test as a closed helper that supplies every Task 8 manifest field with deterministic fixture values. Assert its stored JSON includes the plan/redaction identities, lane/query/method, time and snowflake bounds, sealed budgets, requested/accepted counts, event/skipped-region lists, transient hash aggregate, durable hashes, both cursors, both checkpoints, and aggregate completeness.
+
 - [ ] **Step 7: Run all deterministic release gates**
 
 Run:
@@ -3579,7 +4605,7 @@ Expected: no matches.
 Then run the repository's public-surface gate from the configured checkout:
 
 ~~~powershell
-python -m public_surface_sweeper C:\dev\.worktrees\gather-discord-redacted --workspace --json
+python -m public_surface_sweeper C:\dev\worktrees\gather-discord-redacted --workspace --json
 ~~~
 
 Expected: a successful JSON result with no secret/private-source finding.
@@ -3601,9 +4627,10 @@ Run:
 
 ~~~powershell
 git status --short
-git log --oneline e84f423..HEAD
-git diff --stat e84f423..HEAD
-git diff --name-only e84f423..HEAD
+if (-not $env:GATHER_DISCORD_PLAN_TIP) { throw "Task 0 plan-tip environment is missing" }
+git log --oneline "$env:GATHER_DISCORD_PLAN_TIP..HEAD"
+git diff --stat "$env:GATHER_DISCORD_PLAN_TIP..HEAD"
+git diff --name-only "$env:GATHER_DISCORD_PLAN_TIP..HEAD"
 ~~~
 
 Expected: the worktree is clean; commits follow Tasks 1–12; no credential file, `.env`, raw payload, or direct run-config Discord adapter appears.
@@ -3625,19 +4652,22 @@ Fixture acceptance completes implementation but does not authorize a live reques
 ## Plan Self-Review Record
 
 - **D1:** Task 1 seals scope, queries, bounds, budgets, policies, authorization, and redaction digests.
-- **D2–D3:** Tasks 1, 2, 6, and 9 reject unknown/private/mismatched scope before message routes and pin the credential origin.
+- **D2:** Tasks 1, 6, and 9 reject unknown/private/mismatched guild, channel, and thread scope before message routes.
+- **D3:** Tasks 2 and 9 pin the credential origin and revalidate the sealed plan against trusted federation rows before reading a secret.
 - **D4:** Task 7 makes guild search the only default discovery path.
 - **D5:** Task 4 performs deterministic identity, mention, URL, and attachment redaction before Item creation.
 - **D6:** Task 5 stores canonical messages and discovery edges separately.
 - **D7:** Task 3 covers proactive buckets, 202, 429, global/shared scope, and bounded 5xx retries with injected clocks/sleepers.
-- **D8:** Task 8 orders corpus, manifest, then checkpoint writes and exercises crash replay.
-- **D9–D10:** Task 7 caps offset at 9975, rolls snowflake windows, records budgets/drift, and never infers completion from page length.
+- **D8:** Tasks 8–9 use stable lane keys, load a sealed next cursor before requests, order corpus/manifest/checkpoint writes, enforce one writer, and prove restart begins at the committed cursor without replaying an accepted page.
+- **D9:** Tasks 7–9 cap offset at 9975, roll exclusive snowflake windows, and resume from a stable sealed lane cursor.
+- **D10:** Tasks 7–9 preserve budgets, page counts, drift, retry/indexing events, skipped regions, and worst-case warnings across the run; a later page cannot hide an earlier warning.
 - **D11:** Task 4 supports metadata-only attachments and stores no CDN URL.
-- **D12–D13:** Tasks 9–10 share one Python engine, limit MCP to plan IDs, and emit privacy-safe doctor/status receipts.
-- **D14:** Task 11 deduplicates and bounds redacted packets before local inference and rejects unknown evidence refs.
+- **D12:** Tasks 9–10 make Python, CLI, and MCP share one mandatory-preflight capture engine; capture MCP accepts only approved plan IDs.
+- **D13:** Tasks 9–10 emit privacy-safe discovery/preflight/capture/status/doctor receipts without credentials, identities, names, or raw payloads.
+- **D14:** Task 11 deterministically deduplicates, groups threads/replies, scores technical relevance, extracts evidence-bound public-link leads, and bounds packets before local inference; unknown evidence refs are rejected.
 - **D15:** Task 11 exposes no training/upload surface; Task 12 documents the separate approval requirement.
 - **Type consistency:** The stable interface names at the top match the producing task and all later consumers.
-- **Dirty-state protection:** Task 0 creates a clean worktree from `e84f423`; no execution step modifies the five prototype files in `C:\dev\public\gather`.
+- **Dirty-state protection:** Task 0 resolves a reviewed plan tip descending from `e84f423`, proves its committed diff excludes all five prototype files, and creates `C:\dev\worktrees\gather-discord-redacted` from that tip; no execution step modifies the protected dirty files in `C:\dev\public\gather`.
 - **Live boundary:** All implementation and CI tests are fixture-only; the external gate requires a new operator confirmation before the first capture.
 
 ## Execution Handoff
