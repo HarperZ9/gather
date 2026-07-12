@@ -54,6 +54,21 @@ def build_source(name: str, opts: dict):
             items_key=opts.get("items_key"), id_key=opts.get("id_key", "id"),
             title_key=opts.get("title_key", "title"), text_key=opts.get("text_key"),
         )
+    if name == "discord":
+        from gather.discord import DiscordSource
+        return DiscordSource(
+            auth_env=opts.get("auth_env", "GATHER_DISCORD_BOT_TOKEN"),
+            max_messages=int(opts.get("max_messages", 100)),
+            page_size=int(opts.get("page_size", 100)),
+        )
+    if name == "discord_guild":
+        from gather.discord import DiscordGuildSource
+        return DiscordGuildSource(
+            auth_env=opts.get("auth_env", "GATHER_DISCORD_BOT_TOKEN"),
+            max_channels=int(opts.get("max_channels", 25)),
+            max_messages_per_channel=int(opts.get("max_messages_per_channel", 100)),
+            page_size=int(opts.get("page_size", 100)),
+        )
     if name == "browser":
         from gather.browser import BrowserSource
         return BrowserSource()

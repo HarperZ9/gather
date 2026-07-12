@@ -14,6 +14,7 @@ DIRECT_METHODS = frozenset({
     "yt-dlp", "auto-caption", "http-get", "file-read", "feed",
     "arxiv-api", "arxiv-api-id", "arxiv-api-search", "pdftotext",
     "api-get", "ocr", "transcribe", "browser-extract", "browser-evidence",
+    "discord-api-message",
     # scholarly-graph federation: each provider's paper fetch, and a citation edge (the provider
     # asserted the link; gather records that it did). All DIRECT. See gather.scholar.
     "openalex-api", "semanticscholar-api", "crossref-api", "citation-edge",

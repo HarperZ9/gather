@@ -20,7 +20,7 @@ gather pulls research out of the places most tools break on: arXiv papers, authe
 - **Track elements across redesigns.** Fingerprint a scraped element once, then relocate it in any later version of the page and get a typed MATCH, RELOCATED, DRIFT, or GONE verdict (`gather.track`, Python API).
 - **Structured extraction with a hallucination check.** `gather.schema_extract` binds schema fields to source nodes, and `verify_record` rejects any LLM-proposed field value not grounded in the fetched content.
 - **Streaming extraction.** `gather.stream` parses an HTML stream chunk by chunk and emits partial-update commits as blocks complete, each folded into a hash chain, so a streamed extraction is replayable.
-- **Hard-source adapters behind one shape.** Video with captions and comments (`yt-dlp`), static web, RSS/Atom feeds, local docs, arXiv, PDFs (`pdftotext`), authenticated JSON APIs (token from env, never logged), JS-rendered pages (headless Chromium), scanned images (`tesseract`), and audio (`whisper`). Each external tool is optional and only needed for its own adapter.
+- **Hard-source adapters behind one shape.** Video with captions and comments (`yt-dlp`), static web, RSS/Atom feeds, local docs, arXiv, PDFs (`pdftotext`), authenticated JSON APIs (token from env, never logged), Discord channel/thread messages and guild channel discovery via bot API, JS-rendered pages (headless Chromium), scanned images (`tesseract`), and audio (`whisper`). Each external tool is optional and only needed for its own adapter.
 - **Scholarly-graph federation.** `gather scholar` queries OpenAlex, Semantic Scholar, and Crossref in one call, dedupes results by normalized DOI (never a fuzzy title match), and can capture citation edges as first-class records with `--edges`.
 - **A durable local corpus.** Any fetch command takes `--store DIR`: bodies are content-addressed and deduped by hash, and `gather corpus list|verify|digest|runs|search|stats|prune|availability` inspects, re-checks, and queries what you stored.
 - **Multi-source runs.** `gather run config.json` orchestrates many sources, a scope filter, and optional synthesis into one recorded session kept in the corpus history.
@@ -84,6 +84,7 @@ Gather from three different source types into one corpus, then re-check it:
 gather web  "https://example.com/article" --store ./corpus
 gather arxiv "2301.12345" --store ./corpus
 gather docs ./notes --scope "monotile,tiling" --store ./corpus
+GATHER_DISCORD_BOT_TOKEN=... gather run discord-run.json
 gather corpus list ./corpus                 # every item with source, method, and hash
 gather corpus search ./corpus --terms tiling --method http-get --json
 gather corpus verify ./corpus               # MATCH per body, non-zero exit if anything is corrupt
@@ -91,6 +92,18 @@ gather corpus availability ./corpus         # per-record availability with typed
 ```
 
 Every item carries its source, ref, method, timestamp, and a sha256 of the content, so `verify` can prove later that nothing in the corpus was altered, and `search` filters by scope terms, source, kind, or method.
+
+Example `discord-run.json`:
+
+```json
+{
+  "jobs": [
+    {"source": "discord", "target": "1346756824233148527", "max_messages": 100},
+    {"source": "discord_guild", "target": "guild:123456789012345678", "max_channels": 25, "max_messages_per_channel": 50}
+  ],
+  "store": "./corpus"
+}
+```
 
 ## Source federation, offline
 
@@ -130,7 +143,7 @@ The same seams the CLI uses are importable: `gather.extract`, `gather.crawl`, `g
 
 ## Security notes
 
-The `web` adapter reads static HTML and does not run JavaScript; a client-rendered page yields its shell, and the method says so. The `browser` adapter runs a real headless browser and is the most exposed edge: its host guard covers only the first navigation, so do not point it at untrusted URLs where internal services are reachable. The threat model is in [ARCHITECTURE.md](ARCHITECTURE.md). Credentials enter only through `gather.credentials`, read from the environment by name, never logged, never written into a receipt or URL.
+The `web` adapter reads static HTML and does not run JavaScript; a client-rendered page yields its shell, and the method says so. The `browser` adapter runs a real headless browser and is the most exposed edge: its host guard covers only the first navigation, so do not point it at untrusted URLs where internal services are reachable. The Discord adapters use the official API with a bot token from `GATHER_DISCORD_BOT_TOKEN`; they do not use personal user-token scraping, selfbot access, or browser-session scraping. Use `discord` for a known channel/thread id and `discord_guild` when the target is a server/guild id that must be expanded into accessible channels and active threads. The threat model is in [ARCHITECTURE.md](ARCHITECTURE.md). Credentials enter only through `gather.credentials`, read from the environment by name, never logged, never written into a receipt or URL.
 
 ## Documentation
 
