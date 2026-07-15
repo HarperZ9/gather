@@ -70,6 +70,7 @@ class RawResponse:
     headers: tuple[tuple[str, str], ...]
     body: bytes
     redirects: tuple[Redirect, ...] = ()
+    truncated: bool = False   # the body was cut at max_bytes: a partial source
 
 
 def _sha_bytes(data: bytes) -> str:
@@ -106,6 +107,7 @@ class FetchReceipt:
     not_modified: bool = False
     etag: str = ""
     last_modified: str = ""
+    truncated: bool = False   # the body was cut at max_bytes: a partial source
 
     def verify(self, body: bytes | None) -> bool:
         """Confirm ``body`` is exactly the bytes this receipt was built from."""
@@ -121,6 +123,7 @@ class FetchReceipt:
             "redirects": [{"status": r.status, "location": r.location} for r in self.redirects],
             "attempts": self.attempts, "not_modified": self.not_modified,
             "etag": self.etag, "last_modified": self.last_modified,
+            "truncated": self.truncated,
         }
 
 
@@ -150,6 +153,7 @@ def urllib_transport(url: str, *, headers: dict, timeout: float, max_bytes: int)
             return RawResponse(
                 resp.status, resp.geturl(), tuple(resp.headers.items()),
                 body[:max_bytes], tuple(rec.chain),
+                truncated=len(body) > max_bytes,
             )
     except urllib.error.HTTPError as e:
         if e.code == 304:
@@ -174,6 +178,7 @@ def _build_receipt(url: str, raw: RawResponse, attempts: int, now: float) -> Fet
         headers_digest=_headers_digest(raw.headers), redirects=raw.redirects,
         attempts=attempts, not_modified=not_modified,
         etag=_header(raw.headers, "etag"), last_modified=_header(raw.headers, "last-modified"),
+        truncated=raw.truncated,
     )
 
 

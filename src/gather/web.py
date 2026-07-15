@@ -81,12 +81,23 @@ def text_from_html(html: str) -> str:
     return html_to_title_text(html)[1]
 
 
-def parse_web(html: str, url: str, *, fetched_at: float, method: str = "http-get") -> Item:
-    """Turn fetched HTML into one webpage Item with a provenance receipt. Pure: no network."""
+def parse_web(html: str, url: str, *, fetched_at: float, method: str = "http-get",
+              final_url: str | None = None) -> Item:
+    """Turn fetched HTML into one webpage Item with a provenance receipt. Pure: no network.
+
+    ``final_url`` is where the bytes actually came from after any redirects. When it
+    differs from the requested ``url`` (a redirect to a consent/login/block page), the
+    item's ref binds the final URL and the requested URL is recorded, so a redirect is
+    NAMED, never laundered under the URL that was asked for.
+    """
     title, text = html_to_title_text(html)
+    landed = final_url or url
+    redirected = landed != url
+    meta = {"requested_url": url, "redirected": True} if redirected else {}
     return make_item(
-        kind="webpage", id=url, title=title or url, text=text,
-        source="web", ref=url, method=method, fetched_at=fetched_at,
+        kind="webpage", id=url, title=title or landed, text=text,
+        source="web", ref=landed, method=method, fetched_at=fetched_at,
+        meta=meta or None,
     )
 
 
@@ -108,6 +119,6 @@ class WebSource:
         self._max_bytes = max_bytes
 
     def fetch(self, target: str) -> list[Item]:
-        body, ctype = http_get(target, timeout=self._timeout, max_bytes=self._max_bytes)
+        body, ctype, final_url = http_get(target, timeout=self._timeout, max_bytes=self._max_bytes)
         html = decode_body(body, ctype)
-        return [parse_web(html, target, fetched_at=float(self._clock()))]
+        return [parse_web(html, target, fetched_at=float(self._clock()), final_url=final_url)]

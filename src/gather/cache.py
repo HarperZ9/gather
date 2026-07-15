@@ -105,7 +105,12 @@ def cached_fetch(
     cached = cache.get(url)
     if cached and not revalidate:
         entry, body = cached
-        return CachedResult(url, "cache", entry.status, entry.content_sha256), body
+        # re-hash the cached body before replaying it: a body file tampered or
+        # corrupted on disk must not be served under its stale content_sha256.
+        # No receipt, no accept, for the cache too: a mismatch falls through to
+        # a fresh fetch rather than vouching for bytes that do not verify.
+        if _sha(body) == entry.content_sha256:
+            return CachedResult(url, "cache", entry.status, entry.content_sha256), body
 
     etag, last_modified = cache.conditional(url) if cached else (None, None)
     receipt, fetched_body = fetch_fn(url, etag=etag, last_modified=last_modified, **fetch_kw)

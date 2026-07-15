@@ -107,8 +107,10 @@ def http_get(
     user_agent: str = DEFAULT_UA,
     max_bytes: int = DEFAULT_MAX_BYTES,
     headers: dict[str, str] | None = None,
-) -> tuple[bytes, str]:
-    """GET a URL and return ``(body, content_type)``. The single network edge (urllib).
+) -> tuple[bytes, str, str]:
+    """GET a URL and return ``(body, content_type, final_url)``. The single network
+    edge (urllib). ``final_url`` is where the bytes came from after any redirects, so a
+    redirect off the requested URL is on the record and never laundered under it.
 
     Network access lives here and in adapter fetches, nowhere else in Gather, the
     isolated-impure-edge discipline. The scheme allowlist (http/https only) and a
@@ -134,6 +136,7 @@ def http_get(
     with opener.open(req, timeout=timeout) as resp:
         raw = resp.read(max_bytes + 1)
         ctype = resp.headers.get("Content-Type", "") or ""
+        final_url = resp.geturl()  # where the bytes actually came from after redirects
     if len(raw) > max_bytes:
         print(f"gather: response from {url[:60]!r} exceeded {max_bytes} bytes; truncated", file=sys.stderr)
-    return raw[:max_bytes], ctype
+    return raw[:max_bytes], ctype, final_url
