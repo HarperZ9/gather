@@ -167,6 +167,13 @@ class Extraction:
     markdown_sha256: str
     blocks: tuple[Block, ...]
 
+    @property
+    def has_content(self) -> bool:
+        """False when the extraction found nothing readable (an empty markdown
+        and no blocks): a JS-only shell or an unreadable page. The honest null,
+        so 'read, found nothing' is not mistaken for a successful extraction."""
+        return bool(self.markdown) or bool(self.blocks)
+
     def verify(self, html: str | None = None) -> bool:
         """Re-hash the Markdown and every block (and the raw HTML if given) and
         confirm nothing was altered after extraction."""
@@ -181,6 +188,7 @@ class Extraction:
     def as_dict(self) -> dict:
         return {
             "url": self.url, "method": self.method, "fetched_at": self.fetched_at,
+            "has_content": self.has_content,
             "content_sha256": self.content_sha256, "title": self.title,
             "markdown_sha256": self.markdown_sha256,
             "blocks": [

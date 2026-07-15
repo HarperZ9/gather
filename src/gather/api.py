@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from typing import Any
 
@@ -19,7 +20,14 @@ def _records(payload: Any, items_key: str | None) -> list[dict]:
     if isinstance(data, dict):
         return [data]
     if isinstance(data, list):
-        return [r for r in data if isinstance(r, dict)]
+        kept = [r for r in data if isinstance(r, dict)]
+        dropped = len(data) - len(kept)
+        if dropped:
+            # a mixed array must not silently shrink: name the non-object
+            # elements dropped so the item count is not quietly wrong
+            print(f"gather: parse_api dropped {dropped} non-object record(s) "
+                  "from the API array", file=sys.stderr)
+        return kept
     return []
 
 

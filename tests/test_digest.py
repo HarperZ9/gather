@@ -67,3 +67,14 @@ def test_rewriting_the_derivation_chain_breaks_the_seal():
     assert verify_digest(dropped) is False
     reordered = dataclasses.replace(d, receipts=({**d.receipts[0], "derived_from": ["b", "a"]},))
     assert verify_digest(reordered) is False  # input order is meaningful, so reordering is detected
+
+
+def test_fetched_at_is_bound_into_the_seal():
+    from gather.item import make_item
+    a = make_item(kind="webpage", id="x", title="t", text="body",
+                  source="web", ref="r", method="http-get", fetched_at=100.0)
+    b = make_item(kind="webpage", id="x", title="t", text="body",
+                  source="web", ref="r", method="http-get", fetched_at=200.0)
+    # same content, different retrieval time -> the seal must differ, so the
+    # witnessed retrieval time cannot be edited without breaking the seal
+    assert digest([a]).seal != digest([b]).seal

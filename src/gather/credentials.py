@@ -26,5 +26,8 @@ def require_secret(name: str) -> str:
 
 
 def has_secret(name: str) -> bool:
-    """True if the named credential is present and non-empty (without revealing it)."""
-    return bool(os.environ.get(name))
+    """True if the named credential is present AND usable by require_secret (without
+    revealing it): a whitespace-only or newline-bearing value is not usable, so a
+    presence check used for planning agrees with the gate that actually runs."""
+    value = os.environ.get(name)
+    return bool(value and value.strip()) and "\r" not in value and "\n" not in value
