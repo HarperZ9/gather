@@ -124,7 +124,7 @@ class ArxivSource:
     def fetch(self, target: str) -> list[Item]:
         by_id = is_arxiv_id(target)
         url = arxiv_query_url(target, max_results=self._max_results)
-        body, _ = http_get(url, timeout=self._timeout)
+        body, _, _final_url = http_get(url, timeout=self._timeout)
         # the receipt records HOW the paper was found: a direct id lookup, or a relevance search
         method = "arxiv-api-id" if by_id else "arxiv-api-search"
         return parse_arxiv(body, fetched_at=float(self._clock()), method=method)

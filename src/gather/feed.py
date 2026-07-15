@@ -108,5 +108,7 @@ class FeedSource:
         self._max_bytes = max_bytes
 
     def fetch(self, target: str) -> list[Item]:
-        body, _ = http_get(target, timeout=self._timeout, max_bytes=self._max_bytes)
-        return parse_feed(body, target, fetched_at=float(self._clock()))  # bytes: ET honors the encoding decl
+        body, _, final_url = http_get(target, timeout=self._timeout, max_bytes=self._max_bytes)
+        # bind where the bytes came from: a feed URL that redirected elsewhere is
+        # named, not laundered under the requested URL
+        return parse_feed(body, final_url, fetched_at=float(self._clock()))  # bytes: ET honors the encoding decl

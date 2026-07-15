@@ -42,3 +42,22 @@ def test_parse_web_builds_a_receipted_webpage_item():
     assert it.provenance.ref == "https://example.com/p"
     assert it.title == "My & Page"
     assert it.verify() is True
+
+
+def test_parse_web_binds_the_final_url_and_names_a_redirect():
+    # a fetch that landed somewhere else (a redirect to a consent/login/block
+    # page) must be NAMED: the item's ref is where the bytes actually came
+    # from, and the requested URL is recorded, never laundered under it.
+    it = parse_web(HTML, "https://example.com/article", fetched_at=1.0,
+                   final_url="https://login.example.com/wall")
+    assert it.provenance.ref == "https://login.example.com/wall"
+    assert it.meta.get("requested_url") == "https://example.com/article"
+    assert it.meta.get("redirected") is True
+    assert it.verify() is True
+
+
+def test_parse_web_no_redirect_keeps_the_requested_url():
+    it = parse_web(HTML, "https://example.com/p", fetched_at=1.0,
+                   final_url="https://example.com/p")
+    assert it.provenance.ref == "https://example.com/p"
+    assert it.meta.get("redirected") in (False, None)

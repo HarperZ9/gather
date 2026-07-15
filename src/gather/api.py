@@ -102,7 +102,7 @@ class ApiSource:
         if token in target:
             # the URL is witnessed in the receipt's ref; the secret must travel in the header only
             raise ValueError("the credential must not appear in the URL (ref is witnessed); it is sent as a header")
-        body, ctype = http_get(
+        body, ctype, _final_url = http_get(
             target, timeout=self._timeout,
             headers={"Authorization": f"{self._auth_scheme} {token}"},
         )

@@ -56,7 +56,7 @@ def test_apisource_sends_the_token_in_a_header_and_never_leaks_it(monkeypatch, c
     def fake_http_get(url, *, timeout=20.0, headers=None, **kw):
         assert headers and headers.get("Authorization") == "Bearer supersecret-xyz"  # token rides the header
         assert "supersecret" not in url                                              # never in the URL
-        return b'[{"id":"1","title":"t","v":2}]', "application/json"
+        return b'[{"id":"1","title":"t","v":2}]', "application/json", url
 
     monkeypatch.setattr(api_mod, "http_get", fake_http_get)
     items = ApiSource().fetch("https://api.example/data")

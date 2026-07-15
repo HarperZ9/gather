@@ -55,3 +55,28 @@ def test_revalidate_304_serves_cached_body(tmp_path) -> None:
 
     r, b = cached_fetch("http://e.com/", cache=cache, fetch_fn=ff, revalidate=True, clock=lambda: 2.0)
     assert r.source == "cache-revalidated" and b == b"<html>1</html>"
+
+
+def test_tampered_cache_body_is_not_served_as_verified(tmp_path) -> None:
+    # a cache hit must re-hash the body before replaying it: a body file
+    # tampered on disk must NOT be returned under its stored content_sha256
+    # (no receipt, no accept applies to the cache too).
+    cache = ResponseCache(tmp_path)
+    calls: list[str] = []
+
+    def ff(url, *, etag, last_modified, **kw):
+        calls.append(url)
+        return FakeReceipt(200, etag='"v1"'), b"<html>original</html>"
+
+    cached_fetch("http://e.com/", cache=cache, fetch_fn=ff, clock=lambda: 1.0)
+    # tamper the cached body on disk, leaving the meta's content_sha256 stale
+    _meta, body_p = cache._paths("http://e.com/")
+    body_p.write_bytes(b"<html>TAMPERED</html>")
+    r2, b2 = cached_fetch("http://e.com/", cache=cache, fetch_fn=ff, clock=lambda: 2.0)
+    # the tampered bytes are never served as a verified cache hit: either the
+    # cache is bypassed (re-fetched) or refused, but never returned under a
+    # content_sha256 that does not match the served body
+    from gather.cache import _sha
+    assert _sha(b2) == r2.content_sha256, "served body must match its receipt hash"
+    assert b2 != b"<html>TAMPERED</html>" or r2.source != "cache"
+    assert calls == ["http://e.com/", "http://e.com/"]  # the tamper forced a re-fetch

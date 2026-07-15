@@ -90,3 +90,21 @@ def test_routing_headers_refused() -> None:
     with pytest.raises(ValueError):
         fetch("http://e.com/", transport=FakeTransport(OK),
               headers={"X-Forwarded-For": "1.2.3.4"}, sleep=lambda s: None)
+
+
+def test_truncated_body_is_named_in_the_receipt() -> None:
+    # a transport that cut the body over max_bytes marks it truncated; the
+    # receipt must carry that so a partial source is never witnessed as whole
+    cut = RawResponse(200, "http://e.com/", (("Content-Type", "text/plain"),),
+                      b"x" * 10, truncated=True)
+    _t, (rcpt, body) = _run(cut)
+    assert rcpt.truncated is True
+    assert rcpt.as_dict()["truncated"] is True
+    # the hash is still honest byte-identity over the kept bytes
+    assert rcpt.verify(body) is True
+
+
+def test_untruncated_body_is_not_flagged() -> None:
+    _t, (rcpt, _body) = _run(OK)
+    assert rcpt.truncated is False
+    assert rcpt.as_dict()["truncated"] is False
