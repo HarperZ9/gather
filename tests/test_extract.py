@@ -58,3 +58,22 @@ def test_tampered_block_fails_verification() -> None:
 def test_altered_source_html_fails_verification() -> None:
     ex = extract(_FIXTURE, "http://e.com/doc", fetched_at=1.0)
     assert ex.verify("<html>different bytes</html>") is False
+
+
+def test_pre_preserves_code_indentation_and_newlines() -> None:
+    html = ("<html><body><pre>def f():\n"
+            "    x = 1\n"
+            "    return x\n"
+            "</pre></body></html>")
+    md = to_markdown(html)
+    # the fenced block must keep the raw indentation and newlines, not collapse
+    # them to a single line of whitespace-normalized text
+    assert "def f():\n    x = 1\n    return x" in md
+
+
+def test_inline_does_not_fuse_words_across_a_nested_block() -> None:
+    html = "<html><body><p>alpha<div>beta</div>gamma</p></body></html>"
+    md = to_markdown(html)
+    # a nested block inside inline context must not weld the words together
+    assert "alphabetagamma" not in md
+    assert "beta" in md
