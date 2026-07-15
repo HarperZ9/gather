@@ -97,6 +97,24 @@ class Node:
         rec(self)
         return norm("".join(parts))
 
+    def raw_text(self) -> str:
+        """The subtree's string leaves in document order, VERBATIM: no
+        whitespace normalization. For <pre>/code, where indentation and
+        newlines are content, not layout. Drops SKIP subtrees only."""
+        parts: list[str] = []
+
+        def rec(n: "Node") -> None:
+            if n.tag in SKIP:
+                return
+            for c in n.content:
+                if isinstance(c, str):
+                    parts.append(c)
+                else:
+                    rec(c)
+
+        rec(self)
+        return "".join(parts)
+
     def walk(self):
         """Yield this node then every descendant, document order."""
         yield self

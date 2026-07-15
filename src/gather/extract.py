@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from gather.dom import SKIP, Node, find, norm, parse_dom
+from gather.dom import INLINE, SKIP, Node, find, norm, parse_dom
 from gather.item import content_hash
 
 _HEADING = {"h1": 1, "h2": 2, "h3": 3, "h4": 4, "h5": 5, "h6": 6}
@@ -56,7 +56,10 @@ def _inline(node: Node) -> str:
         elif c.tag == "br":
             out.append("\n")
         else:
-            out.append(_inline(c))
+            # a nested non-inline (block) child must not weld its text to the
+            # surrounding words: pad it with spaces, mirroring text_content's
+            # spacer. norm() collapses any doubled spaces downstream.
+            out.append(f" {_inline(c)} " if c.tag not in INLINE else _inline(c))
     return "".join(out)
 
 
@@ -115,7 +118,9 @@ def _emit_block(node: Node, lines: list[str]) -> None:
             lines.extend(("> " + ln if ln else ">") for ln in "\n".join(inner).splitlines())
             lines.append("")
         elif tag == "pre":
-            lines.extend(["```", c.text_content(), "```", ""])
+            # code: indentation and newlines are content, not layout. Emit the
+            # raw subtree text verbatim, never whitespace-normalized.
+            lines.extend(["```", c.raw_text().rstrip("\n"), "```", ""])
         elif tag == "hr":
             lines.extend(["---", ""])
         elif tag == "table":
