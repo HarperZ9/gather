@@ -114,10 +114,24 @@ def parse_video(
                 make_item(
                     kind="comment", id=str(c.get("id", "")), title=f"comment on {title}", text=ctext,
                     source="video", ref=vid, method=method, fetched_at=fetched_at,
-                    meta={"author": str(c.get("author", ""))},
+                    meta=_comment_meta(c),
                 )
             )
     return items
+
+
+# Engagement fields carried from a yt-dlp comment into the Item meta: the community's own signal
+# (likes, thread position, pin, verified/uploader) so a downstream reader can rank what mattered.
+# A field absent from yt-dlp's record stays absent from meta -- an honest null, never a faked 0/False.
+_COMMENT_ENGAGEMENT = ("like_count", "parent", "is_pinned", "author_is_verified", "author_is_uploader")
+
+
+def _comment_meta(c: dict) -> dict:
+    meta: dict = {"author": str(c.get("author", ""))}
+    for key in _COMMENT_ENGAGEMENT:
+        if c.get(key) is not None:
+            meta[key] = c[key]
+    return meta
 
 
 class VideoSource:
