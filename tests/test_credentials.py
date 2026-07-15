@@ -22,3 +22,14 @@ def test_empty_credential_counts_as_missing(monkeypatch):
     assert has_secret("GATHER_TEST_SECRET") is False
     with pytest.raises(MissingCredential):
         require_secret("GATHER_TEST_SECRET")
+
+
+def test_has_secret_matches_require_secret_on_whitespace_and_newlines(monkeypatch):
+    # a presence check used for planning must agree with the gate that actually
+    # runs: a whitespace-only or newline-bearing value is NOT usable
+    monkeypatch.setenv("GATHER_TEST_SECRET", "   ")
+    assert has_secret("GATHER_TEST_SECRET") is False
+    monkeypatch.setenv("GATHER_TEST_SECRET", "tok\nen")
+    assert has_secret("GATHER_TEST_SECRET") is False
+    monkeypatch.setenv("GATHER_TEST_SECRET", "real-token")
+    assert has_secret("GATHER_TEST_SECRET") is True

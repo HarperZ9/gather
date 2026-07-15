@@ -73,3 +73,18 @@ def test_apisource_refuses_a_token_in_the_url(monkeypatch):
     monkeypatch.setenv("GATHER_API_TOKEN", "supersecret-xyz")
     with pytest.raises(ValueError, match="must not appear in the URL"):
         ApiSource().fetch("https://api.example/data?key=supersecret-xyz")
+
+
+def test_parse_api_names_dropped_non_object_records(capsys):
+    # a mixed array must not silently shrink: the non-object elements dropped
+    # are named so the count is not quietly wrong
+    payload = json.dumps([{"id": "1"}, "a note", 42, {"id": "2"}])
+    items = parse_api(payload, "https://api.example/x", fetched_at=1.0)
+    assert len(items) == 2
+    err = capsys.readouterr().err
+    assert "2" in err and "non-object" in err.lower()
+
+
+def test_parse_api_all_objects_warns_nothing(capsys):
+    parse_api(json.dumps([{"id": "1"}, {"id": "2"}]), "u", fetched_at=1.0)
+    assert "non-object" not in capsys.readouterr().err.lower()

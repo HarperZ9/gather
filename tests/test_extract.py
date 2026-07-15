@@ -77,3 +77,17 @@ def test_inline_does_not_fuse_words_across_a_nested_block() -> None:
     # a nested block inside inline context must not weld the words together
     assert "alphabetagamma" not in md
     assert "beta" in md
+
+
+def test_empty_extraction_is_named_not_stamped_as_content() -> None:
+    # a JS-only shell or an unreadable page: read, found nothing. That honest
+    # null must be distinguishable from a real extraction, not stamped success.
+    ex = extract("<html><body><script>var a=1;</script></body></html>",
+                 "https://spa.example/", fetched_at=1.0)
+    assert ex.markdown == "" and ex.blocks == ()
+    assert ex.has_content is False
+    assert ex.as_dict()["has_content"] is False
+    # a page WITH readable content is has_content True
+    ex2 = extract("<html><body><p>real words here</p></body></html>",
+                  "https://x.example/", fetched_at=1.0)
+    assert ex2.has_content is True

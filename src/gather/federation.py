@@ -144,8 +144,10 @@ def join(statuses: Iterable[str]) -> str:
     The rules, in order: GATHER_VERIFIED present alongside any other distinct status
     reports GATHER_VERIFIED_WITH_WARNINGS (a landed capture does not launder its
     warnings); only GATHER_VERIFIED reports GATHER_VERIFIED; captures with no verified
-    landing report the worst warning, deterministically the sorted-first distinct
-    status; and no captures at all reports SOURCE_LEAD_ONLY, because a source nobody
+    landing report a deterministic REPRESENTATIVE warning (the sorted-first distinct
+    status) whose single job is to name THAT a warning occurred, not to rank severity
+    (the warnings are not ordered by severity, so a single derived status cannot claim
+    a 'worst'); and no captures at all reports SOURCE_LEAD_ONLY, because a source nobody
     probed has exactly the evidence standing of a lead. A status outside the closed
     vocabulary is a typed rejection, never folded in.
     """
@@ -159,6 +161,8 @@ def join(statuses: Iterable[str]) -> str:
         return SOURCE_LEAD_ONLY
     if GATHER_VERIFIED in seen:
         return GATHER_VERIFIED_WITH_WARNINGS if len(seen) > 1 else GATHER_VERIFIED
+    # a deterministic representative warning, NOT a severity ranking: the
+    # warnings carry no severity order, so this names that a warning occurred
     return sorted(seen)[0]
 
 

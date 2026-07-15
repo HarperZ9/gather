@@ -48,6 +48,10 @@ def _seal(receipts: list[dict]) -> str:
             "sha256": r["sha256"], "kind": r["kind"], "id": r["id"], "title": r["title"],
             "source": r["source"], "ref": r["ref"], "method": r["method"],
             "derived_from": list(r.get("derived_from") or []),
+            # the retrieval time each Provenance carries is now witnessed: a
+            # receipt missing it defaults consistently (0.0) so legacy rows
+            # seal reproducibly, never inconsistently
+            "fetched_at": r.get("fetched_at", 0.0),
         }
         if r.get("availability") is not None:
             o["availability"] = r["availability"]
@@ -85,6 +89,7 @@ def _receipt(i: Item) -> dict:
         "source": i.provenance.source, "ref": i.provenance.ref,
         "method": i.provenance.method, "sha256": i.provenance.sha256,
         "derived_from": list(i.provenance.derived_from),
+        "fetched_at": i.provenance.fetched_at,
     }
 
 
@@ -98,14 +103,17 @@ def digest_of_receipts(receipts: list[dict]) -> Digest:
     the item bodies. Each input must carry the receipt fields; extra keys (fetched_at, meta)
     are ignored, and derived_from defaults to empty. A row missing a field raises a clear
     ValueError (rows can come from disk, so the failure must be diagnosable, not a bare KeyError).
-    An ``availability`` rung, when present, is shape-checked and carried into the sealed receipt
-    (see gather.availability); a receipt without one seals exactly as before rungs existed."""
+    A ``fetched_at`` retrieval time, when present, is carried into the sealed receipt so it is
+    witnessed (a row without one defaults to 0.0, sealing reproducibly). An ``availability`` rung,
+    when present, is shape-checked and carried into the sealed receipt (see gather.availability);
+    a receipt without one seals exactly as before rungs existed."""
     clean = []
     for r in receipts:
         missing = [k for k in _FIELDS if k not in r]
         if missing:
             raise ValueError(f"receipt missing required field(s) {missing}")
-        row = {**{k: r[k] for k in _FIELDS}, "derived_from": list(r.get("derived_from") or [])}
+        row = {**{k: r[k] for k in _FIELDS}, "derived_from": list(r.get("derived_from") or []),
+               "fetched_at": r.get("fetched_at", 0.0)}
         if r.get("availability") is not None:
             row["availability"] = _check_rung(r["availability"])
         clean.append(row)
