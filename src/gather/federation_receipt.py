@@ -41,6 +41,19 @@ ENTITY_MATCH_FIELDS = (
 
 _HEX = set("0123456789abcdef")
 
+# the closed set of identifier paths that ARE an exact identity join: a
+# registered id scheme, not a fuzzy title/name match. exact_id_join is derived
+# from the path against this set, never trusted as a self-declared input flag.
+_EXACT_ID_SCHEMES = frozenset({
+    "doi", "orcid", "openalex", "isbn", "issn", "pmid", "pmcid",
+    "arxiv", "ror", "wikidata", "grid", "isni",
+})
+
+
+def _path_is_exact_id(identifier_path: str) -> bool:
+    scheme = identifier_path.split(":", 1)[0].strip().lower()
+    return scheme in _EXACT_ID_SCHEMES
+
 
 class PolicyRuleError(RegistryError):
     """A policy rule that violates the receipt contract: a typed, diagnosable rejection."""
@@ -51,9 +64,24 @@ class EntityResolutionError(RegistryError):
 
 
 def _is_capture_ref(ref: object) -> bool:
-    """A provenance capture ref is a content hash: 64 lowercase hex chars. A rule that
-    cites no such ref cites no evidence, so the shape check is the evidence gate."""
+    """A provenance capture ref is SHAPED like a content hash: 64 lowercase hex
+    chars. Shape is necessary but NOT sufficient: it does not prove the ref
+    addresses real captured bytes. Existence is checked separately, when a
+    resolver is supplied, so a receipt never vouches for evidence it cannot see."""
     return isinstance(ref, str) and len(ref) == 64 and all(c in _HEX for c in ref)
+
+
+CaptureResolver = "Callable[[str], bool]"
+
+
+def _require_exists(ref: str, capture_exists, what: str, err) -> None:
+    """When a resolver is supplied, refuse a ref that does not resolve to real
+    captured bytes. No resolver means shape-only (the legacy contract), so this
+    is additive: a caller that CAN check existence closes the gap."""
+    if capture_exists is not None and not capture_exists(ref):
+        raise err(f"{what} {ref!r} does not resolve to captured content: "
+                  "shape is not existence, and a receipt must not vouch for "
+                  "evidence it cannot see")
 
 
 def verdict_for_failure_class(failure_class: str) -> str:
@@ -67,7 +95,7 @@ def verdict_for_failure_class(failure_class: str) -> str:
     return verdict
 
 
-def validate_policy_rule(rule: dict) -> dict:
+def validate_policy_rule(rule: dict, *, capture_exists=None) -> dict:
     """Validate one policy rule and return it normalized with its derived verdict.
 
     The shape is closed: an extra key is how an unchecked field sneaks into a sealed
@@ -89,6 +117,8 @@ def validate_policy_rule(rule: dict) -> dict:
         raise PolicyRuleError(
             "policy-rule source_capture_ref must be a content-hash capture ref; "
             "a rule asserted without a source is not evidence")
+    _require_exists(rule["source_capture_ref"], capture_exists,
+                    "policy-rule source_capture_ref", PolicyRuleError)
     verdict = verdict_for_failure_class(rule["failure_class"])
     if rule["superseded"] is not False:
         raise PolicyRuleError(
@@ -143,7 +173,7 @@ def _is_unit(x: object) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and 0.0 <= x <= 1.0
 
 
-def validate_entity_match(match: dict) -> dict:
+def validate_entity_match(match: dict, *, capture_exists=None) -> dict:
     """Validate one entity-resolution candidate and return it normalized.
 
     The shape is closed. Gates: a match with no named identifier_path is rejected (a
@@ -172,8 +202,18 @@ def validate_entity_match(match: dict) -> dict:
     if not isinstance(refs, list) or not refs or not all(_is_capture_ref(r) for r in refs):
         raise EntityResolutionError(
             "entity-match evidence_refs must be a non-empty list of content-hash refs")
+    for r in refs:
+        _require_exists(r, capture_exists, "entity-match evidence_ref", EntityResolutionError)
     if not isinstance(match["exact_id_join"], bool):
         raise EntityResolutionError("entity-match exact_id_join must be a boolean")
+    # exact_id_join is DERIVED from the identifier path, not trusted from the
+    # input: a self-declared True on a fuzzy/name path is a claim the path does
+    # not support, and promotion would launder a name match into an identity.
+    if match["exact_id_join"] and not _path_is_exact_id(match["identifier_path"]):
+        raise EntityResolutionError(
+            f"exact-id join claimed on identifier_path {match['identifier_path']!r}, "
+            f"which is not a registered exact-id scheme {sorted(_EXACT_ID_SCHEMES)}; "
+            "a self-declared join the path does not support is refused")
     return {k: match[k] for k in ENTITY_MATCH_FIELDS}
 
 
