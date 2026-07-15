@@ -94,6 +94,36 @@ def test_parse_video_produces_metadata_transcript_and_comment():
     assert "hello world" in tr.text and tr.id == "abc123"
 
 
+_INFO_ENGAGEMENT = json.dumps({
+    "id": "v9", "title": "Eng", "uploader": "Chan",
+    "comments": [
+        {"id": "top", "text": "engaged comment", "author": "a", "like_count": 42,
+         "parent": "root", "is_pinned": True, "author_is_verified": True, "author_is_uploader": False},
+        {"id": "bare", "text": "no engagement fields", "author": "b"},
+    ],
+})
+
+
+def test_comment_items_preserve_engagement_signal():
+    """The community's own signal (likes, thread position, pin, verified/uploader) must survive into
+    the comment Item's meta so a downstream reader can rank what mattered; a chorus digest and a human
+    both need it. gather previously kept only the author, discarding all of it."""
+    comments = {i.id: i for i in parse_video(_INFO_ENGAGEMENT, None, fetched_at=1.0) if i.kind == "comment"}
+    top = comments["top"].meta
+    assert top["author"] == "a"
+    assert top["like_count"] == 42 and top["parent"] == "root"
+    assert top["is_pinned"] is True and top["author_is_verified"] is True
+    assert top["author_is_uploader"] is False
+
+
+def test_absent_engagement_fields_are_omitted_not_faked():
+    """A missing signal is an honest null: the field is absent, never a fabricated 0/False."""
+    comments = {i.id: i for i in parse_video(_INFO_ENGAGEMENT, None, fetched_at=1.0) if i.kind == "comment"}
+    bare = comments["bare"].meta
+    assert bare["author"] == "b"
+    assert "like_count" not in bare and "parent" not in bare and "is_pinned" not in bare
+
+
 def test_parse_video_without_captions_has_no_transcript():
     kinds = {i.kind for i in parse_video(INFO, None, fetched_at=1.0)}
     assert "transcript" not in kinds and "metadata" in kinds
