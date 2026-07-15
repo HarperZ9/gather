@@ -275,3 +275,40 @@ def test_entity_candidates_normalizes_a_list_or_a_candidates_object_and_rejects_
     assert entity_candidates({"candidates": cands}) == cands
     with pytest.raises(EntityResolutionError, match="candidates"):
         entity_candidates({"matches": cands})
+
+
+def test_exact_id_join_must_be_supported_by_the_identifier_path():
+    # a self-declared exact_id_join=True on a fuzzy/name path is a claim the
+    # path does not support: promotion must not trust the input boolean.
+    liar = _match(candidate_id="name-liar", identifier_path="name",
+                  exact_id_join=True, confidence=0.99)
+    with pytest.raises(EntityResolutionError, match="exact-id"):
+        validate_entity_match(liar)
+
+
+def test_a_registered_exact_id_scheme_is_accepted():
+    for scheme in ("doi", "orcid", "openalex", "ror"):
+        m = validate_entity_match(_match(identifier_path=scheme, exact_id_join=True))
+        assert m["exact_id_join"] is True
+
+
+def test_capture_ref_existence_is_verified_when_a_resolver_is_supplied():
+    # the shape check alone does not prove the ref addresses real captured
+    # bytes; when a resolver is supplied, a ref that does not resolve is
+    # refused, so the receipt cannot vouch for evidence that does not exist.
+    known = {_CAP}
+    # a real, resolvable ref passes
+    validate_policy_rule(_rule(), capture_exists=known.__contains__)
+    # a well-formed but nonexistent ref is refused
+    fabricated = "b" * 64
+    with pytest.raises(PolicyRuleError, match="does not resolve|not.*captured|existence"):
+        validate_policy_rule(_rule(source_capture_ref=fabricated),
+                             capture_exists=known.__contains__)
+
+
+def test_entity_evidence_ref_existence_is_verified_when_a_resolver_is_supplied():
+    known = {_CAP}
+    validate_entity_match(_match(), capture_exists=known.__contains__)
+    with pytest.raises(EntityResolutionError, match="does not resolve|not.*captured|existence"):
+        validate_entity_match(_match(evidence_refs=["c" * 64]),
+                              capture_exists=known.__contains__)
