@@ -135,7 +135,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 ## Documentation
 
 - [docs/INTRODUCTION.md](docs/INTRODUCTION.md): what gather is, core concepts, and a first-ten-minutes walkthrough.
-- [USAGE.md](USAGE.md): the operator surface, command by command.
+- [USAGE.md](USAGE.md): the full command reference, command by command.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the design map, seams, and threat model.
 - [docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
