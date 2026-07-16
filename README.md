@@ -147,6 +147,15 @@ Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [ind
 
 Research breaks when sources become a blur. One rule sits underneath all of it: every item records how it was obtained. A quote fetched over HTTP, a page rendered in a browser, text recognized from a scan, and a statement synthesized from fragments are all valid items, but they are not equally direct, and the `method` field plus the digest seal keep that difference on the record and re-checkable. If that discipline matters to your workflow, gather was built for it; if you just need the intake, it never gets in your way.
 
+## What this believes
+
+This tool is one tool in a family that holds a single belief steady across
+every surface: knowledge open to anyone who can attain the means; acceptance
+decided by external checks, never reputation; every result re-runnable;
+honest nulls first-class; ownership earned by comprehension; learning woven
+into the work. The full text lives in [CREDO.md](CREDO.md).
+The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywheel/blob/fix/release-model-identity/docs/essays/2026-07-13-the-unbundling.md).
+
 ## License
 
 Gather is fair-source: open to read, run, and build on, with commercial use reserved so the project can fund its own development. See [LICENSE](LICENSE).
