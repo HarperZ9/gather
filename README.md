@@ -25,7 +25,7 @@ gather pulls research out of the places most tools break on: arXiv papers, authe
 - **A durable local corpus.** Any fetch command takes `--store DIR`: bodies are content-addressed and deduped by hash, and `gather corpus list|verify|digest|runs|search|stats|prune|availability` inspects, re-checks, and queries what you stored.
 - **Multi-source runs.** `gather run config.json` orchestrates many sources, a scope filter, and optional synthesis into one recorded session kept in the corpus history.
 - **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`), and a plain Python API.
-- **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (about 2x on large documents), `[browser]` adds Playwright JS rendering, `[stealth]` adds curl_cffi TLS impersonation. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
+- **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering, `[stealth]` adds curl_cffi TLS impersonation. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
 
 ## Install
 
@@ -108,7 +108,7 @@ All four run offline; no probe fires. A registry row is a catalog fact and is ne
 ## Optional capability backends
 
 ```bash
-pip install 'gather-engine[fast]'      # lxml, about 2x parse speed on large docs
+pip install 'gather-engine[fast]'      # lxml, faster parsing on large docs (informal ~2x, unpublished)
 pip install 'gather-engine[browser]'   # Playwright JS render (then: playwright install chromium)
 pip install 'gather-engine[stealth]'   # curl_cffi TLS/browser impersonation
 ```
