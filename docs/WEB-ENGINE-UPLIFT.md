@@ -177,15 +177,24 @@ and an honest benchmark table is published. Then, and only then, stop.
 
 ## Benchmarks (honest, zero-dep)
 
-Measured by `examples/bench.py` over a ~461 KB, ~15,000-element document
-(`python examples/bench.py`):
+Measured by `examples/bench.py` over a ~461 KB, ~5,000-element document. Each row is
+an INTERVAL (median, then min/max) over 9 iterations, not a single boast; a single
+number hides its own variance. `gather.benchmark.run_suite()` returns the whole
+evidence artifact (schema, environment, document, per-op stats), and
+`python examples/bench.py --out bench.json` writes it, so a reader can reproduce and
+compare like with like. Absolute milliseconds are machine-specific; the interval and
+the recorded environment are what make the numbers honest.
 
-| op | time |
-| --- | --- |
-| `parse_dom` | ~67 ms |
-| `select('.r')` (5000 hits) | ~14 ms |
-| `to_markdown` | ~84 ms |
-| `extract` (markdown + per-block receipt) | ~113 ms |
+| op | median | min | max |
+| --- | --- | --- | --- |
+| `parse_dom` (stdlib, zero-dep) | ~69 ms | ~62 ms | ~80 ms |
+| `select('.r')` (5000 hits) | ~14 ms | ~13 ms | ~14 ms |
+| `to_markdown` | ~93 ms | ~78 ms | ~95 ms |
+| `extract` (markdown + per-block receipt) | ~120 ms | ~108 ms | ~125 ms |
+| `parse_dom` (lxml fast-parse backend) | ~40 ms | ~28 ms | ~42 ms |
+
+Reproduce: `python examples/bench.py --iters 9` (add `--out bench.json` for the
+evidence artifact). Numbers above are from one machine; re-run yours to compare.
 
 Honest comparison: Scrapling publishes ~2 ms text extraction on 5,000 nested
 elements using lxml (a C parser). gather's stdlib parser is real and usable but

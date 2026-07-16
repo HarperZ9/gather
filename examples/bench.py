@@ -1,56 +1,44 @@
-"""Honest micro-benchmark of gather's zero-dep parse / select / extract.
+"""Honest, reproducible micro-benchmark of gather's zero-dep parse / select / extract.
 
-Reports gather's REAL numbers over a ~5000-element document (the size Scrapling
-publishes). The competitor figures quoted in the docs are their PUBLISHED numbers,
-not re-run here. Run:  python examples/bench.py
+Reports an INTERVAL per operation (min / median / max over N runs), not a single
+number, and can write the whole evidence artifact (environment + document + stats)
+to JSON so a reader can inspect and reproduce it.
+
+  python examples/bench.py                       # print the interval table
+  python examples/bench.py --out bench.json      # + write the evidence artifact
+  python examples/bench.py --elements 5000 --iters 9
 """
 from __future__ import annotations
 
+import argparse
+import json
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from gather.dom import parse_dom, select  # noqa: E402
-from gather.extract import extract, to_markdown  # noqa: E402
+from gather.benchmark import run_suite  # noqa: E402
 
 
-def make_html(n: int) -> str:
-    rows = "".join(
-        f'<div class="r"><p>item {i} of the document body text</p>'
-        f'<a href="/x{i}">link {i}</a></div>'
-        for i in range(n)
-    )
-    return f"<html><head><title>bench</title></head><body>{rows}</body></html>"
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--elements", type=int, default=5000)
+    ap.add_argument("--iters", type=int, default=7)
+    ap.add_argument("--out", default="", help="write the evidence artifact (JSON) here")
+    args = ap.parse_args(argv)
 
-
-def bench(thunk, iters: int = 7) -> float:
-    return min(_timed(thunk) for _ in range(iters))
-
-
-def _timed(thunk) -> float:
-    start = time.perf_counter()
-    thunk()
-    return (time.perf_counter() - start) * 1000.0
-
-
-def main() -> int:
-    html = make_html(5000)
-    root = parse_dom(html)
-    print(f"document: {len(html):,} bytes, ~5000 elements, zero dependencies")
-    print(f"  parse_dom      {bench(lambda: parse_dom(html)):7.2f} ms  [stdlib, zero-dep]")
-    try:
-        from gather.backends import detect_fast_parse
-        from gather.fastparse import parse_dom_lxml
-        if detect_fast_parse() == "lxml":
-            print(f"  parse (lxml)   {bench(lambda: parse_dom_lxml(html)):7.2f} ms  [fast-parse backend]")
-    except Exception:  # pragma: no cover - optional
-        pass
-    print(f"  select('.r')   {bench(lambda: select(root, '.r')):7.2f} ms "
-          f"({len(select(root, '.r'))} hits)")
-    print(f"  to_markdown    {bench(lambda: to_markdown(html)):7.2f} ms")
-    print(f"  extract        {bench(lambda: extract(html, 'http://e.com/', fetched_at=1.0)):7.2f} ms")
+    ev = run_suite(elements=args.elements, iters=args.iters)
+    d = ev["document"]
+    print(f"document: {d['bytes']:,} bytes, ~{d['elements']} elements, zero dependencies "
+          f"({ev['iters']} iters)")
+    print(f"  {'op':16} {'median':>9} {'min':>9} {'max':>9}")
+    for o in ev["ops"]:
+        tag = "  [fast-parse]" if o["op"].endswith("_lxml") else ""
+        print(f"  {o['op']:16} {o['median_ms']:7.2f}ms {o['min_ms']:7.2f}ms "
+              f"{o['max_ms']:7.2f}ms{tag}")
+    if args.out:
+        Path(args.out).write_text(json.dumps(ev, indent=2), encoding="utf-8")
+        print(f"\nevidence written to {args.out}")
     return 0
 
 
