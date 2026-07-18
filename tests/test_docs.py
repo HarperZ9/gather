@@ -12,11 +12,11 @@ def test_flagship_brand_assets_exist_and_are_referenced():
         "docs/brand/gather-mark.svg",
         "docs/brand/gather-hero.png",
         "examples/gather-demo.html",
-        ".github/assets/banner.svg",
+        ".github/assets/zentropy-banner.png",
     ]:
         assert (root / rel).exists(), rel
     for rel in [
-        ".github/assets/banner.svg",
+        ".github/assets/zentropy-banner.png",
         "examples/gather-demo.html",
     ]:
         assert rel in readme
