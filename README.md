@@ -1,4 +1,4 @@
-<p align="center"><img src=".github/assets/banner.svg" alt="gather: Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs." width="100%"></p>
+<p align="center"><img src=".github/assets/zentropy-banner.png" alt="gather: Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs." width="100%"></p>
 
 **Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs.**
 
@@ -172,3 +172,7 @@ python -m mypy
 ```
 
 Keep the README, package metadata, and examples aligned with current behavior before opening a PR.
+
+---
+
+**[Zentropy Labs](https://github.com/ZentropyLabs-ai)** · order out of entropy. An independent lab building evidence-first tools that leave a re-checkable artifact behind. Built by Zain Dana Harper in Seattle. The full workbench is at [Project Telos](https://harperz9.github.io).
