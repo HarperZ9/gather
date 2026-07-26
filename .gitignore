@@ -17,3 +17,6 @@ build/
 gather-cache/
 .coverage
 htmlcov/
+
+# The committed template must survive the .env.* rule above (global standard)
+!.env.example
