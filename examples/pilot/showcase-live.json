@@ -1,0 +1,37 @@
+{
+  "schema": "gather.pilot-manifest/1",
+  "pilot_id": "zentropy-representative-showcase-live-template",
+  "title": "Gather representative research operations pilot (controlled-live template)",
+  "mode": "live",
+  "deployment": {"mode": "customer_hosted", "custodian": "customer"},
+  "policy": {
+    "allowed_hosts": [
+      "example.org"
+    ],
+    "trusted_browser_hosts": [],
+    "allowed_local_roots": [],
+    "enabled_adapters": ["web", "feed", "scholar", "api"],
+    "credentials": [],
+    "report_private_content": false
+  },
+  "missions": [
+    {
+      "id": "venture-market-diligence",
+      "title": "Venture market diligence",
+      "sources": [
+        {
+          "id": "portfolio-watch",
+          "adapter": "web",
+          "target": "https://example.org/portfolio",
+          "fixture": null,
+          "refresh_fixture": null,
+          "visibility": "public",
+          "monitor": true,
+          "required": true,
+          "extraction": null,
+          "options": {}
+        }
+      ]
+    }
+  ]
+}

@@ -1277,59 +1277,68 @@ def _corpus_integrity(
         expected = _expected_source_witnesses(manifest, report)
         accounted: set[bytes] = set()
         # A monitored source may be captured more than once (initial run plus
-        # refreshes), producing several witnesses that share one report row.
-        # Walk expected sources in order, consuming each source's consecutive
-        # witnesses and validating them against the cumulative report count.
-        witness_idx = 0
+        # refreshes), and its refresh witness is appended after every other
+        # source's witness, so partition witnesses by source target across the
+        # full list rather than assuming consecutive grouping.
+        consumed = 0
         runs_ok = True
-        for manifest_source, report_source in expected:
-            source_target = (
-                manifest_source.get("adapter"),
-                manifest_source.get("target"),
+        # Build a target -> (manifest_source, report_source) map so each witness
+        # can be validated against its own source while ``accounted`` accumulates
+        # in witness-file order (the capture order that dedup depends on).
+        source_by_target = {
+            (ms.get("adapter"), ms.get("target")): (ms, rs) for ms, rs in expected
+        }
+        group_added: dict[tuple[object, object], int] = {}
+        for witness_raw in witnesses:
+            record_targets = witness_raw.get("targets")
+            if not (
+                isinstance(record_targets, list)
+                and len(record_targets) == 1
+            ):
+                consumed = -1
+                break
+            pair = source_by_target.get(tuple(record_targets[0]))
+            if pair is None:
+                consumed = -1
+                break
+            manifest_source, report_source = pair
+            consumed += 1
+            witness_stored: object = witness_raw.get("stored")
+            added_value = witness_stored.get("added") if isinstance(witness_stored, Mapping) else None
+            run_added = added_value if isinstance(added_value, int) and not isinstance(added_value, bool) else 0
+            kept = witness_raw.get("kept")
+            run_items = kept if isinstance(kept, int) and not isinstance(kept, bool) else run_added
+            view = dict(report_source)
+            view["item_count"] = run_items
+            witness_ok, item_receipts = _witness_valid(
+                witness_raw,
+                manifest_source,
+                view,
+                catalog_receipts,
+                accounted,
             )
-            group: list[Mapping[str, object]] = []
-            while witness_idx < len(witnesses):
-                raw = witnesses[witness_idx]
-                record_targets = raw.get("targets")
-                if (
-                    isinstance(record_targets, list)
-                    and len(record_targets) == 1
-                    and tuple(record_targets[0]) == source_target
-                ):
-                    group.append(raw)
-                    witness_idx += 1
-                else:
-                    break
-            if not group:
-                runs_ok = False
-                continue
-            report_item_count = report_source.get("item_count")
-            group_total = 0
-            for witness_raw in group:
-                # Each witness validates against the items it captured this run
-                # (record.kept), not its total origins (scholar edges are extras);
-                # the cumulative total accumulates across the group via stored.added
-                # and binds to the report row's item_count at the end.
-                witness_stored: object = witness_raw.get("stored")
-                added_value = witness_stored.get("added") if isinstance(witness_stored, Mapping) else None
-                run_added = added_value if isinstance(added_value, int) and not isinstance(added_value, bool) else 0
-                kept = witness_raw.get("kept")
-                run_items = kept if isinstance(kept, int) and not isinstance(kept, bool) else run_added
-                view = dict(report_source)
-                view["item_count"] = run_items
-                witness_ok, item_receipts = _witness_valid(
-                    witness_raw,
-                    manifest_source,
-                    view,
-                    catalog_receipts,
-                    accounted,
-                )
-                runs_ok = runs_ok and witness_ok
-                accounted.update(item_receipts)
-                group_total += run_added
-            # the report's cumulative count must match the group's running total
-            runs_ok = runs_ok and group_total == report_item_count
-        runs_ok = runs_ok and witness_idx == len(witnesses)
+            runs_ok = runs_ok and witness_ok
+            accounted.update(item_receipts)
+            key = (manifest_source.get("adapter"), manifest_source.get("target"))
+            group_added[key] = group_added.get(key, 0) + run_added
+        # Every source's cumulative added must bind to its report row's item_count.
+        for manifest_source, report_source in expected:
+            key = (manifest_source.get("adapter"), manifest_source.get("target"))
+            runs_ok = runs_ok and group_added.get(key, 0) == report_source.get("item_count")
+        # The first capture of each source must appear in manifest order; a
+        # reordered run file (swapping two sources' initial witnesses) is a tamper.
+        expected_order = [
+            (ms.get("adapter"), ms.get("target")) for ms, _ in expected
+        ]
+        seen_sources: list = []
+        for witness_raw in witnesses:
+            record_targets = witness_raw.get("targets")
+            if isinstance(record_targets, list) and len(record_targets) == 1:
+                key = tuple(record_targets[0])
+                if key not in seen_sources:
+                    seen_sources.append(key)
+        runs_ok = runs_ok and seen_sources == expected_order
+        runs_ok = runs_ok and consumed == len(witnesses)
         runs_ok = runs_ok and catalog_receipts.issubset(accounted)
         orphans_ok = not corpus.orphan_objects()
         digest = corpus.digest().seal

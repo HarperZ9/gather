@@ -355,12 +355,7 @@ def _corpus_verified(corpus: Corpus) -> bool:
 
 
 def _prior_source_count(corpus: Corpus, source: PilotSource) -> int:
-    """The cumulative item count recorded for this source in its latest witness.
-
-    A refresh builds on the prior running total rather than re-deriving it from
-    corpus rows, so an item whose provenance ref differs from the manifest target
-    is still counted honestly by the witness that already vouched for it.
-    """
+    """The cumulative item count recorded for this source in its latest witness."""
     try:
         target = ((source.adapter, source.target),)
         latest = 0
@@ -373,6 +368,38 @@ def _prior_source_count(corpus: Corpus, source: PilotSource) -> int:
         return latest
     except (OSError, ValueError, TypeError, KeyError):
         return 0
+
+
+def _prior_source_outcomes(root: Path) -> list[SourceOutcome]:
+    """Rebuild the current report's source outcomes so a refresh carries them forward.
+
+    A refreshed report must still account for every source the corpus has
+    witnesses for, not only the monitored ones re-captured this pass.
+    """
+    try:
+        report = json.loads((root / "report.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    outcomes: list[SourceOutcome] = []
+    for mission in report.get("missions", []):
+        if not isinstance(mission, Mapping):
+            continue
+        for source in mission.get("sources", []):
+            if not isinstance(source, Mapping):
+                continue
+            outcomes.append(
+                SourceOutcome(
+                    mission.get("id", ""),
+                    source.get("id", ""),
+                    source.get("adapter", ""),
+                    source.get("visibility", ""),
+                    source.get("status", "CAPTURED"),
+                    source.get("item_count", 0),
+                    tuple(source.get("receipt_digests", [])),
+                    "",
+                )
+            )
+    return outcomes
 
 
 def _cumulative_receipt_digests(
@@ -712,9 +739,18 @@ def refresh_pilot(
             return
 
     prior_count = _history_count_of(root)
+    # Carry the prior source outcomes forward so the refreshed report still
+    # accounts for every source the corpus has witnesses for, not only the
+    # monitored ones refreshed this pass.
+    prior_outcomes = _prior_source_outcomes(root)
+    monitored_ids = {
+        source.id for mission in manifest.missions for source in mission.sources if source.monitor
+    }
+    source_outcomes: list[SourceOutcome] = [
+        outcome for outcome in prior_outcomes if outcome.source_id not in monitored_ids
+    ]
     _archive_current(root, prior_count + 1)
 
-    source_outcomes: list[SourceOutcome] = []
     for mission in manifest.missions:
         for source in mission.sources:
             if not source.monitor:

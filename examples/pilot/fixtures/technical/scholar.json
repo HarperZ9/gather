@@ -1,0 +1,33 @@
+{
+  "openalex": {
+    "results": [
+      {
+        "id": "https://openalex.org/W501",
+        "doi": "https://doi.org/10.5555/gather-pilot-synthesis",
+        "title": "Verifiable Research Intake for Operator-Owned Pipelines",
+        "publication_year": 2025,
+        "authors": null,
+        "authorships": [
+          {"author": {"display_name": "Ada Okafor"}},
+          {"author": {"display_name": "Bram Vidal"}}
+        ],
+        "abstract_inverted_index": {"A": [0], "receipt-backed": [1], "intake": [2], "model": [3]},
+        "referenced_works": ["https://openalex.org/W502"]
+      }
+    ]
+  },
+  "semanticscholar": {
+    "data": [
+      {
+        "paperId": "ss-gather-pilot-1",
+        "externalIds": {"DOI": "10.5555/gather-pilot-synthesis"},
+        "title": "Verifiable Research Intake for Operator-Owned Pipelines",
+        "abstract": "A receipt-backed intake model for operator-owned pipelines.",
+        "year": 2025,
+        "authors": [{"name": "Ada Okafor"}, {"name": "Bram Vidal"}],
+        "references": [{"paperId": "ss-gather-pilot-ref", "externalIds": {"DOI": "10.5555/prior-intake"}}],
+        "citations": []
+      }
+    ]
+  }
+}
