@@ -721,9 +721,11 @@ demonstrates public web, feed, arXiv or scholarly federation, and monitoring.
 External failures become typed source outcomes. They never get replaced by
 offline fixture results inside a run that claims to be live.
 
-## 9. PSL and Reusable Partner Packages
+## 9. Inputs for the PSL and Reusable Partner Packages
 
-The implementation produces content inputs for two delivery packages:
+This subproject produces verified content inputs for two later delivery
+packages. Subproject 4 of the SaaS master design owns the pitch, commercial
+copy, pricing presentation, and final package assembly.
 
 1. **PSL package**
    - connects Gather to PSL's ideation, diligence, market mapping, technical
@@ -740,8 +742,10 @@ The implementation produces content inputs for two delivery packages:
    - offers workstation, customer-hosted, and Zentropy-managed pilot delivery;
    - includes a verified shared bundle suitable for remote review.
 
-The packages may describe pilots, licensing, services, collaboration, and
-advisory relationships. They must not describe Gather as available for sale or
+The engine does not generate negotiation language. Its sample reports,
+receipts, capability matrix, and demonstrations remain factual inputs. Later
+packages may describe pilots, licensing, services, collaboration, and advisory
+relationships, but must not describe Gather as available for sale or
 acquisition.
 
 ## 10. Commercial Boundary
@@ -889,8 +893,8 @@ The pilot is complete only when:
 9. `pilot verify` catches deliberate tampering and exits nonzero.
 10. The full test, lint, and type-check gates pass.
 11. The public docs state the retained Zentropy ownership boundary.
-12. The PSL derivative shows how Gather expands the existing Zentropy package
-    without presenting Gather as an acquisition candidate.
+12. The checked-in sample report and capability matrix provide verified inputs
+    for the later PSL and reusable partner packages.
 13. A verified shared bundle can be delivered or hosted remotely without
     exposing private evidence.
 
