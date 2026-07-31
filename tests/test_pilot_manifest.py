@@ -7,6 +7,7 @@ import pytest
 
 from gather.pilot_manifest import (
     PilotManifest,
+    load_pilot_manifest,
     manifest_digest,
     manifest_payload,
     validate_pilot_manifest,
@@ -23,7 +24,7 @@ def valid_manifest(tmp_path: Path) -> dict[str, object]:
         "pilot_id": "pilot-one",
         "title": "Offline pilot",
         "mode": "offline",
-        "deployment": {"mode": "offline", "custodian": "research"},
+        "deployment": {"mode": "workstation", "custodian": "customer"},
         "policy": {
             "allowed_hosts": [],
             "trusted_browser_hosts": [],
@@ -64,6 +65,8 @@ def test_valid_offline_docs_manifest_has_immutable_runtime_shapes(tmp_path: Path
 
     assert isinstance(manifest, PilotManifest)
     assert manifest.mode == "offline"
+    assert manifest.deployment.mode == "workstation"
+    assert manifest.deployment.custodian == "customer"
     assert manifest.policy.enabled_adapters == ("docs",)
     assert manifest.missions[0].sources[0].resolved_target == tmp_path / "fixtures" / "source.html"
 
@@ -104,7 +107,8 @@ def test_closed_shapes_refuse_unknown_fields(tmp_path: Path, mutate, message: st
         (lambda d: d["missions"][0].update({"id": "Bad ID"}), "mission.id"),
         (lambda d: source(d).update({"id": "Bad ID"}), "source.id"),
         (lambda d: d.update({"mode": "staging"}), "manifest.mode"),
-        (lambda d: d["deployment"].update({"mode": "live"}), "deployment.mode"),
+        (lambda d: d["deployment"].update({"mode": "invalid"}), "deployment.mode"),
+        (lambda d: d["deployment"].update({"custodian": "invalid"}), "deployment.custodian"),
         (lambda d: source(d).update({"visibility": "partner"}), "visibility"),
         (lambda d: source(d)["options"].update({"unknown": True}), "docs options"),
         (lambda d: source(d).update({"extraction": {"title": {"selector": "h1"}}}), "does not support extraction"),
@@ -162,7 +166,7 @@ def test_offline_network_source_requires_fixture_and_live_source_forbids_one(tmp
 
     data = valid_manifest(tmp_path)
     data.update({"mode": "live"})
-    data["deployment"]["mode"] = "live"
+    data["deployment"]["mode"] = "workstation"
     data["policy"]["allowed_hosts"] = ["example.com"]
     data["policy"]["enabled_adapters"] = ["web"]
     source(data).update(
@@ -177,6 +181,108 @@ def test_refresh_fixture_requires_a_monitoring_adapter_and_monitor_flag(tmp_path
     source(data)["refresh_fixture"] = "fixtures/source.html"
     with pytest.raises(ValueError, match="refresh_fixture requires monitor"):
         validate_pilot_manifest(data, tmp_path)
+
+
+def test_live_source_rejects_refresh_fixture(tmp_path: Path) -> None:
+    data = valid_manifest(tmp_path)
+    data["mode"] = "live"
+    data["policy"].update({"allowed_hosts": ["example.com"], "enabled_adapters": ["web"]})
+    source(data).update(
+        {
+            "adapter": "web",
+            "target": "https://example.com/evidence",
+            "fixture": None,
+            "refresh_fixture": "fixtures/source.html",
+            "monitor": True,
+        }
+    )
+
+    with pytest.raises(ValueError, match="live source may not define a refresh_fixture"):
+        validate_pilot_manifest(data, tmp_path)
+
+
+def test_extraction_uses_a_closed_fields_object(tmp_path: Path) -> None:
+    data = valid_manifest(tmp_path)
+    data["policy"].update({"allowed_hosts": ["example.com"], "enabled_adapters": ["web"]})
+    source(data).update(
+        {
+            "adapter": "web",
+            "target": "https://example.com/evidence",
+            "fixture": "fixtures/source.html",
+            "extraction": {"fields": {"title": {"selector": "h1"}}},
+        }
+    )
+
+    manifest = validate_pilot_manifest(data, tmp_path)
+    assert manifest.missions[0].sources[0].extraction["title"].selector == "h1"  # type: ignore[index]
+
+
+def test_extraction_rejects_unknown_top_level_keys(tmp_path: Path) -> None:
+    data = valid_manifest(tmp_path)
+    data["policy"].update({"allowed_hosts": ["example.com"], "enabled_adapters": ["web"]})
+    source(data).update(
+        {
+            "adapter": "web",
+            "target": "https://example.com/evidence",
+            "fixture": "fixtures/source.html",
+            "extraction": {"fields": {}, "surprise": True},
+        }
+    )
+
+    with pytest.raises(ValueError, match="unknown extraction field"):
+        validate_pilot_manifest(data, tmp_path)
+
+
+def test_policy_and_source_boolean_defaults_apply_only_when_absent(tmp_path: Path) -> None:
+    data = valid_manifest(tmp_path)
+    del data["policy"]["report_private_content"]
+    del source(data)["required"]
+
+    manifest = validate_pilot_manifest(data, tmp_path)
+    item = manifest.missions[0].sources[0]
+    assert manifest.policy.report_private_content is False
+    assert item.required is True
+
+
+def test_nested_options_are_immutable_and_do_not_change_the_digest(tmp_path: Path) -> None:
+    data = valid_manifest(tmp_path)
+    data["policy"].update({"allowed_hosts": ["export.arxiv.org"], "enabled_adapters": ["arxiv"]})
+    source(data).update(
+        {
+            "adapter": "arxiv",
+            "target": "https://export.arxiv.org/api/query",
+            "fixture": "fixtures/source.html",
+            "options": {"max_results": {"limits": ["fixed"]}},
+        }
+    )
+    manifest = validate_pilot_manifest(data, tmp_path)
+    options = manifest.missions[0].sources[0].options
+    digest = manifest_digest(manifest)
+
+    with pytest.raises(TypeError):
+        options["max_results"]["limits"] = ("changed",)  # type: ignore[index]
+    assert manifest_digest(manifest) == digest
+    assert manifest_payload(manifest)["missions"][0]["sources"][0]["options"] == {
+        "max_results": {"limits": ["fixed"]}
+    }
+
+
+def test_load_pilot_manifest_reads_a_json_object_relative_to_its_file(tmp_path: Path) -> None:
+    path = tmp_path / "pilot.json"
+    path.write_text(json.dumps(valid_manifest(tmp_path)), encoding="utf-8")
+
+    manifest = load_pilot_manifest(path)
+    assert manifest.base_dir == tmp_path
+    assert manifest.pilot_id == "pilot-one"
+
+
+@pytest.mark.parametrize(("contents", "message"), [("{", "invalid pilot manifest JSON"), ("[]", "manifest must be an object")])
+def test_load_pilot_manifest_rejects_invalid_json_shapes(tmp_path: Path, contents: str, message: str) -> None:
+    path = tmp_path / "pilot.json"
+    path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        load_pilot_manifest(path)
 
 
 def test_browser_requires_trusted_exact_host_and_rejects_host_shortcuts(tmp_path: Path) -> None:

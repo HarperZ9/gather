@@ -133,7 +133,9 @@ def _optional_string(data: Mapping[str, object], key: str, label: str) -> str | 
     return value
 
 
-def _bool(data: Mapping[str, object], key: str, label: str) -> bool:
+def _bool(data: Mapping[str, object], key: str, label: str, default: bool | None = None) -> bool:
+    if key not in data and default is not None:
+        return default
     value = data.get(key)
     if not isinstance(value, bool):
         raise ValueError(f"{label}.{key} must be a boolean")
@@ -206,10 +208,18 @@ def _json_value(value: object, label: str) -> object:
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
     if isinstance(value, list):
-        return [_json_value(item, label) for item in value]
+        return tuple(_json_value(item, label) for item in value)
     if isinstance(value, Mapping) and all(isinstance(key, str) for key in value):
-        return {key: _json_value(item, label) for key, item in value.items()}
+        return MappingProxyType({key: _json_value(item, label) for key, item in value.items()})
     raise ValueError(f"{label} must contain only JSON values")
+
+
+def _thaw_json(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {key: _thaw_json(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_json(item) for item in value]
+    return value
 
 
 def _options(value: object, adapter: str) -> Mapping[str, object]:
@@ -224,8 +234,10 @@ def _extraction(value: object, adapter: str) -> Mapping[str, Field] | None:
     if adapter not in _EXTRACTION_ADAPTERS:
         raise ValueError(f"{adapter} does not support extraction")
     data = _mapping(value, "source.extraction")
+    _closed(data, {"fields"}, "extraction")
+    fields_data = _mapping(data.get("fields"), "source.extraction.fields")
     fields: dict[str, Field] = {}
-    for name, raw in data.items():
+    for name, raw in fields_data.items():
         if not _SLUG.fullmatch(name):
             raise ValueError("source.extraction field names must be lowercase slugs")
         spec = _mapping(raw, f"source.extraction.{name}")
@@ -291,7 +303,7 @@ def _policy(data: Mapping[str, object], base_dir: Path) -> tuple[PilotPolicy, tu
     return (
         PilotPolicy(
             tuple(sorted(allowed_hosts)), tuple(sorted(trusted_hosts)), tuple(sorted(root_names)),
-            tuple(sorted(adapters)), tuple(sorted(credentials)), _bool(data, "report_private_content", "policy"),
+            tuple(sorted(adapters)), tuple(sorted(credentials)), _bool(data, "report_private_content", "policy", False),
         ),
         tuple(resolved_roots),
     )
@@ -313,6 +325,8 @@ def _source(data: Mapping[str, object], mode: str, policy: PilotPolicy, base_dir
     target = _string(data, "target", "source")
     fixture = _optional_string(data, "fixture", "source")
     refresh_fixture = _optional_string(data, "refresh_fixture", "source")
+    if mode == "live" and refresh_fixture is not None:
+        raise ValueError("live source may not define a refresh_fixture")
     monitor = _bool(data, "monitor", "source")
     if monitor and adapter not in MONITOR_ADAPTERS:
         raise ValueError(f"{adapter} does not support monitoring")
@@ -321,7 +335,7 @@ def _source(data: Mapping[str, object], mode: str, policy: PilotPolicy, base_dir
     visibility = _string(data, "visibility", "source")
     if visibility not in {"private", "public"}:
         raise ValueError("source.visibility must be private or public")
-    required = _bool(data, "required", "source")
+    required = _bool(data, "required", "source", True)
     resolved_target: Path | None = None
     resolved_fixture: Path | None = None
     resolved_refresh_fixture: Path | None = None
@@ -367,8 +381,10 @@ def validate_pilot_manifest(data: Mapping[str, object], base_dir: Path) -> Pilot
     deployment_data = _mapping(data.get("deployment"), "deployment")
     _closed(deployment_data, {"mode", "custodian"}, "deployment")
     deployment = PilotDeployment(_string(deployment_data, "mode", "deployment"), _string(deployment_data, "custodian", "deployment"))
-    if deployment.mode not in {"offline", "live"} or deployment.mode != mode:
-        raise ValueError("deployment.mode must match manifest.mode")
+    if deployment.mode not in {"workstation", "customer_hosted", "zentropy_managed"}:
+        raise ValueError("deployment.mode must be workstation, customer_hosted, or zentropy_managed")
+    if deployment.custodian not in {"customer", "zentropy", "shared"}:
+        raise ValueError("deployment.custodian must be customer, zentropy, or shared")
     resolved_base = Path(base_dir).resolve(strict=True)
     policy, roots = _policy(_mapping(data.get("policy"), "policy"), resolved_base)
     missions: list[PilotMission] = []
@@ -440,7 +456,7 @@ def manifest_payload(manifest: PilotManifest) -> dict[str, object]:
                             {name: _field_payload(field) for name, field in source.extraction.items()}
                             if source.extraction is not None else None
                         ),
-                        "options": dict(source.options),
+                        "options": _thaw_json(source.options),
                     }
                     for source in mission.sources
                 ],
@@ -453,3 +469,13 @@ def manifest_payload(manifest: PilotManifest) -> dict[str, object]:
 def manifest_digest(manifest: PilotManifest) -> str:
     raw = json.dumps(manifest_payload(manifest), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+def load_pilot_manifest(path: str | Path) -> PilotManifest:
+    """Load a JSON manifest using the manifest file's parent as its local root."""
+    manifest_path = Path(path)
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError("invalid pilot manifest JSON") from error
+    return validate_pilot_manifest(_mapping(data, "manifest"), manifest_path.parent)
