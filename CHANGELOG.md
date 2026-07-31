@@ -5,6 +5,32 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+### Accountable pilot evidence engine
+
+A retained-capability research pilot over Gather's existing adapters. One
+closed manifest drives a source-isolated capture into a content-addressed
+corpus; the result is a redacted report, a hash-chained receipt, a monitored
+change ledger with archived history, and deterministic shared or full bundles
+any third party re-verifies offline.
+
+- `gather pilot run|refresh|verify|bundle` CLI command group with typed exit
+  semantics (manifest refusal `2`, required-source/verification failure `1`).
+- `gather.pilot` MCP tool (run, refresh, verify, bundle) with a closed schema.
+- Closed pilot-manifest validation: unknown fields, wildcard hosts, ports,
+  userinfo, IP literals, `..`/absolute paths, and credential values are
+  rejected. Offline network adapters require a fixture; browser is opt-in.
+- Source-isolated orchestrator: every source gets exactly one outcome; partial
+  success is never erased; diagnostics are bounded and credential-scrubbed.
+- Canonical report (`gather.pilot-report/1`), self-contained semantic HTML, and
+  a closed `gather.pilot-receipt/1` binding manifest, report JSON/HTML, corpus,
+  monitor ledger, and history chain.
+- `refresh_pilot`: verify-first, archive the prior triplet, re-capture monitored
+  sources, run one `monitor_pass`, write a new current view (NEW/CHANGED/UNCHANGED).
+- Deterministic shared and full bundles (`gather.pilot-bundle/1`): `ZIP_STORED`,
+  fixed timestamps, a non-recursive bundle digest; shared refuses private content.
+- Representative offline showcase (three missions, six adapters) with original
+  synthetic fixtures and a checked-in redacted sample pinned against drift.
+
 ## 1.6.1 (2026-07-07)
 
 Docs and visual-identity release; no engine code changes since 1.6.0.

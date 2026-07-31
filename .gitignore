@@ -8,6 +8,8 @@ forum-ledger/
 __pycache__/
 *.pyc
 .pytest_cache/
+.tmp-pilot*
+.tmp-showcase*
 .ruff_cache/
 .mypy_cache/
 .warden-safe-cache/

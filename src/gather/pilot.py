@@ -67,7 +67,7 @@ DOES_NOT_PROVE = (
     "truth of source claims",
     "correctness of OCR, transcription, or external metadata",
     "safety of unrestricted browser automation",
-    "that PSL or another organization will partner, invest, advise, or purchase",
+    "that any specific organization will partner, invest, advise, or purchase",
 )
 
 
