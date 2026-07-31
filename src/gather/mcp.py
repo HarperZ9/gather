@@ -125,6 +125,26 @@ def _tool_defs() -> list[dict]:
                 },
             },
         },
+        {
+            "name": "gather.pilot",
+            "description": "Run, refresh, verify, or bundle a controlled Gather pilot.",
+            "inputSchema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "action": {"type": "string", "enum": ["run", "refresh", "verify", "bundle"]},
+                    "manifest": {
+                        "description": "inline pilot manifest object or path to a manifest JSON file",
+                        "oneOf": [{"type": "string"}, {"type": "object"}],
+                    },
+                    "output": {"type": "string", "description": "pilot evidence root directory"},
+                    "bundle_output": {"type": "string", "description": "bundle ZIP path (bundle action)"},
+                    "visibility": {"type": "string", "enum": ["shared", "full"]},
+                    "include_private_evidence": {"type": "boolean"},
+                },
+                "required": ["action", "output"],
+            },
+        },
     ]
 
 
@@ -150,6 +170,78 @@ def _federation_tool(args: dict) -> str:
         raise ValueError("gather.federation requires registry rows or a non-empty registry path")
     payload = federation_payload(rows, plan=(action == "plan"))
     return json.dumps(payload, indent=2, ensure_ascii=False)
+
+
+def _pilot_tool(args: dict) -> str:
+    from pathlib import Path
+
+    from gather.pilot import refresh_pilot, run_pilot, verify_pilot
+    from gather.pilot_bundle import create_pilot_bundle, verify_pilot_bundle
+    from gather.pilot_manifest import load_pilot_manifest, validate_pilot_manifest
+
+    action = args.get("action")
+    output = args.get("output")
+    if action not in ("run", "refresh", "verify", "bundle"):
+        raise ValueError(f"gather.pilot action must be run, refresh, verify, or bundle (got {action!r})")
+    if not isinstance(output, str) or not output:
+        raise ValueError("gather.pilot requires a non-empty output")
+
+    if action == "run":
+        manifest = args.get("manifest")
+        if isinstance(manifest, dict):
+            validated = validate_pilot_manifest(manifest, Path.cwd())
+        elif isinstance(manifest, str) and manifest:
+            validated = load_pilot_manifest(manifest)
+        else:
+            raise ValueError("gather.pilot run requires a manifest object or path")
+        result = run_pilot(validated, Path(output))
+        return json.dumps(
+            {
+                "action": "run",
+                "manifest_digest": result.manifest_sha256,
+                "source_outcomes": [o.to_dict() for o in result.source_outcomes],
+                "corpus_verified": result.corpus_verified,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    if action == "refresh":
+        result = refresh_pilot(Path(output))
+        return json.dumps(
+            {"action": "refresh", "monitor_report": result.monitor_report},
+            indent=2,
+            sort_keys=True,
+        )
+    if action == "verify":
+        verification = verify_pilot(Path(output))
+        return json.dumps(
+            {"action": "verify", "ok": verification.ok, "checks": verification.to_dict()},
+            indent=2,
+            sort_keys=True,
+        )
+    # bundle
+    bundle_output = args.get("bundle_output")
+    visibility = args.get("visibility")
+    if visibility not in ("shared", "full"):
+        raise ValueError("gather.pilot bundle requires visibility shared or full")
+    if not isinstance(bundle_output, str) or not bundle_output:
+        raise ValueError("gather.pilot bundle requires a bundle_output path")
+    receipt = create_pilot_bundle(
+        Path(output),
+        Path(bundle_output),
+        visibility=visibility,
+        include_private_evidence=bool(args.get("include_private_evidence", False)),
+    )
+    return json.dumps(
+        {
+            "action": "bundle",
+            "visibility": receipt.visibility,
+            "bundle_digest": receipt.bundle_digest,
+            "verified": verify_pilot_bundle(Path(bundle_output)).ok,
+        },
+        indent=2,
+        sort_keys=True,
+    )
 
 
 def call_tool(name: str, args: dict) -> str:
@@ -204,6 +296,8 @@ def call_tool(name: str, args: dict) -> str:
             raise ValueError(f"bad config: {exc}") from exc
         record, _items = run_plan(plan)
         return json.dumps(record.to_dict(), indent=2, ensure_ascii=False)
+    if name == "gather.pilot":
+        return _pilot_tool(args)
     raise ValueError(f"unknown tool: {name}")
 
 

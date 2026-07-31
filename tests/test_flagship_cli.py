@@ -30,3 +30,12 @@ def test_demo_json_names_docs_command(capsys):
     assert main(["demo", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["native"]["command"] == "gather docs <path> --json"
+
+
+def test_status_advertises_pilot_command_and_tool(capsys):
+    assert main(["status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "pilot" in payload["native"]["commands"]
+    assert "gather.pilot" in payload["native"]["mcp_tools"]
+    assert payload["native"]["current_status"].startswith("1.6.1")
+
