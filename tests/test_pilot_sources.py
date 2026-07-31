@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from gather.item import content_hash
+from gather.item import content_hash, make_item
 from gather.pilot_manifest import PilotManifest, load_pilot_manifest
-from gather.pilot_sources import capture_source
+from gather.pilot_sources import CapturedSource, capture_source
 
 WEB_HTML = "<html><title>Web title</title><body><p>Web body</p></body></html>"
 FEED_XML = "<rss><channel><title>Feed</title><item><guid>post-1</guid><link>https://example.com/post</link><title>Feed title</title><description>Feed body</description></item></channel></rss>"
@@ -49,9 +49,10 @@ def load_fixture_manifest(
     fixture_text: str = WEB_HTML,
     options: dict[str, object] | None = None,
     refresh_text: str | None = None,
+    mode: str = "offline",
 ) -> PilotManifest:
     fixtures = tmp_path / "fixtures"
-    fixtures.mkdir()
+    fixtures.mkdir(parents=True)
     (fixtures / "source.fixture").write_text(fixture_text, encoding="utf-8")
     refresh_fixture: str | None = None
     if refresh_text is not None:
@@ -62,8 +63,8 @@ def load_fixture_manifest(
         "id": "source-one",
         "adapter": adapter,
         "target": f"https://{host}/evidence",
-        "fixture": "fixtures/source.fixture",
-        "refresh_fixture": refresh_fixture,
+        "fixture": "fixtures/source.fixture" if mode == "offline" else None,
+        "refresh_fixture": refresh_fixture if mode == "offline" else None,
         "visibility": "private",
         "monitor": refresh_fixture is not None,
         "required": True,
@@ -76,7 +77,7 @@ def load_fixture_manifest(
         "schema": "gather.pilot-manifest/1",
         "pilot_id": "pilot-one",
         "title": "Offline pilot",
-        "mode": "offline",
+        "mode": mode,
         "deployment": {"mode": "workstation", "custodian": "customer"},
         "policy": {
             "allowed_hosts": [host],
@@ -154,3 +155,62 @@ def test_refresh_replay_uses_refresh_fixture_and_keeps_html(tmp_path: Path) -> N
     assert result.items[0].text == "New body"
     assert result.items[0].provenance.sha256 == content_hash("New body")
     assert result.extraction_html == refreshed
+
+
+def test_live_scholar_edges_are_returned_only_as_extra_receipts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Using fetch for live edges would silently discard graph evidence."""
+    import gather.pilot_sources as pilot_sources
+
+    manifest = load_fixture_manifest(
+        tmp_path,
+        adapter="scholar",
+        mode="live",
+        options={"providers": ["openalex"], "edges": True},
+    )
+    graph_item = make_item(
+        kind="paper",
+        id="graph-item",
+        title="Graph item",
+        text="graph item",
+        source="scholar",
+        ref="graph-item",
+        method="openalex-api",
+        fetched_at=1.0,
+    )
+    fetch_item = make_item(
+        kind="paper",
+        id="fetch-item",
+        title="Fetch item",
+        text="fetch item",
+        source="scholar",
+        ref="fetch-item",
+        method="openalex-api",
+        fetched_at=1.0,
+    )
+
+    class FakeScholar:
+        def fetch(self, _target: str) -> list:
+            return [fetch_item]
+
+        def graph(self, _target: str) -> tuple[list, list[dict[str, object]]]:
+            return [graph_item], [{"id": "citation-1", "method": "citation-edge"}]
+
+    monkeypatch.setitem(pilot_sources.LIVE_FACTORIES, "scholar", lambda _options: FakeScholar())
+
+    edges = capture_source(manifest.missions[0].sources[0], manifest, clock=lambda: 1.0)
+
+    assert isinstance(edges, CapturedSource)
+    assert edges.items == (graph_item,)
+    assert edges.extra_receipts == ({"id": "citation-1", "method": "citation-edge"},)
+
+    plain_manifest = load_fixture_manifest(
+        tmp_path / "plain",
+        adapter="scholar",
+        mode="live",
+        options={"providers": ["openalex"], "edges": False},
+    )
+    plain = capture_source(plain_manifest.missions[0].sources[0], plain_manifest, clock=lambda: 1.0)
+    assert plain.items == (fetch_item,)
+    assert plain.extra_receipts == ()

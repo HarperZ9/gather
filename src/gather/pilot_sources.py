@@ -10,6 +10,7 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol, cast
 
 from gather.api import ApiSource, parse_api
 from gather.arxiv import ArxivSource, parse_arxiv
@@ -40,6 +41,12 @@ class CapturedSource:
 
 ReplayFn = Callable[[PilotSource, Path, float], CapturedSource]
 Factory = Callable[[Mapping[str, object]], Source]
+
+
+class ScholarCaptureSource(Protocol):
+    def fetch(self, target: str) -> list[Item]: ...
+
+    def graph(self, target: str) -> tuple[list[Item], list[dict[str, object]]]: ...
 
 
 def _replay_web(source: PilotSource, fixture: Path, at: float) -> CapturedSource:
@@ -215,6 +222,18 @@ def _fetch(factory: Factory, source: PilotSource, target: str) -> CapturedSource
         raise
 
 
+def _capture_live_scholar(source: PilotSource) -> CapturedSource:
+    factory = LIVE_FACTORIES["scholar"]
+    try:
+        adapter = cast(ScholarCaptureSource, factory(source.options))
+        if _bool_option(source.options, "edges", False):
+            items, edges = adapter.graph(source.target)
+            return CapturedSource(tuple(items), tuple(edges))
+        return CapturedSource(tuple(adapter.fetch(source.target)))
+    except ModuleNotFoundError as error:
+        raise AdapterUnavailable("scholar adapter module is unavailable") from error
+
+
 def capture_source(
     source: PilotSource,
     manifest: PilotManifest,
@@ -231,6 +250,8 @@ def capture_source(
     if source.adapter in LOCAL_FACTORIES:
         return _fetch(LOCAL_FACTORIES[source.adapter], source, _local_target(source))
     if manifest.mode == "live":
+        if source.adapter == "scholar":
+            return _capture_live_scholar(source)
         factory = LIVE_FACTORIES.get(source.adapter)
         if factory is None:
             raise AdapterUnavailable(f"live adapter unavailable: {source.adapter}")
