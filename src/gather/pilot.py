@@ -487,7 +487,7 @@ def run_pilot(
 
     # Reading the run witnesses here ensures a malformed evidence append cannot be reported as sound.
     corpus_verified = witnesses_complete and _corpus_verified(corpus) and _runs_verified(corpus)
-    return PilotResult(
+    result = PilotResult(
         manifest_sha256=manifest_digest(manifest),
         source_outcomes=tuple(source_outcomes),
         extraction_outcomes=tuple(extraction_outcomes),
@@ -498,3 +498,16 @@ def run_pilot(
         limitations=LIMITATIONS,
         does_not_prove=DOES_NOT_PROVE,
     )
+    from gather.pilot_report import write_pilot_artifacts
+
+    write_pilot_artifacts(root, manifest, result)
+    emit("report_written", None, None, "WRITTEN")
+    emit("run_completed", None, None, "COMPLETED")
+    return result
+
+
+def verify_pilot(output_dir: Path) -> PilotVerification:
+    """Verify the complete pilot artifact root without network access."""
+    from gather.pilot_report import verify_pilot as verify_report
+
+    return verify_report(Path(output_dir))
