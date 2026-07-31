@@ -23,6 +23,12 @@ from gather.corpus_cmd import cmd_corpus
 from gather.federation_cmd import cmd_federation
 from gather.flagship import cmd_demo, cmd_doctor, cmd_status
 from gather.mcp import serve as serve_mcp
+from gather.pilot_commands import (
+    cmd_pilot_bundle,
+    cmd_pilot_refresh,
+    cmd_pilot_run,
+    cmd_pilot_verify,
+)
 from gather.web_commands import (
     cmd_caps,
     cmd_crawl,
@@ -215,6 +221,36 @@ def build_parser() -> argparse.ArgumentParser:
 
     mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
     mcp.set_defaults(func=lambda _args: serve_mcp())
+
+    pilot = sub.add_parser(
+        "pilot",
+        help="run, refresh, verify, and bundle accountable research pilots")
+    pilot_sub = pilot.add_subparsers(dest="pilot_action", required=True)
+
+    pilot_run = pilot_sub.add_parser("run", help="run a pilot from a closed manifest")
+    pilot_run.add_argument("manifest", help="path to a pilot manifest JSON file")
+    pilot_run.add_argument("--output", required=True, help="output directory for the pilot evidence root")
+    pilot_run.add_argument("--json", action="store_true", help="emit the run result as JSON")
+    pilot_run.set_defaults(func=cmd_pilot_run)
+
+    pilot_refresh = pilot_sub.add_parser("refresh", help="re-capture monitored sources and archive the prior view")
+    pilot_refresh.add_argument("output_dir", help="an existing pilot evidence root")
+    pilot_refresh.add_argument("--json", action="store_true", help="emit the refresh result as JSON")
+    pilot_refresh.set_defaults(func=cmd_pilot_refresh)
+
+    pilot_verify = pilot_sub.add_parser("verify", help="verify a pilot evidence root without network access")
+    pilot_verify.add_argument("output_dir", help="a pilot evidence root")
+    pilot_verify.add_argument("--json", action="store_true", help="emit the verification as JSON")
+    pilot_verify.set_defaults(func=cmd_pilot_verify)
+
+    pilot_bundle = pilot_sub.add_parser("bundle", help="package a deterministic shared or full bundle")
+    pilot_bundle.add_argument("output_dir", help="a verified pilot evidence root")
+    pilot_bundle.add_argument("--output", required=True, dest="bundle_output", help="bundle ZIP path")
+    pilot_bundle.add_argument("--visibility", choices=("shared", "full"), required=True)
+    pilot_bundle.add_argument("--include-private-evidence", action="store_true",
+                              help="confirm a full bundle that carries the private artifact root")
+    pilot_bundle.add_argument("--json", action="store_true", help="emit the bundle receipt as JSON")
+    pilot_bundle.set_defaults(func=cmd_pilot_bundle)
 
     return parser
 
