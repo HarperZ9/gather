@@ -6,12 +6,14 @@ content-addressed corpus, receipt digest, schema extraction, and run witness.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Protocol
 
 from gather.digest import digest_of_receipts
@@ -22,7 +24,12 @@ from gather.pilot_manifest import (
     manifest_digest,
     manifest_payload,
 )
-from gather.pilot_sources import AdapterUnavailable, CapturedSource, capture_source
+from gather.pilot_sources import (
+    AdapterUnavailable,
+    CapturedSource,
+    _fixture_for,
+    capture_source,
+)
 from gather.run import RunRecord, _record_fields, _seal_record, verify_record
 from gather.schema_extract import SchemaExtraction, extract_schema
 from gather.store import MATCH, Corpus
@@ -297,11 +304,15 @@ def _persist_source(
     extra_receipts: tuple[dict[str, object], ...],
     *,
     at: float,
+    prior_count: int = 0,
 ) -> tuple[str, ...]:
     receipts = [_item_receipt(item) for item in items] + [dict(receipt) for receipt in extra_receipts]
     digest = digest_of_receipts(receipts)
     stored = corpus.add(list(items))
     origins = tuple(digest.receipts)
+    # The witness records THIS run's items honestly: kept/total is the per-run
+    # count, added is the new delta. Cumulative accounting across a source's
+    # refresh history is validated at the report level from stored.added sums.
     fields = _record_fields(
         at,
         ((source.adapter, source.target),),
@@ -343,11 +354,141 @@ def _corpus_verified(corpus: Corpus) -> bool:
         return False
 
 
+def _prior_source_count(corpus: Corpus, source: PilotSource) -> int:
+    """The cumulative item count recorded for this source in its latest witness.
+
+    A refresh builds on the prior running total rather than re-deriving it from
+    corpus rows, so an item whose provenance ref differs from the manifest target
+    is still counted honestly by the witness that already vouched for it.
+    """
+    try:
+        target = ((source.adapter, source.target),)
+        latest = 0
+        for raw in corpus.runs():
+            record = RunRecord.from_dict(raw)
+            if record.targets == target and isinstance(record.stored, Mapping):
+                total = record.stored.get("total")
+                if isinstance(total, int):
+                    latest = total
+        return latest
+    except (OSError, ValueError, TypeError, KeyError):
+        return 0
+
+
+def _cumulative_receipt_digests(
+    corpus: Corpus, source: PilotSource, new_digests: tuple[str, ...]
+) -> tuple[str, ...]:
+    """All distinct item-receipt digests vouched for this source across its runs.
+
+    The report row carries the cumulative receipt set so each historical witness
+    is a subset of it, while the latest run's new digests are appended on top.
+    """
+    target = ((source.adapter, source.target),)
+    collected: list[str] = []
+    seen: set[str] = set()
+    try:
+        for raw in corpus.runs():
+            record = RunRecord.from_dict(raw)
+            if record.targets != target:
+                continue
+            for origin in record.origins:
+                sha = origin.get("sha256")
+                if isinstance(sha, str) and sha not in seen:
+                    seen.add(sha)
+                    collected.append(sha)
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    for sha in new_digests:
+        if sha not in seen:
+            seen.add(sha)
+            collected.append(sha)
+    return tuple(collected)
+
+
 def _runs_verified(corpus: Corpus) -> bool:
     try:
         return all(verify_record(RunRecord.from_dict(row)) for row in corpus.runs())
     except (OSError, ValueError, TypeError):
         return False
+
+
+def _monitored_sources(manifest: PilotManifest) -> list[PilotSource]:
+    return [
+        source
+        for mission in manifest.missions
+        for source in mission.sources
+        if source.monitor
+    ]
+
+
+def _monitor_fetch_fn(manifest: PilotManifest, *, refresh: bool) -> Callable[..., tuple[object, bytes | None]]:
+    """Build the fetch function monitor_pass calls for each monitored source.
+
+    Offline monitoring never opens a socket: the body it hashes is the fixture
+    file that represents the HTTP response. The receipt carries the content
+    digest monitor_pass compares against the prior baseline.
+    """
+    by_target = {source.target: source for source in _monitored_sources(manifest)}
+
+    def fetch(url: str, etag: str | None = None, last_modified: str | None = None) -> tuple[object, bytes | None]:
+        source = by_target.get(url)
+        if source is None:
+            raise ValueError(f"monitored source not found for {url}")
+        body = _fixture_for(source, refresh=refresh).read_bytes()
+        receipt = SimpleNamespace(
+            status=200,
+            not_modified=False,
+            content_sha256=hashlib.sha256(body).hexdigest(),
+        )
+        return receipt, body
+
+    return fetch
+
+
+def _run_monitor_pass(
+    manifest: PilotManifest,
+    state: dict[str, object],
+    *,
+    clock: Callable[[], float],
+    refresh: bool,
+) -> tuple[dict[str, object], dict[str, object]]:
+    """One monitor_pass over the manifest's monitored sources.
+
+    Returns (report, new_state). A manifest with no monitored sources leaves
+    the report absent (the run is not a monitoring run).
+    """
+    from gather.monitor import monitor_pass, verify_ledger
+
+    sources = _monitored_sources(manifest)
+    if not sources:
+        return {}, state
+    report, new_state = monitor_pass(
+        [source.target for source in sources],
+        state,
+        _monitor_fetch_fn(manifest, refresh=refresh),
+        clock=clock,
+    )
+    if not verify_ledger(new_state):
+        raise PilotRefusal("monitor ledger failed to verify after the pass")
+    # monitor_pass leaves the chain root on the state, not the report; carry it
+    # onto the report so the report projection and receipt can bind to it.
+    report["root_hash"] = new_state.get("root_hash", "")
+    return report, new_state
+
+
+def _monitor_verified(state: dict[str, object]) -> bool | None:
+    from gather.monitor import verify_ledger
+
+    if not state.get("ledger"):
+        return None
+    try:
+        return verify_ledger(state)
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def _write_monitor_state(root: Path, state: dict[str, object]) -> None:
+    _atomic_json(root / "monitor-state.json", state)
 
 
 def run_pilot(
@@ -487,14 +628,21 @@ def run_pilot(
 
     # Reading the run witnesses here ensures a malformed evidence append cannot be reported as sound.
     corpus_verified = witnesses_complete and _corpus_verified(corpus) and _runs_verified(corpus)
+    monitor_state = json.loads((root / "monitor-state.json").read_text(encoding="utf-8"))
+    monitor_report, monitor_state = _run_monitor_pass(
+        manifest, monitor_state, clock=clock, refresh=False
+    )
+    if monitor_report:
+        _write_monitor_state(root, monitor_state)
+        emit("monitor_completed", None, None, "MONITORED")
     result = PilotResult(
         manifest_sha256=manifest_digest(manifest),
         source_outcomes=tuple(source_outcomes),
         extraction_outcomes=tuple(extraction_outcomes),
         corpus_digest=corpus.digest().seal,
         corpus_verified=corpus_verified,
-        monitor_report=None,
-        monitor_verified=None,
+        monitor_report=monitor_report or None,
+        monitor_verified=_monitor_verified(monitor_state) if monitor_report else None,
         limitations=LIMITATIONS,
         does_not_prove=DOES_NOT_PROVE,
     )
@@ -511,3 +659,131 @@ def verify_pilot(output_dir: Path) -> PilotVerification:
     from gather.pilot_report import verify_pilot as verify_report
 
     return verify_report(Path(output_dir))
+
+
+def _history_count_of(root: Path) -> int:
+    """The current history generation: the count of archived receipt triplets."""
+    history = root / "history"
+    if not history.is_dir():
+        return 0
+    return sum(1 for path in history.glob("*-pilot-receipt.json"))
+
+
+def _archive_current(root: Path, sequence: int) -> None:
+    """Copy the current report/receipt triplet into history under the next sequence."""
+    prefix = f"{sequence:04d}"
+    history = root / "history"
+    history.mkdir(exist_ok=True)
+    for name in ("report.json", "report.html", "pilot-receipt.json"):
+        source = root / name
+        (history / f"{prefix}-{name}").write_bytes(source.read_bytes())
+
+
+def refresh_pilot(
+    output_dir: Path,
+    *,
+    clock: Callable[[], float] = time.time,
+    event_sink: PilotEventSink | None = None,
+) -> PilotResult:
+    """Re-capture monitored sources, archive the prior view, and re-verify.
+
+    Accepts no manifest or policy override: the pilot is reconstructed solely
+    from ``manifest.json`` inside the artifact root. Refuses before any capture
+    or current-file change when the current root does not verify.
+    """
+    from gather.pilot_manifest import load_pilot_manifest
+
+    root = Path(output_dir)
+    if not verify_pilot(root).ok:
+        raise PilotRefusal("pilot root does not verify; refusing refresh")
+
+    manifest = load_pilot_manifest(root / "manifest.json")
+    corpus = Corpus(str(root / "corpus"))
+    sequence = 0
+
+    def emit(kind: str, mission_id: str | None, source_id: str | None, status: str) -> None:
+        nonlocal sequence
+        if event_sink is None:
+            return
+        sequence += 1
+        try:
+            event_sink.emit(PilotEvent(sequence, kind, mission_id, source_id, status))
+        except Exception:
+            return
+
+    prior_count = _history_count_of(root)
+    _archive_current(root, prior_count + 1)
+
+    source_outcomes: list[SourceOutcome] = []
+    for mission in manifest.missions:
+        for source in mission.sources:
+            if not source.monitor:
+                continue
+            emit("source_started", mission.id, source.id, "STARTED")
+            try:
+                captured = capture_source(source, manifest, clock=clock, refresh=True)
+                prior = _prior_source_count(corpus, source)
+                new_digests = _persist_source(
+                    corpus,
+                    source,
+                    captured.items,
+                    captured.extra_receipts,
+                    at=float(clock()),
+                    prior_count=prior,
+                )
+                cumulative_digests = _cumulative_receipt_digests(corpus, source, new_digests)
+                status = "CAPTURED" if captured.items else "EMPTY"
+                outcome = SourceOutcome(
+                    mission.id,
+                    source.id,
+                    source.adapter,
+                    source.visibility,
+                    status,
+                    prior + (1 if captured.items else 0),
+                    cumulative_digests,
+                    "" if status == "CAPTURED" else "source produced no items",
+                )
+                source_outcomes.append(outcome)
+                emit("source_completed", mission.id, source.id, status)
+            except Exception as exc:  # noqa: BLE001 - a refresh source failure must not erase the archive
+                outcome = SourceOutcome(
+                    mission.id,
+                    source.id,
+                    source.adapter,
+                    source.visibility,
+                    "ERROR",
+                    0,
+                    (),
+                    _diagnostic(exc, manifest.policy.credentials),
+                )
+                source_outcomes.append(outcome)
+                emit("source_failed", mission.id, source.id, outcome.status)
+
+    monitor_state = json.loads((root / "monitor-state.json").read_text(encoding="utf-8"))
+    monitor_report, monitor_state = _run_monitor_pass(
+        manifest, monitor_state, clock=clock, refresh=True
+    )
+    if monitor_report:
+        _write_monitor_state(root, monitor_state)
+        emit("monitor_completed", None, None, "MONITORED")
+
+    new_count = prior_count + 1
+    result = PilotResult(
+        manifest_sha256=manifest_digest(manifest),
+        source_outcomes=tuple(source_outcomes),
+        extraction_outcomes=(),
+        corpus_digest=corpus.digest().seal,
+        corpus_verified=_corpus_verified(corpus) and _runs_verified(corpus),
+        monitor_report=monitor_report or None,
+        monitor_verified=_monitor_verified(monitor_state) if monitor_report else None,
+        limitations=LIMITATIONS,
+        does_not_prove=DOES_NOT_PROVE,
+    )
+    from gather.pilot_report import write_pilot_artifacts
+
+    write_pilot_artifacts(
+        root, manifest, result, refresh_sequence=new_count, history_count=new_count
+    )
+    emit("report_written", None, None, "WRITTEN")
+    emit("run_completed", None, None, "COMPLETED")
+    return result
