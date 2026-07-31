@@ -1,0 +1,14 @@
+{
+  "results": [
+    {
+      "id": "northwind-pilot-001",
+      "title": "Northwind Labs pilot engagement",
+      "summary": "A fictional engagement record used only as a Gather pilot example."
+    },
+    {
+      "id": "quill-study-002",
+      "title": "Quill Health regional study",
+      "summary": "Another fictional engagement record for the Gather pilot showcase."
+    }
+  ]
+}

@@ -31,6 +31,23 @@ The same package can be exercised from source with:
 python -m gather --help
 ```
 
+## Pilot
+
+```bash
+gather pilot run MANIFEST --output DIR          # capture once, write report + receipt
+gather pilot refresh DIR                        # re-capture monitored sources, archive the prior view
+gather pilot verify DIR                         # network-free verification of the whole root
+gather pilot bundle DIR --output FILE --visibility shared
+gather pilot bundle DIR --output FILE --visibility full --include-private-evidence
+```
+
+Exit codes: manifest refusal exits `2`; a required-source failure or
+verification failure exits `1`; success exits `0`. A full bundle (which carries
+the private artifact root) requires `--include-private-evidence`. See
+[docs/PILOT.md](docs/PILOT.md) for the manifest boundary and the
+private/shared evidence split.
+
+
 ## Web-data engine
 
 Each command prints a receipt as JSON.

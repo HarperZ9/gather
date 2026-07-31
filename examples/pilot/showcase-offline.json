@@ -1,0 +1,146 @@
+{
+  "schema": "gather.pilot-manifest/1",
+  "pilot_id": "zentropy-representative-showcase",
+  "title": "Gather representative research operations pilot",
+  "mode": "offline",
+  "deployment": {"mode": "workstation", "custodian": "customer"},
+  "policy": {
+    "allowed_hosts": [
+      "lumencast.example",
+      "export.arxiv.org",
+      "api.openalex.org",
+      "api.semanticscholar.org"
+    ],
+    "trusted_browser_hosts": [],
+    "allowed_local_roots": ["fixtures"],
+    "enabled_adapters": ["web", "feed", "docs", "scholar", "video", "api"],
+    "credentials": [],
+    "report_private_content": false
+  },
+  "missions": [
+    {
+      "id": "venture-market-diligence",
+      "title": "Venture market diligence",
+      "sources": [
+        {
+          "id": "portfolio-watch",
+          "adapter": "web",
+          "target": "https://lumencast.example/portfolio",
+          "fixture": "fixtures/venture/portfolio-v1.html",
+          "refresh_fixture": "fixtures/venture/portfolio-v2.html",
+          "visibility": "public",
+          "monitor": true,
+          "required": true,
+          "extraction": null,
+          "options": {}
+        },
+        {
+          "id": "founder-page",
+          "adapter": "web",
+          "target": "https://lumencast.example/founder",
+          "fixture": "fixtures/venture/founder.html",
+          "refresh_fixture": null,
+          "visibility": "public",
+          "monitor": false,
+          "required": true,
+          "extraction": {
+            "fields": {
+              "organization": {
+                "selector": "h1",
+                "attr": null,
+                "regex": null,
+                "many": false,
+                "required": true
+              }
+            }
+          },
+          "options": {}
+        }
+      ]
+    },
+    {
+      "id": "technical-scientific-research",
+      "title": "Technical and scientific research",
+      "sources": [
+        {
+          "id": "pilot-synthesis-paper",
+          "adapter": "scholar",
+          "target": "https://api.openalex.org/works/10.5555/gather-pilot-synthesis",
+          "fixture": "fixtures/technical/scholar.json",
+          "refresh_fixture": null,
+          "visibility": "public",
+          "monitor": false,
+          "required": true,
+          "extraction": null,
+          "options": {"providers": ["openalex", "semanticscholar"], "federated": true, "edges": true}
+        },
+        {
+          "id": "release-notes",
+          "adapter": "docs",
+          "target": "fixtures/technical/release.html",
+          "fixture": null,
+          "refresh_fixture": null,
+          "visibility": "public",
+          "monitor": false,
+          "required": false,
+          "extraction": null,
+          "options": {}
+        }
+      ]
+    },
+    {
+      "id": "media-operational-intelligence",
+      "title": "Media and operational intelligence",
+      "sources": [
+        {
+          "id": "newsroom-feed",
+          "adapter": "feed",
+          "target": "https://lumencast.example/wire",
+          "fixture": "fixtures/media/newsroom.xml",
+          "refresh_fixture": null,
+          "visibility": "public",
+          "monitor": false,
+          "required": true,
+          "extraction": null,
+          "options": {}
+        },
+        {
+          "id": "demo-video",
+          "adapter": "video",
+          "target": "https://lumencast.example/demo-1",
+          "fixture": "fixtures/media/video.json",
+          "refresh_fixture": null,
+          "visibility": "public",
+          "monitor": false,
+          "required": false,
+          "extraction": null,
+          "options": {"comments": true}
+        },
+        {
+          "id": "engagement-records",
+          "adapter": "api",
+          "target": "https://lumencast.example/api/engagements",
+          "fixture": "fixtures/media/records.json",
+          "refresh_fixture": null,
+          "visibility": "public",
+          "monitor": false,
+          "required": false,
+          "extraction": null,
+          "options": {"items_key": "results", "id_key": "id", "title_key": "title", "text_key": "summary"}
+        },
+        {
+          "id": "operator-memo",
+          "adapter": "docs",
+          "target": "fixtures/private/operator-memo.txt",
+          "fixture": null,
+          "refresh_fixture": null,
+          "visibility": "private",
+          "monitor": false,
+          "required": false,
+          "extraction": null,
+          "options": {}
+        }
+      ]
+    }
+  ]
+}
