@@ -453,7 +453,7 @@ def manifest_payload(manifest: PilotManifest) -> dict[str, object]:
                         "monitor": source.monitor,
                         "required": source.required,
                         "extraction": (
-                            {name: _field_payload(field) for name, field in source.extraction.items()}
+                            {"fields": {name: _field_payload(field) for name, field in source.extraction.items()}}
                             if source.extraction is not None else None
                         ),
                         "options": _thaw_json(source.options),

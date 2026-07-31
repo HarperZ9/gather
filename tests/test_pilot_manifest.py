@@ -217,6 +217,24 @@ def test_extraction_uses_a_closed_fields_object(tmp_path: Path) -> None:
     assert manifest.missions[0].sources[0].extraction["title"].selector == "h1"  # type: ignore[index]
 
 
+def test_extraction_payload_round_trips_with_its_digest(tmp_path: Path) -> None:
+    data = valid_manifest(tmp_path)
+    data["policy"].update({"allowed_hosts": ["example.com"], "enabled_adapters": ["web"]})
+    source(data).update(
+        {
+            "adapter": "web",
+            "target": "https://example.com/evidence",
+            "fixture": "fixtures/source.html",
+            "extraction": {"fields": {"title": {"selector": "h1"}}},
+        }
+    )
+    manifest = validate_pilot_manifest(data, tmp_path)
+
+    reloaded = validate_pilot_manifest(manifest_payload(manifest), tmp_path)
+    assert manifest_payload(reloaded) == manifest_payload(manifest)
+    assert manifest_digest(reloaded) == manifest_digest(manifest)
+
+
 def test_extraction_rejects_unknown_top_level_keys(tmp_path: Path) -> None:
     data = valid_manifest(tmp_path)
     data["policy"].update({"allowed_hosts": ["example.com"], "enabled_adapters": ["web"]})
