@@ -57,7 +57,7 @@ def status_payload() -> dict:
                 "gather.federation",
                 "gather.run",
             ],
-            "current_status": "1.5.0 completion floor with Project Telos operator-spine MCP parity",
+            "current_status": "1.6.1 web-data engine, scholarly-graph federation, scheduled monitor with change custody, and Project Telos operator-spine MCP parity",
             "telos_contracts": TELOS_CONTRACTS,
         },
         next_actions=[_next("index", "map", "map workspace context for gathered sources")],
