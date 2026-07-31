@@ -1,15 +1,21 @@
-# Gather Representative Research Operations Pilot
+# Gather Pilot Evidence Engine
 
-**Status:** Design approved; written specification pending operator review
+**Status:** Subproject design derived from the approved SaaS architecture;
+written specification pending operator review
 **Date:** 2026-07-30
 **Owner:** Zentropy Labs
 **Product:** Gather
 
 ## 1. Decision
 
+This is subproject 1 of the Gather SaaS program defined in
+`2026-07-30-gather-saas-master-design.md`. It delivers the portable pilot
+execution and evidence layer consumed by the SaaS API and workers. Its
+subproject non-goals do not constrain the complete SaaS product.
+
 Gather's first completed pilot is a representative research-operations
 showcase that turns difficult mixed sources into a continuously monitored,
-locally retained, verifiable research corpus.
+operator-controlled, portable, verifiable research corpus.
 
 The pilot is broad in demonstrated value. It covers venture and market
 diligence, technical and scientific research, and media or operational
@@ -26,7 +32,7 @@ schemas, its reusable adapters, or ownership of improvements.
 
 ## 2. Customer Outcome
 
-The customer receives a local corpus and a report that answer:
+The customer receives an operator-controlled corpus and a report that answer:
 
 > What material did we gather, how did each item arrive, what changed, what can
 > be re-checked, what could not be verified, and which findings remain grounded
@@ -54,8 +60,10 @@ The pilot must demonstrate three representative missions:
    - local documents;
    - monitored public statements.
 
-All three missions converge into one output directory and one corpus. A mission
-is a presentation grouping, not a separate storage or product boundary.
+All three missions converge into one artifact root and one corpus. The artifact
+root may live on an operator workstation, a customer-controlled host, or a
+Zentropy-managed pilot host. A mission is a presentation grouping, not a
+separate storage or product boundary.
 
 ## 3. Delivery Shape
 
@@ -65,6 +73,7 @@ The pilot adds one customer-facing command group:
 gather pilot run MANIFEST --output DIR
 gather pilot refresh DIR
 gather pilot verify DIR
+gather pilot bundle DIR --output FILE --visibility shared
 ```
 
 `pilot run` validates the manifest and its safety policy before any external
@@ -82,6 +91,19 @@ the manifest's monitored sources under the original snapshotted policy, appends
 new corpus and monitoring evidence, preserves the prior report and receipt in
 history, and writes a new current report and receipt. It accepts no policy or
 source override on the command line.
+
+`pilot bundle` verifies the artifact root before packaging it for transfer or
+remote delivery. `--visibility shared` includes the redacted report, normalized
+manifest, receipt, and public evidence needed to verify the report.
+`--visibility full` additionally includes the corpus, monitoring state, history,
+and private evidence and therefore requires an explicit
+`--include-private-evidence` flag. Bundles are deterministic ZIP archives with a
+canonical member order, fixed metadata timestamps, relative paths, and a
+top-level bundle receipt.
+
+The static HTML report and shared bundle may be hosted on an agreed remote
+surface. The first pilot does not require that surface to be local, and it does
+not require Gather to implement accounts, billing, or a multi-tenant service.
 
 The repository ships two executable examples:
 
@@ -108,10 +130,23 @@ Required top-level fields:
   "pilot_id": "zentropy-representative-showcase",
   "title": "Gather representative research operations pilot",
   "mode": "offline",
+  "deployment": {
+    "mode": "workstation",
+    "custodian": "customer"
+  },
   "policy": {},
   "missions": []
 }
 ```
+
+The closed deployment shape has:
+
+- `mode`: exactly `workstation`, `customer_hosted`, or `zentropy_managed`;
+- `custodian`: exactly `customer`, `zentropy`, or `shared`.
+
+Deployment metadata records where the pilot ran and who controls the artifact
+root. It grants no storage access and contains no hostname, credential, account
+identifier, or private infrastructure path.
 
 ### 4.1 Policy
 
@@ -143,7 +178,8 @@ Rules:
 - `credentials` contains environment-variable names only. Values are never
   copied into a normalized manifest, receipt, report, log, or command line.
 - `report_private_content` defaults to `false`.
-- Offline mode rejects every network-backed source before execution.
+- Offline mode rejects every network-backed source that lacks a valid replay
+  fixture before execution.
 - Browser sources require both an exact `allowed_hosts` match and an exact
   `trusted_browser_hosts` match.
 
@@ -280,16 +316,25 @@ Responsibilities:
 - emit a normalized manifest with a canonical SHA-256 digest.
 
 This module performs no source fetch and reads no credential value.
+Resolved absolute paths exist only in runtime objects. The serialized normalized
+manifest retains canonical relative POSIX paths beneath the manifest directory,
+so moving an artifact root does not leak or invalidate a workstation path.
 
 Public interface:
 
 ```python
+@dataclass(frozen=True, slots=True)
+class PilotDeployment:
+    mode: str
+    custodian: str
+
 @dataclass(frozen=True, slots=True)
 class PilotManifest:
     schema: str
     pilot_id: str
     title: str
     mode: str
+    deployment: PilotDeployment
     policy: PilotPolicy
     missions: tuple[PilotMission, ...]
 
@@ -371,21 +416,40 @@ class PilotVerification:
     @property
     def ok(self) -> bool: ...
 
+@dataclass(frozen=True, slots=True)
+class PilotEvent:
+    sequence: int
+    kind: str
+    mission_id: str | None
+    source_id: str | None
+    status: str
+
+class PilotEventSink(Protocol):
+    def emit(self, event: PilotEvent) -> None: ...
+
 def run_pilot(
     manifest: PilotManifest,
     output_dir: Path,
     *,
     clock: Callable[[], float] = time.time,
+    event_sink: PilotEventSink | None = None,
 ) -> PilotResult: ...
 
 def refresh_pilot(
     output_dir: Path,
     *,
     clock: Callable[[], float] = time.time,
+    event_sink: PilotEventSink | None = None,
 ) -> PilotResult: ...
 
 def verify_pilot(output_dir: Path) -> PilotVerification: ...
 ```
+
+Event kinds are closed: `source_started`, `source_completed`,
+`source_failed`, `monitor_completed`, `report_written`, and `run_completed`.
+Events contain no source body, credential, request header, private target, or
+absolute path. The CLI uses a text event sink, MCP uses a collected JSON sink,
+and SaaS workers persist the same events for server-sent delivery.
 
 ### 5.3 `gather.pilot_report`
 
@@ -405,6 +469,7 @@ network request. All dynamic values are HTML-escaped.
 The report schema is `gather.pilot-report/1`. It includes:
 
 - pilot identity and mode;
+- deployment mode and artifact custodian;
 - Gather version;
 - normalized manifest digest;
 - mission summaries;
@@ -432,9 +497,52 @@ The report does not claim:
 - security of unrestricted browser navigation;
 - product-market fit or willingness to pay.
 
-### 5.4 CLI and MCP
+### 5.4 `gather.pilot_bundle`
 
-The CLI exposes `pilot run`, `pilot refresh`, and `pilot verify`.
+Responsibilities:
+
+- verify the source artifact root before reading files;
+- select the closed `shared` or `full` member set;
+- refuse private material in a shared bundle;
+- create a deterministic ZIP archive;
+- add `bundle-receipt.json` with each member's relative path and SHA-256;
+- verify the completed archive before returning success.
+
+The shared bundle never includes corpus objects, private source refs, private
+extraction values, monitoring request headers, credentials, or local absolute
+paths. It refuses a pilot whose `report_private_content` policy is true. Its
+`manifest-digest.json` contains the manifest schema, pilot ID, manifest digest,
+deployment metadata, mission IDs, source IDs, adapters, visibility labels, and
+outcomes, but no source targets, local roots, browser hosts, or credential
+names. The full bundle is an explicit custody transfer artifact, not a public
+share artifact.
+
+Public interface:
+
+```python
+@dataclass(frozen=True, slots=True)
+class PilotBundleReceipt:
+    schema: str
+    visibility: str
+    source_receipt_sha256: str
+    members: tuple[tuple[str, str], ...]
+    bundle_digest: str
+
+def bundle_pilot(
+    output_dir: Path,
+    bundle_path: Path,
+    *,
+    visibility: str,
+    include_private_evidence: bool = False,
+) -> PilotBundleReceipt: ...
+
+def verify_pilot_bundle(bundle_path: Path) -> bool: ...
+```
+
+### 5.5 CLI and MCP
+
+The CLI exposes `pilot run`, `pilot refresh`, `pilot verify`, and `pilot
+bundle`.
 
 The MCP server adds one read/write-local-filesystem tool:
 
@@ -444,15 +552,19 @@ gather.pilot
 
 Inputs:
 
-- `action`: exactly `run`, `refresh`, or `verify`;
+- `action`: exactly `run`, `refresh`, `verify`, or `bundle`;
 - `manifest`: inline object or local manifest path, required only for `run`;
-- `output`: required local output directory.
+- `output`: required artifact root;
+- `bundle_output`: required only for `bundle`;
+- `visibility`: `shared` or `full`, required only for `bundle`;
+- `include_private_evidence`: explicit boolean confirmation for a full bundle.
 
 The MCP tool runs the same manifest validator and orchestrator as the CLI. It
 does not accept policy overrides outside the manifest. It returns the report
 payload, artifact paths, and verification verdict. `refresh` and `verify`
 accept no manifest because the normalized snapshot inside `output` is
-authoritative.
+authoritative. `bundle` accepts no manifest and packages only a verified
+artifact root.
 
 `gather.status` advertises the pilot command and MCP tool. `gather.doctor`
 reports whether optional adapters requested by a manifest are available only
@@ -496,6 +608,19 @@ A refresh follows this additional sequence:
 7. Write the new current report and receipt through temporary sibling files,
    then replace the current files only after their digests verify.
 8. Re-open the complete directory and run `verify_pilot`.
+
+A bundle follows this additional sequence:
+
+1. Verify the complete source artifact root.
+2. Select the closed member set for `shared` or `full`.
+3. Scan member paths and payloads for absolute local paths and credential-shaped
+   values.
+4. Build `bundle-receipt.json` over canonical relative paths and member hashes.
+5. Write a deterministic ZIP to a temporary sibling path using lexicographic
+   member order, `1980-01-01T00:00:00` ZIP timestamps, and normalized POSIX
+   member paths.
+6. Re-open the ZIP, verify every member and the bundle receipt, then atomically
+   replace the requested bundle path.
 
 If validation fails, no output directory is created and no source executes.
 If execution partially fails, successful evidence is preserved and the command
@@ -545,6 +670,13 @@ choose a new output directory.
 
 All artifact paths in shareable payloads are relative to the pilot output
 directory.
+
+The artifact root is deployment-neutral. It may be created on a workstation,
+inside a customer-controlled VM or container, or inside an agreed
+Zentropy-managed environment. A bundle may be transferred or hosted through a
+separate approved delivery surface without changing its receipts. Gather
+records the declared deployment mode but does not claim the surrounding host's
+encryption, identity, retention, backup, or access-control posture.
 
 ## 8. Representative Showcase
 
@@ -605,6 +737,8 @@ The implementation produces content inputs for two delivery packages:
      newsrooms, engineering teams, and regulated operators;
    - includes the operator runbook, manifest template, sample report, safety
      boundary, and commercial boundary.
+   - offers workstation, customer-hosted, and Zentropy-managed pilot delivery;
+   - includes a verified shared bundle suitable for remote review.
 
 The packages may describe pilots, licensing, services, collaboration, and
 advisory relationships. They must not describe Gather as available for sale or
@@ -620,6 +754,9 @@ The pilot package states:
 - The customer owns material it supplies.
 - The customer receives its corpus, reports, and agreed customer-specific
   configuration.
+- Deployment may be workstation-based, customer-hosted, or Zentropy-managed.
+- Remote operation and delivery require an explicit custody agreement covering
+  access, retention, deletion, and incident responsibility.
 - No exclusivity, assignment, source transfer, acquisition option, or ownership
   of general improvements is implied.
 - Any production or commercial deployment requires terms consistent with
@@ -641,6 +778,7 @@ The repository adds:
 - `examples/pilot/showcase-live.json`;
 - original synthetic fixtures;
 - one checked-in redacted sample report;
+- one checked-in shared bundle receipt and a documented bundle command;
 - README and USAGE links to the pilot.
 
 The PSL-specific narrative remains in the private `project-docs` outreach
@@ -655,6 +793,7 @@ personal dossiers, private contact data, or unpublished customer material.
 - Optional sources may fail without making the overall result fail, but remain
   visible.
 - Artifact verification failure exits code `1`.
+- Bundle verification failure exits code `1` and leaves no final bundle.
 - `pilot run` refuses an existing non-empty output directory before any source
   runs.
 - `pilot refresh` refuses an invalid existing pilot directory before any source
@@ -696,6 +835,11 @@ Each source therefore adds:
 - report and receipt digests change when bound content changes;
 - output paths are relative;
 - non-empty destinations are refused.
+- shared bundles exclude private evidence even when the source artifact root
+  contains it;
+- full bundles require explicit private-evidence confirmation;
+- bundle paths and timestamps are deterministic;
+- tampering with a bundled member breaks bundle verification;
 
 ### Integration tests
 
@@ -724,6 +868,7 @@ python -m mypy src
 gather status --json
 gather doctor --json
 gather pilot run examples/pilot/showcase-offline.json --output <empty-dir>
+gather pilot bundle <pilot-dir> --output <bundle.zip> --visibility shared
 gather pilot verify <output-dir>
 ```
 
@@ -746,13 +891,15 @@ The pilot is complete only when:
 11. The public docs state the retained Zentropy ownership boundary.
 12. The PSL derivative shows how Gather expands the existing Zentropy package
     without presenting Gather as an acquisition candidate.
+13. A verified shared bundle can be delivered or hosted remotely without
+    exposing private evidence.
 
 ## 15. Non-Goals
 
 The first pilot does not:
 
-- build a hosted SaaS;
-- add billing, accounts, multi-tenancy, or cloud storage;
+- build a multi-tenant hosted SaaS;
+- add billing, accounts, or vendor-specific cloud-storage SDKs;
 - crawl unrestricted customer-provided domains;
 - claim that captured statements are true;
 - make browser navigation safe for hostile arbitrary URLs;
