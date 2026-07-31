@@ -2,6 +2,7 @@
 .env.*
 CLAUDE.local.md
 .superpowers/
+.worktrees/
 docs/superpowers/
 forum-ledger/
 __pycache__/
