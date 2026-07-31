@@ -68,6 +68,10 @@ class PilotRefusal(RuntimeError):
     """A pilot boundary refused an otherwise requested operation."""
 
 
+class _WitnessWriteError(RuntimeError):
+    """Corpus items reached durable storage but their required run witness did not."""
+
+
 @dataclass(frozen=True, slots=True)
 class SourceOutcome:
     mission_id: str
@@ -325,7 +329,10 @@ def _persist_source(
         stored=stored,
         seal=_seal_record(fields),
     )
-    corpus.add_record(record.to_dict())
+    try:
+        corpus.add_record(record.to_dict())
+    except Exception as exc:  # noqa: BLE001 - preserve the already-durable source items
+        raise _WitnessWriteError("source run witness could not be recorded") from exc
     return tuple(str(receipt["sha256"]) for receipt in digest.receipts)
 
 
@@ -355,6 +362,7 @@ def run_pilot(
     corpus = _initialize_output(root, manifest)
     source_outcomes: list[SourceOutcome] = []
     extraction_outcomes: list[ExtractionOutcome] = []
+    witnesses_complete = True
     sequence = 0
 
     def emit(kind: str, mission_id: str | None, source_id: str | None, status: str) -> None:
@@ -362,7 +370,10 @@ def run_pilot(
         if event_sink is None:
             return
         sequence += 1
-        event_sink.emit(PilotEvent(sequence, kind, mission_id, source_id, status))
+        try:
+            event_sink.emit(PilotEvent(sequence, kind, mission_id, source_id, status))
+        except Exception:
+            return
 
     for mission in manifest.missions:
         for source in mission.sources:
@@ -420,6 +431,20 @@ def run_pilot(
                 )
                 source_outcomes.append(outcome)
                 emit("source_completed", mission.id, source.id, status)
+            except _WitnessWriteError as exc:
+                witnesses_complete = False
+                outcome = SourceOutcome(
+                    mission.id,
+                    source.id,
+                    source.adapter,
+                    source.visibility,
+                    "ERROR",
+                    0,
+                    (),
+                    _diagnostic(exc, manifest.policy.credentials),
+                )
+                source_outcomes.append(outcome)
+                emit("source_failed", mission.id, source.id, outcome.status)
             except AdapterUnavailable as exc:
                 outcome = SourceOutcome(
                     mission.id,
@@ -461,7 +486,7 @@ def run_pilot(
                 emit("source_failed", mission.id, source.id, outcome.status)
 
     # Reading the run witnesses here ensures a malformed evidence append cannot be reported as sound.
-    corpus_verified = _corpus_verified(corpus) and _runs_verified(corpus)
+    corpus_verified = witnesses_complete and _corpus_verified(corpus) and _runs_verified(corpus)
     return PilotResult(
         manifest_sha256=manifest_digest(manifest),
         source_outcomes=tuple(source_outcomes),

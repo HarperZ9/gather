@@ -229,3 +229,79 @@ def test_pilot_verification_serializes_only_its_closed_contract() -> None:
         "monitor_verified",
         "receipt_verified",
     }
+
+
+def test_missing_run_witness_marks_persisted_source_error_and_result_unverified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from gather.pilot import run_pilot
+
+    manifest = two_source_manifest(tmp_path, required_second=False)
+    calls = iter([CapturedSource((sample_item("first"),)), CapturedSource((sample_item("second"),))])
+    monkeypatch.setattr("gather.pilot.capture_source", lambda *_a, **_k: next_or_raise(calls))
+    original_add_record = Corpus.add_record
+    writes = 0
+
+    def fail_first_witness(self: Corpus, record: dict) -> None:
+        nonlocal writes
+        writes += 1
+        if writes == 1:
+            raise OSError("run witness unavailable")
+        original_add_record(self, record)
+
+    monkeypatch.setattr(Corpus, "add_record", fail_first_witness)
+
+    result = run_pilot(manifest, tmp_path / "out", clock=lambda: 1700000000.0)
+
+    assert [outcome.status for outcome in result.source_outcomes] == ["ERROR", "CAPTURED"]
+    assert Corpus(str(tmp_path / "out" / "corpus")).stats()["items"] == 2
+    assert not result.corpus_verified
+
+
+class FailingSink:
+    def __init__(self, kind: str) -> None:
+        self.kind = kind
+
+    def emit(self, event: object) -> None:
+        if getattr(event, "kind") == self.kind:
+            raise RuntimeError(f"observer failed during {self.kind}")
+
+
+def test_source_started_observer_failure_does_not_abort_or_reclassify_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from gather.pilot import run_pilot
+
+    manifest = two_source_manifest(tmp_path, required_second=False)
+    calls = iter([CapturedSource((sample_item("first"),)), CapturedSource((sample_item("second"),))])
+    monkeypatch.setattr("gather.pilot.capture_source", lambda *_a, **_k: next_or_raise(calls))
+
+    result = run_pilot(
+        manifest,
+        tmp_path / "out",
+        clock=lambda: 1700000000.0,
+        event_sink=FailingSink("source_started"),
+    )
+
+    assert [outcome.status for outcome in result.source_outcomes] == ["CAPTURED", "CAPTURED"]
+    assert len(result.source_outcomes) == 2
+
+
+def test_source_completed_observer_failure_does_not_duplicate_an_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from gather.pilot import run_pilot
+
+    manifest = two_source_manifest(tmp_path, required_second=False)
+    calls = iter([CapturedSource((sample_item("first"),)), CapturedSource((sample_item("second"),))])
+    monkeypatch.setattr("gather.pilot.capture_source", lambda *_a, **_k: next_or_raise(calls))
+
+    result = run_pilot(
+        manifest,
+        tmp_path / "out",
+        clock=lambda: 1700000000.0,
+        event_sink=FailingSink("source_completed"),
+    )
+
+    assert [outcome.status for outcome in result.source_outcomes] == ["CAPTURED", "CAPTURED"]
+    assert len(result.source_outcomes) == 2
