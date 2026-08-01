@@ -31,9 +31,14 @@ class DocsSource:
 
     name = "docs"
 
-    def __init__(self, *, clock=time.time, extensions: tuple[str, ...] = TEXT_EXTENSIONS) -> None:
+    def __init__(self, *, clock=time.time, extensions: tuple[str, ...] = TEXT_EXTENSIONS,
+                 portable_ref: "str | None" = None) -> None:
         self._clock = clock
         self._extensions = extensions
+        # When set, use this string as the ref instead of the resolved real path.
+        # This makes corpus digests stable across platforms (the pilot uses it so
+        # a checked-in sample regenerates identically on Windows and Linux).
+        self._portable_ref = portable_ref
 
     def fetch(self, target: str) -> list[Item]:
         at = float(self._clock())
@@ -54,4 +59,5 @@ class DocsSource:
     def _read(self, path: str, *, name: str, at: float) -> Item:
         with open(path, encoding="utf-8", errors="replace") as f:
             text = f.read()
-        return document_item(name, text, fetched_at=at, ref=os.path.realpath(path))
+        ref = self._portable_ref if self._portable_ref is not None else os.path.realpath(path)
+        return document_item(name, text, fetched_at=at, ref=ref)
