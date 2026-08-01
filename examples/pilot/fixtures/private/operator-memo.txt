@@ -1,0 +1,9 @@
+Operator memo (private)
+
+This is a synthetic, fictional internal memo used only to exercise private
+visibility in the Gather pilot showcase. It contains no real person, customer,
+secret, credential, or proprietary figure. Do not treat its contents as fact.
+
+The operator's working note for the pilot: track portfolio status changes,
+keep the scholarly reference deduplicated, and confirm the newsroom feed and
+API records resolve into one verifiable corpus.

@@ -6,7 +6,7 @@ from gather import __version__
 
 SCHEMA = "project-telos.flagship-action/v1"
 TOOL = "gather"
-PRIMARY_COMMANDS = ["docs", "web", "feed", "pdf", "run", "corpus", "federation"]
+PRIMARY_COMMANDS = ["docs", "web", "feed", "pdf", "run", "pilot", "corpus", "federation"]
 TELOS_CONTRACTS = {
     "host_surfaces": ["CLI JSON", "MCP stdio", "plugins", "IDEs", "TUIs", "apps"],
     "schemas": [
@@ -56,8 +56,13 @@ def status_payload() -> dict:
                 "gather.arxiv",
                 "gather.federation",
                 "gather.run",
+                "gather.pilot",
             ],
-            "current_status": "1.6.1 web-data engine, scholarly-graph federation, scheduled monitor with change custody, and Project Telos operator-spine MCP parity",
+            "current_status": (
+                "1.6.1 web-data engine, scholarly-graph federation, scheduled monitor "
+                "with change custody, accountable pilot evidence engine, and Project "
+                "Telos operator-spine MCP parity"
+            ),
             "telos_contracts": TELOS_CONTRACTS,
         },
         next_actions=[_next("index", "map", "map workspace context for gathered sources")],
@@ -69,6 +74,7 @@ def doctor_payload() -> dict:
         {"name": "zero_dependency_core", "status": "MATCH"},
         {"name": "json_receipts", "status": "MATCH"},
         {"name": "offline_docs_intake", "status": "MATCH"},
+        {"name": "pilot_engine", "status": "MATCH"},
     ]
     return envelope(
         "doctor",

@@ -1,0 +1,21 @@
+{
+  "id": "lumencast-demo-1",
+  "title": "Lumencast Ventures demo day (fictional)",
+  "uploader": "Lumencast Ventures",
+  "duration": 312,
+  "upload_date": "20250714",
+  "view_count": 1280,
+  "webpage_url": "https://lumencast.example/demo-1",
+  "comments": [
+    {
+      "id": "c-top",
+      "text": "Great to see the portfolio grow.",
+      "author": "viewer-one",
+      "like_count": 12,
+      "parent": "root",
+      "is_pinned": false,
+      "author_is_verified": false,
+      "author_is_uploader": false
+    }
+  ]
+}

@@ -24,7 +24,8 @@ gather pulls research out of the places most tools break on: arXiv papers, authe
 - **Scholarly-graph federation.** `gather scholar` queries OpenAlex, Semantic Scholar, and Crossref in one call, dedupes results by normalized DOI (never a fuzzy title match), and can capture citation edges as first-class records with `--edges`.
 - **A durable local corpus.** Any fetch command takes `--store DIR`: bodies are content-addressed and deduped by hash, and `gather corpus list|verify|digest|runs|search|stats|prune|availability` inspects, re-checks, and queries what you stored.
 - **Multi-source runs.** `gather run config.json` orchestrates many sources, a scope filter, and optional synthesis into one recorded session kept in the corpus history.
-- **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`), and a plain Python API.
+- **Accountable pilot evidence engine.** `gather pilot run|refresh|verify|bundle` drives a closed manifest through a source-isolated capture into a content-addressed corpus, writes a redacted report and a hash-chained receipt, monitors sources for change (NEW/CHANGED/UNCHANGED with archived history), and packages deterministic shared or full bundles any third party re-verifies offline. See [docs/PILOT.md](docs/PILOT.md).
+- **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.pilot`), and a plain Python API.
 - **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering, `[stealth]` adds curl_cffi TLS impersonation. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
 
 ## Install
@@ -139,6 +140,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 - [ARCHITECTURE.md](ARCHITECTURE.md): the design map, seams, and threat model.
 - [docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
+- [docs/PILOT.md](docs/PILOT.md): the accountable pilot evidence engine, its manifest boundary, and the private/shared evidence split.
 - [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.6.1.
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
@@ -166,7 +168,7 @@ Bring papers, transcripts, local docs, or awkward public materials that need pro
 
 ```bash
 python -m pip install -e ".[dev]"
-python -m pytest        # 417 tests
+python -m pytest        # 588+ tests
 python -m ruff check src tests examples
 python -m mypy
 ```
