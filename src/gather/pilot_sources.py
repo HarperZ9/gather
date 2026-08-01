@@ -248,6 +248,12 @@ def capture_source(
             raise AdapterUnavailable(f"offline adapter unavailable: {source.adapter}")
         return replayer(source, _fixture_for(source, refresh=refresh), float(clock()))
     if source.adapter in LOCAL_FACTORIES:
+        # Docs sources use the manifest's portable target as the ref so corpus
+        # digests are stable across platforms (no absolute filesystem paths).
+        if source.adapter == "docs":
+            def _docs_factory(_options: Mapping[str, object]) -> Source:
+                return DocsSource(portable_ref=source.target)
+            return _fetch(_docs_factory, source, _local_target(source))
         return _fetch(LOCAL_FACTORIES[source.adapter], source, _local_target(source))
     if manifest.mode == "live":
         if source.adapter == "scholar":
