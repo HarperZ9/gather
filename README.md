@@ -8,10 +8,25 @@
 [![downloads](https://img.shields.io/pypi/dm/gather-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/gather-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success?style=flat-square&labelColor=14041b)
+![version: 1.6.1](https://img.shields.io/badge/version-1.6.1-26dfe8?style=flat-square&labelColor=14041b)
 
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
+
+## Current status
+
+`gather-engine 1.6.1` is the current source version. The core intake,
+content-addressed corpus, provenance receipts, pilot monitor, CLI, Python API,
+and MCP surfaces are present in this checkout; optional browser, OCR, audio,
+and accelerated adapters remain explicit capabilities rather than implied ones.
+
+## Operator surface
+
+Use `gather status --json` and `gather doctor --json` to inspect the installed
+surface, then `gather mcp` to expose the same status, documentation, source,
+and run operations to an MCP host. `gather caps` reports which optional
+backends are actually installed.
 
 ## Features
 

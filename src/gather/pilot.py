@@ -452,8 +452,10 @@ def _monitor_fetch_fn(manifest: PilotManifest, *, refresh: bool) -> Callable[...
     """Build the fetch function monitor_pass calls for each monitored source.
 
     Offline monitoring never opens a socket: the body it hashes is the fixture
-    file that represents the HTTP response. The receipt carries the content
-    digest monitor_pass compares against the prior baseline.
+    file that represents the HTTP response. Text fixtures are decoded and
+    newline-normalized before hashing so an identical checked-in fixture has
+    the same monitor receipt on Windows and POSIX checkouts. The receipt carries
+    the content digest monitor_pass compares against the prior baseline.
     """
     by_target = {source.target: source for source in _monitored_sources(manifest)}
 
@@ -461,7 +463,18 @@ def _monitor_fetch_fn(manifest: PilotManifest, *, refresh: bool) -> Callable[...
         source = by_target.get(url)
         if source is None:
             raise ValueError(f"monitored source not found for {url}")
-        body = _fixture_for(source, refresh=refresh).read_bytes()
+        fixture = _fixture_for(source, refresh=refresh)
+        body = fixture.read_bytes()
+        if fixture.suffix.lower() in {
+            ".html", ".htm", ".xml", ".json", ".txt", ".md", ".rst",
+            ".markdown", ".text",
+        }:
+            try:
+                body = fixture.read_text(encoding="utf-8").encode("utf-8")
+            except UnicodeDecodeError:
+                # A non-UTF-8 fixture is treated as opaque bytes, matching the
+                # network adapter's exact-byte contract.
+                pass
         receipt = SimpleNamespace(
             status=200,
             not_modified=False,
