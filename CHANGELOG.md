@@ -5,6 +5,11 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+### Presentation parity
+
+- README now exposes the current source version, operator commands, and the
+  boundary between the core and optional source adapters.
+
 ### Accountable pilot evidence engine
 
 A retained-capability research pilot over Gather's existing adapters. One
