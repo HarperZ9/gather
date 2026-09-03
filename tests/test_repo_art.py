@@ -3,8 +3,8 @@
 A picture in a README is never diffed, so it drifts from the text silently:
 somebody edits a stage name, nobody re-renders, and the diagram now describes
 a version of the tool that no longer exists. Here the picture is a pure
-function of a spec that IS diffable, and this re-renders it and compares
-bytes.
+function of a spec that IS diffable, and this re-renders it and compares the
+result against what is committed.
 
 The truncation test is the one that earns its place. Card notes are wrapped to
 three lines and the wrapper drops the rest, so an edited sentence can lose its
@@ -117,6 +117,63 @@ def test_a_return_edge_stays_on_its_own_row():
                 assert edge["from"] // FLOW.PER_ROW == edge["to"] // FLOW.PER_ROW, (
                     f'return {edge["from"]}->{edge["to"]} crosses a row break')
 
+
+
+# The widest tagline that has been looked at on a rendered page. It counts
+# characters rather than measuring glyphs, so it cannot tell "mmmm" from
+# "iiii": a guardrail, not a typographic fact.
+TAGLINE_BUDGET = 70
+
+
+def test_the_tagline_stays_inside_its_rule():
+    """The header tagline is drawn on one unwrapped line under the rule. Too
+    long and it runs on toward the aperture, with nothing about the render
+    failing to say so."""
+    for spec in _specs():
+        tagline = spec["header"]["tagline"]
+        assert len(tagline) <= TAGLINE_BUDGET, (
+            f"{len(tagline)} characters runs past the rule: {tagline!r}")
+
+
+def _outcome_budgets(count):
+    """Label and note budgets for one box in a band of `count` boxes. The
+    geometry is repo_flow._outcomes: the band spans the page inside the
+    margins, split `count` ways with a gap between, and the text starts 14
+    in from the left edge of its box."""
+    span = (FLOW.W - FLOW.PAD * 2 - FLOW.GAP * (count - 1)) / count
+    usable = span - 14 - 10
+    return int(usable / 7.0), int(usable / 5.4)
+
+
+def _outcomes_that_overflow(flow):
+    label_budget, note_budget = _outcome_budgets(len(flow["outcomes"]))
+    bad = []
+    for item in flow["outcomes"]:
+        if len(item["label"]) > label_budget:
+            bad.append(f'{item["label"]!r} is wider than its box')
+        if len(item["note"]) > note_budget:
+            bad.append(f'the note under {item["label"]} is wider than its '
+                       f'box: {item["note"]!r}')
+    return bad
+
+
+def test_no_outcome_runs_out_of_its_box():
+    """An outcome box holds one unwrapped label over one unwrapped note, and
+    neither is clipped, so an over-long note runs into the box beside it
+    instead of failing anything."""
+    for spec in _specs():
+        for flow in spec.get("flows", []):
+            assert not _outcomes_that_overflow(flow)
+
+
+def test_that_check_can_actually_fail():
+    """A green suite otherwise proves only that the check ran. Widen a note
+    past its box and the check has to say so."""
+    flow = {"outcomes": [
+        {"label": "OK", "note": "x" * 200, "tone": "verified"},
+        {"label": "y" * 200, "note": "short", "tone": "drift"},
+    ]}
+    assert len(_outcomes_that_overflow(flow)) == 2
 
 # Where an illustration lives. `.github/assets/` and `docs/brand/` are
 # deliberately outside this set: they hold the 1280x640 social-preview source,
