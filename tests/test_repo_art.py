@@ -35,6 +35,7 @@ def _load(name):
 
 
 R = _load("repo_art")
+CARD = _load("repo_card")
 FLOW = _load("repo_flow")
 RENDER = _load("render_repo_art")
 
@@ -174,6 +175,78 @@ def test_that_check_can_actually_fail():
         {"label": "y" * 200, "note": "short", "tone": "drift"},
     ]}
     assert len(_outcomes_that_overflow(flow)) == 2
+
+def _cards():
+    return [card for spec in _specs() for card in spec.get("cards", [])]
+
+
+def _card_text_that_overflows(card):
+    """A card row holds a key and a value on one unwrapped line each, and a
+    note wrapped to two. None of the three is clipped by the renderer, so an
+    over-long one draws past the column beside it and nothing fails."""
+    # Characters, not glyphs: the key and value columns are mono, where a
+    # character count is a fair proxy. The note column is not, so it is
+    # measured with the renderer's own width table instead.
+    key_budget = int((CARD.KEY_W + CARD.GUTTER - 16) / 7.8)
+    value_budget = int(CARD.VAL_W / 7.2)
+    bad = []
+    for field in card["fields"]:
+        if len(field["key"]) > key_budget:
+            bad.append(f'the key {field["key"]!r} is wider than its column')
+        if len(field["value"]) > value_budget:
+            bad.append(f'the value {field["value"]!r} is wider than its column')
+        note = " ".join(field["note"].split())
+        if " ".join(CARD._wrap(field["note"])) != note:
+            bad.append(f'the note under {field["key"]!r} loses its ending')
+    foot = " ".join(card["footnote"].split())
+    if " ".join(CARD._wrap(card["footnote"], CARD.FOOT_BUDGET,
+                           CARD.FOOT_LINES)) != foot:
+        bad.append("the footnote loses its ending")
+    return bad
+
+
+def test_no_card_text_runs_out_of_its_column():
+    for card in _cards():
+        assert not _card_text_that_overflows(card), card["file"]
+
+
+def test_that_card_check_can_actually_fail():
+    """A green suite otherwise proves only that the check ran."""
+    control = {
+        "fields": [{"key": "k" * 90, "value": "v" * 90, "note": "fine"},
+                   {"key": "k", "value": "v", "note": "word " * 200}],
+        "footnote": "word " * 400,
+    }
+    assert len(_card_text_that_overflows(control)) == 4
+
+
+def test_a_card_wears_exactly_one_hot_mark():
+    """Verdict-only colour. Two marks and the drawing stops saying which row
+    carries the claim; none and the colour is decoration."""
+    for card in _cards():
+        marked = [f["key"] for f in card["fields"]
+                  if f.get("tone", "none") != "none"]
+        assert len(marked) == 1, f'{card["file"]} marks {marked}'
+
+
+def test_a_card_draws_shapes_not_digits():
+    """A hash or a byte count is wrong by the next commit, so the value column
+    carries the shape of a value rather than a literal that will rot."""
+    for card in _cards():
+        for field in card["fields"]:
+            assert not re.search(r"[0-9a-f]{12,}", field["value"]), field["key"]
+            assert not re.search(r"\d{5,}", field["value"]), field["key"]
+
+
+def test_the_readme_describes_the_card_it_shows():
+    """GitHub draws a card as an <img>, and an <img> hides the description the
+    SVG carries inside it. The README alt attribute is the whole of what a
+    reader who cannot see the card gets, so it has to be the one in the spec."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for card in _cards():
+        assert card["alt"] in readme, (
+            f'{card["file"]}: the README describes it as something else')
+
 
 # Where an illustration lives. `.github/assets/` and `docs/brand/` are
 # deliberately outside this set: they hold the 1280x640 social-preview source,

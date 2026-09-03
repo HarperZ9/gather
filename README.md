@@ -121,6 +121,8 @@ All four run offline; no probe fires. A registry row is a catalog fact and is ne
 
 ## Optional capability backends
 
+<p align="center"><img src="docs/art/capability-backends.svg" alt="A card of the four capabilities gather can be asked for. fetch is always served by the stdlib. fast-parse falls back to the stdlib parser, which returns the same answer more slowly. js-render and stealth are refused with a reason when no backend is installed, and the js-render row is marked because it is the one where a plausible fake exists." width="100%"></p>
+
 ```bash
 pip install 'gather-engine[fast]'      # lxml, faster parsing on large docs (informal ~2x, unpublished)
 pip install 'gather-engine[browser]'   # Playwright JS render (then: playwright install chromium)
