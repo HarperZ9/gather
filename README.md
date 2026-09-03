@@ -1,4 +1,4 @@
-<p align="center"><img src=".github/assets/zentropy-banner.png" alt="gather: Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs." width="100%"></p>
+<p align="center"><img src="docs/art/gather-header.svg" alt="gather: research intake for gated APIs, paywalls, JS pages, and scanned PDFs." width="100%"></p>
 
 **Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs.**
 
@@ -12,6 +12,19 @@
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
+
+## How a pilot run works
+
+`gather pilot` takes a closed list of sources and produces something a third
+party can check without trusting the run that made it.
+
+<p align="center"><img src="docs/art/pilot-pipeline.svg" alt="Eight stages from a validated manifest to a network-free re-check: manifest, capture, extract, ground, store, receipt, report, re-check. A source whose extracted values are not found on the fetched page is dropped before anything is stored. The re-check reports match, corrupt or missing." width="100%"></p>
+
+The edge worth reading twice is the one that leaves the pipeline. Every value
+the extractor proposes has to be found on the page that was actually fetched,
+matched on word boundaries so `100` does not match inside `1000`. A source that
+fails that check is recorded as an error and nothing from it is stored, so a
+fabricated field cannot reach the corpus by being plausible.
 
 ## Features
 
