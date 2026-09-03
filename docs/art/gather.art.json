@@ -4,7 +4,13 @@
     "name": "gather",
     "role": "accountable research intake",
     "tagline": "Research intake for gated APIs, paywalls, JS pages, and scanned PDFs.",
-    "words": ["extract", "crawl", "ground", "corpus", "receipt"]
+    "words": [
+      "extract",
+      "crawl",
+      "ground",
+      "corpus",
+      "receipt"
+    ]
   },
   "flows": [
     {
@@ -14,23 +20,104 @@
       "alt": "Eight stages from a validated manifest to a network-free re-check. A source whose extracted values are not found on the fetched page is dropped before anything is stored. The re-check reports match, corrupt or missing.",
       "footnote": "A source that fails the grounding check is dropped and the run says so. The last stage needs no network.",
       "stages": [
-        {"title": "Manifest", "note": "A closed list of sources, validated before anything is fetched."},
-        {"title": "Capture", "note": "Each source is fetched on its own, so one failure cannot spread."},
-        {"title": "Extract", "note": "Schema fields are read from the page that was actually fetched."},
-        {"title": "Ground", "note": "Every value must appear on that page, matched on word boundaries."},
-        {"title": "Store", "note": "Bodies are filed under the sha256 of their own content."},
-        {"title": "Receipt", "note": "One appended row per distinct receipt, sealed over the set."},
-        {"title": "Report", "note": "A canonical, redacted view, meant to be handed to someone."},
-        {"title": "Re-check", "note": "Re-verified from the artifacts alone, no network in the loop."}
+        {
+          "title": "Manifest",
+          "note": "A closed list of sources, validated before anything is fetched."
+        },
+        {
+          "title": "Capture",
+          "note": "Each source is fetched on its own, so one failure cannot spread."
+        },
+        {
+          "title": "Extract",
+          "note": "Schema fields are read from the page that was actually fetched."
+        },
+        {
+          "title": "Ground",
+          "note": "Every value must appear on that page, matched on word boundaries."
+        },
+        {
+          "title": "Store",
+          "note": "Bodies are filed under the sha256 of their own content."
+        },
+        {
+          "title": "Receipt",
+          "note": "One appended row per distinct receipt, sealed over the set."
+        },
+        {
+          "title": "Report",
+          "note": "A canonical, redacted view, meant to be handed to someone."
+        },
+        {
+          "title": "Re-check",
+          "note": "Re-verified from the artifacts alone, no network in the loop."
+        }
       ],
       "returns": [
-        {"from": 3, "to": 1, "label": "REQUIRED FIELD MISSING OR NOT ON THE PAGE: SOURCE DROPPED"}
+        {
+          "from": 3,
+          "to": 1,
+          "label": "REQUIRED FIELD MISSING OR NOT ON THE PAGE: SOURCE DROPPED"
+        }
       ],
       "outcomes": [
-        {"label": "MATCH", "note": "the stored body still hashes to its receipt", "tone": "verified"},
-        {"label": "CORRUPT", "note": "the body no longer hashes to its receipt", "tone": "drift"},
-        {"label": "MISSING", "note": "the receipt points at a body that is not there", "tone": "none"}
+        {
+          "label": "MATCH",
+          "note": "the stored body still hashes to its receipt",
+          "tone": "verified"
+        },
+        {
+          "label": "CORRUPT",
+          "note": "the body no longer hashes to its receipt",
+          "tone": "drift"
+        },
+        {
+          "label": "MISSING",
+          "note": "the receipt points at a body that is not there",
+          "tone": "none"
+        }
       ]
+    }
+  ],
+  "cards": [
+    {
+      "file": "capability-backends.svg",
+      "kicker": "install a backend, or be told you did not",
+      "title": "What serves each capability, and what happens when nothing does",
+      "source": "python -c \"import gather.backends as b; print(b.default_registry().capabilities())\"",
+      "alt": "A card of the four capabilities gather can be asked for. fetch is always served by the stdlib. fast-parse falls back to the stdlib parser, which returns the same answer more slowly. js-render and stealth are refused with a reason when no backend is installed, and the js-render row is marked because it is the one where a plausible fake exists.",
+      "heads": [
+        "capability",
+        "with no backend",
+        "what that means for the answer"
+      ],
+      "fields": [
+        {
+          "key": "fetch",
+          "value": "stdlib-fetch",
+          "tone": "none",
+          "note": "Always served. The core registers this itself, so there is no absent case to report."
+        },
+        {
+          "key": "fast-parse",
+          "value": "stdlib parser",
+          "tone": "none",
+          "note": "Parsing still happens and the answer is the same. What the missing backend costs is time, not truth."
+        },
+        {
+          "key": "js-render",
+          "value": "refused, with a reason",
+          "tone": "verified",
+          "note": "Marked because this is the row where a plausible fake exists: the static shell. It is never returned dressed as a render."
+        },
+        {
+          "key": "stealth",
+          "value": "refused, with a reason",
+          "tone": "none",
+          "note": "Refused the same way. A request that needed browser impersonation is reported unmet, not answered plainly."
+        }
+      ],
+      "footnote": "The refusal is a result object, not an exception: status UNVERIFIABLE, the capability asked for, and a reason reading no backend for capability js-render. It carries no html and no content hash, so nothing downstream mistakes it for a page that was fetched. Which backends are installed differs by machine, so this draws the absent case, which is the same everywhere. Refusing honestly says nothing about how well an installed backend renders."
     }
   ]
 }
