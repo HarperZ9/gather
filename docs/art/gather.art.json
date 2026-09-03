@@ -1,0 +1,36 @@
+{
+  "$comment": "Source of truth for the artwork on this repository's front page. Edit a sentence here and re-run scripts/render_repo_art.py; tests/test_repo_art.py fails if the committed SVG stops matching.",
+  "header": {
+    "name": "gather",
+    "role": "accountable research intake",
+    "tagline": "Research intake for gated APIs, paywalls, JS pages, and scanned PDFs.",
+    "words": ["extract", "crawl", "ground", "corpus", "receipt"]
+  },
+  "flows": [
+    {
+      "file": "pilot-pipeline.svg",
+      "kicker": "one pilot, end to end",
+      "title": "How a closed manifest becomes evidence somebody else can check",
+      "alt": "Eight stages from a validated manifest to a network-free re-check. A source whose extracted values are not found on the fetched page is dropped before anything is stored. The re-check reports match, corrupt or missing.",
+      "footnote": "A source that fails the grounding check is dropped and the run says so. The last stage needs no network.",
+      "stages": [
+        {"title": "Manifest", "note": "A closed list of sources, validated before anything is fetched."},
+        {"title": "Capture", "note": "Each source is fetched on its own, so one failure cannot spread."},
+        {"title": "Extract", "note": "Schema fields are read from the page that was actually fetched."},
+        {"title": "Ground", "note": "Every value must appear on that page, matched on word boundaries."},
+        {"title": "Store", "note": "Bodies are filed under the sha256 of their own content."},
+        {"title": "Receipt", "note": "One appended row per distinct receipt, sealed over the set."},
+        {"title": "Report", "note": "A canonical, redacted view, meant to be handed to someone."},
+        {"title": "Re-check", "note": "Re-verified from the artifacts alone, no network in the loop."}
+      ],
+      "returns": [
+        {"from": 3, "to": 1, "label": "REQUIRED FIELD MISSING OR NOT ON THE PAGE: SOURCE DROPPED"}
+      ],
+      "outcomes": [
+        {"label": "MATCH", "note": "the stored body still hashes to its receipt", "tone": "verified"},
+        {"label": "CORRUPT", "note": "the body no longer hashes to its receipt", "tone": "drift"},
+        {"label": "MISSING", "note": "the receipt points at a body that is not there", "tone": "none"}
+      ]
+    }
+  ]
+}
