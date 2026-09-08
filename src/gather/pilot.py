@@ -32,7 +32,7 @@ from gather.pilot_sources import (
 )
 from gather.run import RunRecord, _record_fields, _seal_record, verify_record
 from gather.schema_extract import SchemaExtraction, extract_schema
-from gather.store import MATCH, Corpus
+from gather.store import MATCH, Corpus, stored_rows_for_items
 
 SOURCE_STATUSES = frozenset({"CAPTURED", "EMPTY", "UNAVAILABLE", "REFUSED", "ERROR"})
 EVENT_KINDS = frozenset(
@@ -306,9 +306,9 @@ def _persist_source(
     at: float,
     prior_count: int = 0,
 ) -> tuple[str, ...]:
-    receipts = [_item_receipt(item) for item in items] + [dict(receipt) for receipt in extra_receipts]
-    digest = digest_of_receipts(receipts)
     stored = corpus.add(list(items))
+    receipts = stored_rows_for_items(corpus.rows(), items) + [dict(receipt) for receipt in extra_receipts]
+    digest = digest_of_receipts(receipts)
     origins = tuple(digest.receipts)
     # The witness records THIS run's items honestly: kept/total is the per-run
     # count, added is the new delta. Cumulative accounting across a source's

@@ -3,6 +3,18 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## Unreleased
+
+## 1.7.1 (2026-09-08)
+
+### Corpus newline integrity
+
+- New corpus object writes now use exact UTF-8 bytes, avoiding platform text-mode newline translation.
+- New catalog rows carry a versioned storage witness folded into the corpus digest; consumers detect witness stripping or codec changes when they pin the prior digest through `--expect-digest` / `expected_corpus_digest`.
+- Legacy rows without a storage witness can reconstruct source text from exact UTF-8 bytes or the old Windows text writer's LF-to-CRLF expansion without rewriting historical objects or claiming old raw-byte integrity.
+- Adding a receipt now refuses a corrupt preexisting object at the content-addressed path before appending to the catalog; valid legacy objects are still reused without rewriting.
+- Readable context now distinguishes exact source identity (`verified_sha256` / `source_sha256`) from the LF-normalized readable view (`view_sha256` / `view_codec`) while preserving the existing v1 payload fields.
+
 ## 1.7.0 (2026-09-08)
 
 ### Readable context selection

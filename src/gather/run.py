@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from gather.derive import Synthesizer, synthesize_item
-from gather.digest import digest
+from gather.digest import digest, digest_of_receipts
 from gather.item import Item
 from gather.provenance import ProvenanceProvider
 from gather.scope import filter_scope
 from gather.source import Source
+from gather.store import stored_rows_for_items
 
 # The ScopeProvider seam: a callable that keeps the in-scope items and counts the dropped.
 # The default is the deterministic keyword filter; a model-based scope plugs in here, the
@@ -131,6 +132,13 @@ def _dedup_by_receipt(items: list[Item]) -> list[Item]:
     return out
 
 
+def _stored_digest_seal(store: StoreLike, items: list[Item]) -> str | None:
+    rows = getattr(store, "rows", None)
+    if not callable(rows):
+        return None
+    return digest_of_receipts(stored_rows_for_items(rows(), items)).seal
+
+
 def gather_run(
     jobs: list[Job],
     *,
@@ -188,7 +196,10 @@ def gather_run(
         origins = tuple(_origin_entry(provenance, it) for it in final)
 
     seal = digest(final).seal
-    stored = store.add(final) if store is not None else None
+    stored = None
+    if store is not None:
+        stored = store.add(final)
+        seal = _stored_digest_seal(store, final) or seal
 
     targets_t = tuple(targets)
     fields = _record_fields(started, targets_t, scope, len(all_items), len(kept), dropped,
