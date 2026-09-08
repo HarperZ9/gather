@@ -56,6 +56,16 @@ def _mcp_call(name, arguments=None):
     })
 
 
+def _patch_os_open_with_dir_fd_support(monkeypatch, ctx, replacement):
+    # POSIX production code must fail closed when os.open lacks openat support.
+    # These tests wrap os.open to trigger races, so the wrapper has to preserve
+    # that advertised capability for the production guard to admit the path.
+    supports_dir_fd = set(ctx.os.supports_dir_fd)
+    supports_dir_fd.add(replacement)
+    monkeypatch.setattr(ctx.os, "open", replacement)
+    monkeypatch.setattr(ctx.os, "supports_dir_fd", supports_dir_fd)
+
+
 def test_inspect_corpus_returns_bounded_verified_excerpts_and_row_refs(tmp_path):
     # Catches: returning catalog hashes only, whole bodies by default, or unverified body status.
     from gather.context import inspect_corpus
@@ -271,7 +281,7 @@ def test_context_refuses_ancestor_swap_after_precheck_before_read(tmp_path, monk
                     state["replaced"] = True
             return real_open(path, *args, **kwargs)
 
-        monkeypatch.setattr(ctx.os, "open", swapped_open)
+        _patch_os_open_with_dir_fd_support(monkeypatch, ctx, swapped_open)
 
     try:
         selected = ctx.select_context(
@@ -331,7 +341,7 @@ def test_context_charges_growing_failed_read_against_aggregate_budget(tmp_path, 
                 state["body_fd"] = fd
             return fd
 
-        monkeypatch.setattr(ctx.os, "open", tracking_open)
+        _patch_os_open_with_dir_fd_support(monkeypatch, ctx, tracking_open)
 
     def growing_read(fd, n):
         if fd == state["body_fd"] and not state["grown"]:
