@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import cast
 
 from gather.commands import _split
 
@@ -31,6 +32,8 @@ def _corpus_dispatch(args, c) -> int:
         return _cmd_verify(args, c)
     if args.action == "search":
         return _cmd_search(args, c)
+    if args.action == "context":
+        return _cmd_context(args, c)
     if args.action == "runs":
         return _cmd_runs(args, c)
     if args.action == "stats":
@@ -160,3 +163,44 @@ def _cmd_availability(args, c) -> int:
         for o in bad:
             print(f"  {o['availability']:<11} {o['id']} {o['sha256'][:12]}")
     return 1 if bad else 0
+
+
+def _cmd_context(args, c) -> int:
+    from gather.context import inspect_corpus, select_context
+
+    if args.select:
+        if not args.expect_digest:
+            raise ValueError("context selection requires --expect-digest")
+        payload = select_context(
+            c,
+            list(args.select),
+            expected_corpus_digest=args.expect_digest,
+            max_rows=args.max_rows,
+            max_total_chars=args.max_total_chars,
+            max_catalog_bytes=args.max_catalog_bytes,
+            max_catalog_rows=args.max_catalog_rows,
+            max_body_bytes=args.max_body_bytes,
+            max_read_bytes=args.max_read_bytes,
+        )
+    else:
+        payload = inspect_corpus(
+            c,
+            max_rows=args.max_rows,
+            excerpt_chars=args.excerpt_chars,
+            max_catalog_bytes=args.max_catalog_bytes,
+            max_catalog_rows=args.max_catalog_rows,
+            max_body_bytes=args.max_body_bytes,
+            max_read_bytes=args.max_read_bytes,
+        )
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(f"{payload['schema']} {str(payload['corpus_digest'])[:16]}...")
+        if payload["schema"] == "gather.readable-corpus/v1":
+            rows = cast(list[dict[str, object]], payload["rows"])
+            for row in rows:
+                print(f"  {row['row_ref']} {str(row['body_status']):<7} {str(row['kind']):<10} {str(row['title'])[:40]}")
+        else:
+            print(f"selected {payload['selection_count']} row(s), {payload['total_text_chars']} char(s)")
+            print(f"selection digest: {payload['selection_digest']}")
+    return 0

@@ -60,9 +60,10 @@ def _add_flagship_commands(sub) -> None:
 
 def _add_corpus_parser(sub) -> None:
     corpus = sub.add_parser(
-        "corpus", help="inspect a stored corpus: list/verify/digest/runs/search/stats/prune/availability")
-    corpus.add_argument("action",
-                        choices=["list", "verify", "digest", "runs", "search", "stats", "prune", "availability"])
+        "corpus",
+        help="inspect a stored corpus: list/verify/digest/runs/search/stats/prune/availability/context")
+    corpus.add_argument("action", choices=[
+        "list", "verify", "digest", "runs", "search", "stats", "prune", "availability", "context"])
     corpus.add_argument("dir", help="the corpus directory (created by --store)")
     corpus.add_argument("--json", action="store_true", help="emit as JSON")
     corpus.add_argument("--verify", action="store_true", help="with runs: re-check each record's seal")
@@ -74,6 +75,24 @@ def _add_corpus_parser(sub) -> None:
     corpus.add_argument("--kind", default=None, help="with search: keep items of any of these kinds (comma-sep)")
     corpus.add_argument("--method", default=None, help="with search: keep items of any of these methods (comma-sep)")
     corpus.add_argument("--limit", type=int, default=None, help="with search: cap the matches (<=0 means none)")
+    corpus.add_argument("--select", action="append", default=[],
+                        help="with context: ROW_REF[:START[:LIMIT]] to include in a private context payload")
+    corpus.add_argument("--expect-digest", default=None,
+                        help="with context --select: required current corpus digest guard")
+    corpus.add_argument("--max-rows", type=int, default=None,
+                        help="with context: cap returned/selected rows")
+    corpus.add_argument("--excerpt-chars", type=int, default=None,
+                        help="with context: cap inspect excerpts")
+    corpus.add_argument("--max-total-chars", type=int, default=None,
+                        help="with context --select: cap selected text across all rows")
+    corpus.add_argument("--max-catalog-bytes", type=int, default=None,
+                        help="with context: refuse catalogs above this byte count")
+    corpus.add_argument("--max-catalog-rows", type=int, default=None,
+                        help="with context: refuse catalogs above this row count")
+    corpus.add_argument("--max-body-bytes", type=int, default=None,
+                        help="with context: refuse any selected or inspected body above this byte count")
+    corpus.add_argument("--max-read-bytes", type=int, default=None,
+                        help="with context: cap aggregate body bytes read for this command")
     corpus.set_defaults(func=cmd_corpus)
 
 

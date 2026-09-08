@@ -3,7 +3,16 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
-## Unreleased
+## 1.7.0 (2026-09-08)
+
+### Readable context selection
+
+A first-class corpus-to-context boundary for humans and agents that need selected source text, not only catalog hashes.
+
+- Python API: `inspect_corpus`, `select_context`, and `row_ref` expose bounded verified excerpts, explicit row refs, body status, availability, and selected private context payloads.
+- CLI parity: `gather corpus context DIR --json` inspects readable row excerpts; adding `--select ROW_REF[:START[:LIMIT]] --expect-digest SHA256` exports selected context guarded by the current corpus digest.
+- MCP parity: `gather.context` provides the same inspect/select payloads for stdio hosts.
+- Integrity and privacy boundaries: context selection reads and re-hashes only bounded inspected or selected bodies through a confined corpus-layout reader, refuses stale corpus digests, unsafe object paths, oversized bodies/catalogs, missing/corrupt bodies, and selected text over budget, binds selected text/ranges/source refs/full body hashes into `selection_digest`, pins the opened corpus root across catalog/body reads, and reports that acquisition does not prove source truth, claim support, coverage completeness, downstream model use, caller workspace-parent resolution, or absence of sensitive text in the selected source material.
 
 ### Accountable pilot evidence engine
 

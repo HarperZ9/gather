@@ -37,5 +37,14 @@ def test_status_advertises_pilot_command_and_tool(capsys):
     payload = json.loads(capsys.readouterr().out)
     assert "pilot" in payload["native"]["commands"]
     assert "gather.pilot" in payload["native"]["mcp_tools"]
-    assert payload["native"]["current_status"].startswith("1.6.1")
+    assert payload["native"]["current_status"].startswith("1.7.0")
+
+
+
+def test_status_advertises_readable_context_tool(capsys):
+    assert main(["status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "corpus context" in payload["native"]["commands"]
+    assert "gather.context" in payload["native"]["mcp_tools"]
+    assert "readable context selection" in payload["native"]["current_status"]
 

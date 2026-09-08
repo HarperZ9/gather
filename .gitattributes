@@ -3,3 +3,6 @@
 # sizes, and their hashes stay the same whoever cloned the repository.
 docs/art/*.svg text eol=lf
 docs/art/*.json text eol=lf
+
+# Pilot fixture hashes are byte-level evidence; keep shipped fixture checkouts LF.
+examples/pilot/fixtures/** text eol=lf
