@@ -8,6 +8,7 @@ import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol, cast
 
 from gather.availability import assess_availability
 from gather.digest import digest_of_receipts
@@ -42,6 +43,16 @@ _DOES_NOT_PROVE = [
 _HEX = set("0123456789abcdef")
 _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 _CHUNK = 64 * 1024
+
+
+class _WindowsCtypesModule(Protocol):
+    def get_last_error(self) -> int: ...
+
+
+class _WindowsMsvcrtModule(Protocol):
+    def get_osfhandle(self, fd: int, /) -> int: ...
+
+    def open_osfhandle(self, handle: int, flags: int, /) -> int: ...
 
 
 @dataclass
@@ -183,7 +194,8 @@ def _windows_ntdll():
 def _windows_raise_last_error(message: str) -> None:
     import ctypes
 
-    raise ValueError(f"{message}: {ctypes.get_last_error()}")
+    win_ctypes = cast(_WindowsCtypesModule, ctypes)
+    raise ValueError(f"{message}: {win_ctypes.get_last_error()}")
 
 
 def _windows_ntstatus(status: int) -> int:
@@ -212,7 +224,8 @@ def _windows_final_path_from_handle(handle: int) -> str:
 def _windows_final_path_from_fd(fd: int) -> str:
     import msvcrt
 
-    return _windows_final_path_from_handle(msvcrt.get_osfhandle(fd))
+    win_msvcrt = cast(_WindowsMsvcrtModule, msvcrt)
+    return _windows_final_path_from_handle(win_msvcrt.get_osfhandle(fd))
 
 
 def _assert_windows_fd_final_path(fd: int, expected_final_path: str, *, bytes_read: int = 0) -> None:
@@ -409,7 +422,8 @@ def _windows_handle_to_fd(handle: int) -> int:
 
     # open_osfhandle transfers ownership only on success. On failure the caller
     # still owns the native handle and must close it exactly once.
-    return msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+    win_msvcrt = cast(_WindowsMsvcrtModule, msvcrt)
+    return win_msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
 
 
 def _required_os_flag(name: str) -> int:
