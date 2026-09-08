@@ -13,10 +13,11 @@ from typing import Protocol, cast
 from gather.availability import assess_availability
 from gather.digest import digest_of_receipts
 from gather.item import content_hash
-from gather.store import CORRUPT, MATCH, MISSING, Corpus
+from gather.store import CORRUPT, MATCH, MISSING, Corpus, verify_stored_text
 
 INSPECT_SCHEMA = "gather.readable-corpus/v1"
 CONTEXT_SCHEMA = "gather.readable-context/v1"
+VIEW_CODEC = "utf8-crlf-cr-to-lf/v1"
 DEFAULT_EXCERPT_CHARS = 600
 DEFAULT_SELECTION_CHARS = 1200
 DEFAULT_MAX_ROWS = 12
@@ -75,6 +76,12 @@ class _BodyRead:
     bytes_read: int = 0
     max_body_bytes: int | None = None
     max_read_bytes: int | None = None
+    source_text: str | None = None
+    source_sha256: str = ""
+    view_sha256: str = ""
+    storage: dict[str, str] | None = None
+    storage_status: str = ""
+    storage_witnessed: bool = False
 
 
 class _ReadFailure(Exception):
@@ -711,9 +718,12 @@ def _load_catalog_rows(
     return rows
 
 
-def _decode_store_text(raw: bytes) -> str:
-    text = raw.decode("utf-8")
+def _view_text(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _corpus_digest_version(rows: Sequence[Mapping[str, object]]) -> str:
+    return "storage-witnessed/v1" if any(row.get("storage") is not None for row in rows) else "legacy-compatible/v1"
 
 
 def _read_verified_body(
@@ -749,14 +759,32 @@ def _read_verified_body(
         return _BodyRead(UNSAFE_PATH, sha256=sha)
     if raw is None:
         return _BodyRead(MISSING, sha256=sha)
-    try:
-        text = _decode_store_text(raw)
-    except UnicodeDecodeError:
-        return _BodyRead(CORRUPT, sha256=sha, bytes_read=len(raw))
-    actual = content_hash(text)
-    if actual != sha:
-        return _BodyRead(CORRUPT, text=None, sha256=actual, bytes_read=len(raw))
-    return _BodyRead(MATCH, text=text, sha256=actual, bytes_read=len(raw))
+    checked = verify_stored_text(raw, sha, row.get("storage"))
+    if checked.status != MATCH or checked.text is None:
+        return _BodyRead(
+            CORRUPT,
+            text=None,
+            sha256=checked.sha256 or sha,
+            bytes_read=len(raw),
+            source_sha256=checked.sha256 or sha,
+            storage=checked.storage,
+            storage_status=checked.storage_status or CORRUPT,
+            storage_witnessed=checked.storage_witnessed,
+        )
+    view = _view_text(checked.text)
+    view_sha = content_hash(view)
+    return _BodyRead(
+        MATCH,
+        text=view,
+        sha256=checked.sha256,
+        bytes_read=len(raw),
+        source_text=checked.text,
+        source_sha256=checked.sha256,
+        view_sha256=view_sha,
+        storage=checked.storage,
+        storage_status=checked.storage_status,
+        storage_witnessed=checked.storage_witnessed,
+    )
 
 
 def _body_omission(body: _BodyRead | str) -> dict[str, object] | None:
@@ -809,8 +837,15 @@ def _row_view(authority: _CorpusAuthority, row: dict, *, excerpt_chars: int, max
         "method": str(row.get("method", "")),
         "sha256": str(row.get("sha256", "")),
         "verified_sha256": body.sha256 if body.status == MATCH else "",
+        "source_sha256": body.source_sha256 if body.status == MATCH else "",
+        "view_sha256": body.view_sha256 if body.status == MATCH else "",
+        "view_codec": VIEW_CODEC,
+        "storage": body.storage,
+        "storage_status": body.storage_status,
+        "storage_witnessed": body.storage_witnessed,
         "derived_from": _list_field(row.get("derived_from")),
         "text_chars": text_chars,
+        "source_text_chars": len(body.source_text) if body.source_text is not None else 0,
         "body_status": body.status,
         "body_bytes_read": body.bytes_read,
         "availability": assess_availability(row),
@@ -867,6 +902,7 @@ def inspect_corpus(
     return {
         "schema": INSPECT_SCHEMA,
         "corpus_digest": digest.seal,
+        "corpus_digest_version": _corpus_digest_version(rows),
         "verified": len(returned) == len(rows) and all(row["body_status"] == MATCH for row in views),
         "verified_scope": "returned_rows" if len(returned) != len(rows) else "corpus",
         "row_count": len(rows),
@@ -966,8 +1002,15 @@ def _select_one(
         "method": str(row.get("method", "")),
         "sha256": str(row.get("sha256", "")),
         "verified_sha256": body.sha256,
+        "source_sha256": body.source_sha256,
+        "view_sha256": body.view_sha256,
+        "view_codec": VIEW_CODEC,
+        "storage": body.storage,
+        "storage_status": body.storage_status,
+        "storage_witnessed": body.storage_witnessed,
         "derived_from": _list_field(row.get("derived_from")),
         "full_text_chars": len(body.text),
+        "full_source_chars": len(body.source_text) if body.source_text is not None else 0,
         "body_bytes_read": body.bytes_read,
         "range": {"start": start, "end": requested_end},
         "text": selected,
@@ -1044,6 +1087,7 @@ def select_context(
     base: dict[str, object] = {
         "schema": CONTEXT_SCHEMA,
         "corpus_digest": current,
+        "corpus_digest_version": _corpus_digest_version(rows),
         "selection_count": len(selected_rows),
         "max_rows": row_cap,
         "max_total_chars": total_cap,

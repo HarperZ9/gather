@@ -56,6 +56,16 @@ def _mcp_call(name, arguments=None):
     })
 
 
+def _view_text(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _rewrite_catalog(c: Corpus, rows: list[dict]) -> None:
+    with open(c._catalog, "w", encoding="utf-8", newline="\n") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+
+
 def _patch_os_open_with_dir_fd_support(monkeypatch, ctx, replacement):
     # POSIX production code must fail closed when os.open lacks openat support.
     # These tests wrap os.open to trigger races, so the wrapper has to preserve
@@ -905,6 +915,149 @@ def test_non_supporting_source_remains_acquired_context_not_a_claim_verdict(tmp_
     ]
     assert "supports" not in set(payload)
     assert "verdict" not in set(payload)
+
+
+def test_context_newline_source_identity_and_readable_view_reach_python_cli_mcp(tmp_path, capsys):
+    # Catches: conflating exact source identity with the LF-normalized readable view at API boundaries.
+    from gather.context import inspect_corpus, select_context
+
+    source = "head\r\nDECISION\rpart\nµ-tail"
+    view = _view_text(source)
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("comment", "newline-comment", "Newline comment", source, source="video", method="yt-dlp")])
+    corpus_dir = str(tmp_path / "corpus")
+
+    inspected = inspect_corpus(c, excerpt_chars=40)
+    row = inspected["rows"][0]
+    start = view.index("DECISION")
+    limit = len("DECISION\npart")
+
+    assert inspected["schema"] == "gather.readable-corpus/v1"
+    assert inspected["corpus_digest_version"] == "storage-witnessed/v1"
+    assert row["body_status"] == "MATCH"
+    assert row["sha256"] == content_hash(source)
+    assert row["verified_sha256"] == content_hash(source)
+    assert row["source_sha256"] == content_hash(source)
+    assert row["view_sha256"] == content_hash(view)
+    assert row["view_codec"] == "utf8-crlf-cr-to-lf/v1"
+    assert row["storage"]["codec"] == "utf8-exact/v1"
+    assert row["storage_status"] == "MATCH"
+    assert row["storage_witnessed"] is True
+    assert row["excerpt"] == view
+
+    selected = select_context(
+        c,
+        [{"row_ref": row["row_ref"], "start": start, "limit": limit}],
+        expected_corpus_digest=inspected["corpus_digest"],
+    )
+    picked = selected["selections"][0]
+    assert picked["text"] == "DECISION\npart"
+    assert picked["range"] == {"start": start, "end": start + limit}
+    assert picked["full_text_chars"] == len(view)
+    assert picked["full_source_chars"] == len(source)
+    assert picked["source_sha256"] == content_hash(source)
+    assert picked["view_sha256"] == content_hash(view)
+    assert picked["view_codec"] == "utf8-crlf-cr-to-lf/v1"
+    assert picked["storage_status"] == "MATCH"
+    assert picked["storage_witnessed"] is True
+
+    assert main([
+        "corpus",
+        "context",
+        corpus_dir,
+        "--json",
+        "--select",
+        f"{row['row_ref']}:{start}:{limit}",
+        "--expect-digest",
+        inspected["corpus_digest"],
+    ]) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert cli_payload["selections"][0]["text"] == "DECISION\npart"
+    assert cli_payload["selections"][0]["source_sha256"] == content_hash(source)
+    assert cli_payload["selections"][0]["view_sha256"] == content_hash(view)
+
+    resp = _mcp_call("gather.context", {
+        "corpus": corpus_dir,
+        "select": [{"row_ref": row["row_ref"], "start": start, "limit": limit}],
+        "expected_corpus_digest": inspected["corpus_digest"],
+    })
+    mcp_payload = json.loads(resp["result"]["content"][0]["text"])
+    assert resp["result"].get("isError") is not True
+    assert mcp_payload == selected
+
+
+def test_context_expected_digest_rejects_storage_witness_stripping(tmp_path):
+    # Catches: caller-pinned corpus digests failing to notice catalog downgrade by witness stripping.
+    from gather.context import inspect_corpus, select_context
+
+    source = "line one\nline two"
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "storage-row", "Storage row", source)])
+    before = inspect_corpus(c)
+    row_ref = before["rows"][0]["row_ref"]
+    rows = list(c.rows())
+    stripped = [{k: v for k, v in row.items() if k != "storage"} for row in rows]
+    _rewrite_catalog(c, stripped)
+
+    assert inspect_corpus(c)["corpus_digest"] != before["corpus_digest"]
+    with pytest.raises(ValueError, match="expected corpus digest"):
+        select_context(
+            c,
+            [{"row_ref": row_ref, "start": 0, "limit": 4}],
+            expected_corpus_digest=before["corpus_digest"],
+        )
+
+    # Recomputing after mutation is an explicit downgrade acceptance, not an external trust anchor.
+    after = inspect_corpus(c)
+    payload = select_context(
+        c,
+        [{"row_ref": row_ref, "start": 0, "limit": 4}],
+        expected_corpus_digest=after["corpus_digest"],
+    )
+    assert payload["corpus_digest_version"] == "legacy-compatible/v1"
+    assert payload["selections"][0]["storage_witnessed"] is False
+    assert payload["selections"][0]["storage_status"] == "LEGACY_COMPATIBLE"
+
+
+def test_context_cli_and_mcp_reject_new_storage_row_when_newlines_are_tampered(tmp_path, capsys):
+    # Catches: readable context exporting a new exact-UTF8 row after its object bytes changed.
+    from gather.context import inspect_corpus, row_ref, select_context
+
+    source = "line one\nline two"
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "tampered-newline", "Tampered newline", source)])
+    row = next(c.rows())
+    ref = row_ref(row)
+    digest = c.digest().seal
+    with open(c._object_path(row["sha256"]), "wb") as f:
+        f.write(b"line one\rline two")
+
+    inspected = inspect_corpus(c)
+    assert inspected["verified"] is False
+    assert inspected["rows"][0]["body_status"] == "CORRUPT"
+    assert inspected["rows"][0]["storage_status"] == "CORRUPT"
+    with pytest.raises(ValueError, match="body status CORRUPT"):
+        select_context(c, [{"row_ref": ref}], expected_corpus_digest=digest)
+
+    assert main([
+        "corpus",
+        "context",
+        str(tmp_path / "corpus"),
+        "--json",
+        "--select",
+        ref,
+        "--expect-digest",
+        digest,
+    ]) == 1
+    assert "body status CORRUPT" in capsys.readouterr().err
+
+    resp = _mcp_call("gather.context", {
+        "corpus": str(tmp_path / "corpus"),
+        "select": [{"row_ref": ref}],
+        "expected_corpus_digest": digest,
+    })
+    assert resp["result"]["isError"] is True
+    assert "body status CORRUPT" in resp["result"]["content"][0]["text"]
 
 
 def test_corpus_context_cli_inspects_and_selects_private_context(tmp_path, capsys):

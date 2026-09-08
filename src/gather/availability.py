@@ -128,6 +128,14 @@ def stored_probe(corpus: ReadsBodies) -> Probe:
             return None
         try:
             return corpus.read_text(sha)
-        except (OSError, ValueError):
+        except OSError:
             return None
+        except ValueError:
+            observed = getattr(corpus, "read_observed_text", None)
+            if not callable(observed):
+                return None
+            try:
+                return observed(sha)
+            except (OSError, UnicodeDecodeError, ValueError):
+                return None
     return probe

@@ -128,12 +128,23 @@ view cannot be silently selected. It re-hashes selected bodies at read time,
 refuses unsafe paths or text over budget, and does not claim the selected source
 is true, complete, secret-free, or supports a claim.
 
-Range semantics are text-level. Stored bodies are decoded as UTF-8, CRLF and CR
-line endings become LF, and `start`/`limit` are Python string character offsets
-over that normalized text. `verified_sha256` is the `content_hash` of the full
-normalized body text encoded as UTF-8; a selected slice does not need to hash to
-that full-body value. The selected slice, range, source refs, full body hash, and
-omissions are folded into `selection_digest`.
+Range semantics are text-level. Gather first verifies the stored body against the
+exact source text receipt. For readable context, CRLF and CR line endings then
+become LF, and `start`/`limit` are Python string character offsets over that
+readable view. `sha256`, `verified_sha256`, and `source_sha256` identify the
+exact source text; `view_sha256` identifies the full LF-normalized readable view,
+and `view_codec` names the transformation. A selected slice does not need to hash
+to either full-body value. The selected slice, range, source refs, source/view
+hashes, storage status, and omissions are folded into `selection_digest`.
+
+New corpus rows carry a versioned exact-UTF8 storage witness that is folded into
+the corpus digest. Rows written before that witness are legacy compatible when
+Gather can reconstruct exactly one source text from exact UTF-8 bytes or the old
+Windows text writer's LF-to-CRLF expansion. That reconstruction does not prove
+old raw object-byte integrity. `--expect-digest` and MCP
+`expected_corpus_digest` are the trust boundary for downgrade detection: a pinned
+old digest fails after storage metadata is stripped, while recomputing the digest
+after mutation accepts the current catalog state.
 
 The reader pins the opened corpus root while loading the catalog and bodies. It does not prove that a caller-resolved `DIR` stayed below an approved workspace parent; hosts that derive a corpus path from workspace authority must bind that parent relationship themselves before calling Gather.
 

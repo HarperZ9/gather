@@ -60,7 +60,7 @@ def status_payload() -> dict:
                 "gather.pilot",
             ],
             "current_status": (
-                "1.7.0 readable context selection, "
+                "1.7.1 newline-integrity patch, readable context selection, "
                 "scholarly-graph federation, scheduled monitor with change custody, "
                 "accountable pilot evidence engine, and Project Telos operator-spine MCP parity"
             ),

@@ -16,7 +16,8 @@ class Digest:
     not altered after the fact, the same proof-over-trust the rest of the constellation
     runs on. The seal covers each receipt's identity, title, and full provenance (content
     hash, source, ref, method, derived_from), plus the ``availability`` rung when a receipt
-    carries one (gather.availability); an item's ``meta`` is source-specific extra and is
+    carries one (gather.availability) and the exact object storage witness when a stored
+    catalog row carries one; an item's ``meta`` is source-specific extra and is
     deliberately not carried in the digest, so it is neither shown nor sealed here.
     """
 
@@ -41,6 +42,9 @@ def _seal(receipts: list[dict]) -> str:
     is itself detected. A receipt carrying an ``availability`` rung has it folded in too, so
     an availability claim cannot be edited, grafted on, or stripped off after witnessing; a
     receipt without one seals byte-identically to before the rung existed (legacy compatible).
+    Stored corpus rows can also carry a versioned ``storage`` witness; when present, it is
+    folded into the seal so consumers that pin the corpus digest can detect witness stripping
+    or object-codec changes. Rows without ``storage`` keep the legacy projection.
     """
     objs = []
     for r in receipts:
@@ -51,6 +55,8 @@ def _seal(receipts: list[dict]) -> str:
         }
         if r.get("availability") is not None:
             o["availability"] = r["availability"]
+        if r.get("storage") is not None:
+            o["storage"] = r["storage"]
         objs.append(o)
     objs.sort(key=lambda d: json.dumps(d, sort_keys=True, ensure_ascii=False))
     canon = json.dumps(objs, sort_keys=True, ensure_ascii=False)
@@ -79,6 +85,22 @@ def _check_rung(av: object) -> dict:
     return {"status": status, "checked_at": checked_at, "sha256": sha}
 
 
+def _check_storage_witness(storage: object) -> dict:
+    """Shape-check a stored-object witness before it is sealed."""
+    if not isinstance(storage, dict):
+        raise ValueError(f"storage witness is not an object: {str(storage)[:48]!r}")
+    schema = storage.get("schema")
+    codec = storage.get("codec")
+    object_sha = storage.get("object_sha256")
+    if schema != "gather.storage/v1":
+        raise ValueError("storage witness schema must be gather.storage/v1")
+    if codec != "utf8-exact/v1":
+        raise ValueError("storage witness codec must be utf8-exact/v1")
+    if not isinstance(object_sha, str) or len(object_sha) != 64 or any(c not in _HEX for c in object_sha):
+        raise ValueError("storage witness object_sha256 must be a sha256 hex digest")
+    return {"schema": schema, "codec": codec, "object_sha256": object_sha}
+
+
 def _receipt(i: Item) -> dict:
     return {
         "kind": i.kind, "id": i.id, "title": i.title,
@@ -99,7 +121,9 @@ def digest_of_receipts(receipts: list[dict]) -> Digest:
     are ignored, and derived_from defaults to empty. A row missing a field raises a clear
     ValueError (rows can come from disk, so the failure must be diagnosable, not a bare KeyError).
     An ``availability`` rung, when present, is shape-checked and carried into the sealed receipt
-    (see gather.availability); a receipt without one seals exactly as before rungs existed."""
+    (see gather.availability). A ``storage`` witness, when present on a stored corpus row, is
+    also shape-checked and sealed. Rows without either optional field seal exactly as before
+    those fields existed."""
     clean = []
     for r in receipts:
         missing = [k for k in _FIELDS if k not in r]
@@ -108,6 +132,8 @@ def digest_of_receipts(receipts: list[dict]) -> Digest:
         row = {**{k: r[k] for k in _FIELDS}, "derived_from": list(r.get("derived_from") or [])}
         if r.get("availability") is not None:
             row["availability"] = _check_rung(r["availability"])
+        if r.get("storage") is not None:
+            row["storage"] = _check_storage_witness(r["storage"])
         clean.append(row)
     return Digest(receipts=tuple(clean), seal=_seal(clean))
 
