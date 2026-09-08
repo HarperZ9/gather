@@ -106,10 +106,43 @@ ordered by descending confidence, a match with no named identifier path is rejec
 and a promotion to resolved requires the top candidate to be an exact-id join. Both
 snapshots are sealed under the federation digest, so an edited field breaks the seal.
 
+## Corpus and readable context
+
+```bash
+gather corpus list DIR
+gather corpus verify DIR
+gather corpus search DIR --terms keyword --json
+gather corpus availability DIR
+gather corpus context DIR --json
+gather corpus context DIR --json --select ROW_REF[:START[:LIMIT]] --expect-digest SHA256
+```
+
+`context` inspection returns `gather.readable-corpus/v1`: current corpus
+digest, bounded row previews, body status, availability state, and row refs.
+Missing, corrupt, unsafe, oversized, or read-budget-exhausted bodies are named and return no excerpt. Inspection verifies only the returned rows when row caps omit the rest of the catalog.
+
+Selection returns `gather.readable-context/v1`: selected source/comment text,
+source refs, full body hashes, ranges, omissions, and a deterministic
+`selection_digest`. It requires the current digest from inspection so a stale
+view cannot be silently selected. It re-hashes selected bodies at read time,
+refuses unsafe paths or text over budget, and does not claim the selected source
+is true, complete, secret-free, or supports a claim.
+
+Range semantics are text-level. Stored bodies are decoded as UTF-8, CRLF and CR
+line endings become LF, and `start`/`limit` are Python string character offsets
+over that normalized text. `verified_sha256` is the `content_hash` of the full
+normalized body text encoded as UTF-8; a selected slice does not need to hash to
+that full-body value. The selected slice, range, source refs, full body hash, and
+omissions are folded into `selection_digest`.
+
+The reader pins the opened corpus root while loading the catalog and bodies. It does not prove that a caller-resolved `DIR` stayed below an approved workspace parent; hosts that derive a corpus path from workspace authority must bind that parent relationship themselves before calling Gather.
+
 ## MCP
 
 Use `gather mcp` when a host needs the tool over stdio. The MCP surface should
-stay aligned with the CLI envelope and receipt fields.
+stay aligned with the CLI envelope and receipt fields. `gather.context` inspects
+stored corpus rows or exports selected readable context with the same type-strict
+caps and expected-digest guard as `gather corpus context`.
 
 ```bash
 gather mcp

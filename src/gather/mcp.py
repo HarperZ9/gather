@@ -126,6 +126,45 @@ def _tool_defs() -> list[dict]:
             },
         },
         {
+            "name": "gather.context",
+            "description": "Inspect bounded readable corpus excerpts or select verified rows into a private context payload.",
+            "inputSchema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "corpus": {"type": "string", "description": "stored Gather corpus directory"},
+                    "select": {
+                        "description": "optional selections as ROW_REF[:START[:LIMIT]] strings or objects",
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "properties": {
+                                        "row_ref": {"type": "string"},
+                                        "start": {"type": "integer", "minimum": 0},
+                                        "limit": {"type": "integer", "minimum": 1},
+                                    },
+                                    "required": ["row_ref"],
+                                },
+                            ]
+                        },
+                    },
+                    "expected_corpus_digest": {"type": "string"},
+                    "max_rows": {"type": "integer", "minimum": 1},
+                    "excerpt_chars": {"type": "integer", "minimum": 1},
+                    "max_total_chars": {"type": "integer", "minimum": 1},
+                    "max_catalog_bytes": {"type": "integer", "minimum": 1},
+                    "max_catalog_rows": {"type": "integer", "minimum": 1},
+                    "max_body_bytes": {"type": "integer", "minimum": 1},
+                    "max_read_bytes": {"type": "integer", "minimum": 1},
+                },
+                "required": ["corpus"],
+            },
+        },
+        {
             "name": "gather.pilot",
             "description": "Run, refresh, verify, or bundle a controlled Gather pilot.",
             "inputSchema": {
@@ -273,6 +312,41 @@ def call_tool(name: str, args: dict) -> str:
         return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
     if name == "gather.federation":
         return _federation_tool(args)
+    if name == "gather.context":
+        from gather.context import inspect_corpus, select_context
+
+        corpus = args.get("corpus")
+        if not isinstance(corpus, str) or not corpus:
+            raise ValueError("gather.context requires a non-empty corpus")
+        selections = args.get("select")
+        if selections is None:
+            payload = inspect_corpus(
+                corpus,
+                max_rows=args.get("max_rows"),
+                excerpt_chars=args.get("excerpt_chars"),
+                max_catalog_bytes=args.get("max_catalog_bytes"),
+                max_catalog_rows=args.get("max_catalog_rows"),
+                max_body_bytes=args.get("max_body_bytes"),
+                max_read_bytes=args.get("max_read_bytes"),
+            )
+        elif isinstance(selections, list):
+            expected = args.get("expected_corpus_digest")
+            if not isinstance(expected, str) or not expected:
+                raise ValueError("gather.context selection requires expected_corpus_digest")
+            payload = select_context(
+                corpus,
+                selections,
+                expected_corpus_digest=expected,
+                max_rows=args.get("max_rows"),
+                max_total_chars=args.get("max_total_chars"),
+                max_catalog_bytes=args.get("max_catalog_bytes"),
+                max_catalog_rows=args.get("max_catalog_rows"),
+                max_body_bytes=args.get("max_body_bytes"),
+                max_read_bytes=args.get("max_read_bytes"),
+            )
+        else:
+            raise ValueError("gather.context select must be an array")
+        return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
     if name == "gather.run":
         from gather.run_config import load_run_config, plan_from_config, run_plan
 

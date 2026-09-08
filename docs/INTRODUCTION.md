@@ -142,10 +142,7 @@ gather arxiv 2301.12345 --json
 
 ## MCP and automation
 
-`gather mcp` serves the engine over MCP stdio with six tools: `gather.status`,
-`gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, and
-`gather.run`. `gather.run` accepts an inline config object or a config path, so
-an agent host does not need to stage files. `gather status --json` and
+`gather mcp` serves the engine over MCP stdio with the same core operator tools as the CLI: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.context`, and `gather.pilot`. `gather.run` accepts an inline config object or a config path, and `gather.context` can inspect stored corpus rows or export digest-guarded selected context, so an agent host does not need to stage extra files for those flows. `gather status --json` and
 `gather doctor --json` emit machine-readable envelopes for health checks.
 [ENTERPRISE-READINESS.md](ENTERPRISE-READINESS.md) covers unattended operation.
 

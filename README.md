@@ -35,10 +35,11 @@ fabricated field cannot reach the corpus by being plausible.
 - **Streaming extraction.** `gather.stream` parses an HTML stream chunk by chunk and emits partial-update commits as blocks complete, each folded into a hash chain, so a streamed extraction is replayable.
 - **Hard-source adapters behind one shape.** Video with captions and comments (`yt-dlp`), static web, RSS/Atom feeds, local docs, arXiv, PDFs (`pdftotext`), authenticated JSON APIs (token from env, never logged), JS-rendered pages (headless Chromium), scanned images (`tesseract`), and audio (`whisper`). Each external tool is optional and only needed for its own adapter.
 - **Scholarly-graph federation.** `gather scholar` queries OpenAlex, Semantic Scholar, and Crossref in one call, dedupes results by normalized DOI (never a fuzzy title match), and can capture citation edges as first-class records with `--edges`.
-- **A durable local corpus.** Any fetch command takes `--store DIR`: bodies are content-addressed and deduped by hash, and `gather corpus list|verify|digest|runs|search|stats|prune|availability` inspects, re-checks, and queries what you stored.
+- **A durable local corpus.** Any fetch command takes `--store DIR`: bodies are content-addressed and deduped by hash, and `gather corpus list|verify|digest|runs|search|stats|prune|availability|context` inspects, re-checks, and queries what you stored.
+- **Readable context selection.** `gather corpus context DIR` shows bounded, re-hashed source/comment excerpts with row refs and missing/corrupt/unsafe/oversized-body reasons; `--select ROW_REF[:START[:LIMIT]] --expect-digest SHA256` exports a private context payload with a deterministic selection digest, refusing stale digests and selected text over budget. This is acquisition context, not a truth, claim-support, completeness, or secret-free verdict.
 - **Multi-source runs.** `gather run config.json` orchestrates many sources, a scope filter, and optional synthesis into one recorded session kept in the corpus history.
 - **Accountable pilot evidence engine.** `gather pilot run|refresh|verify|bundle` drives a closed manifest through a source-isolated capture into a content-addressed corpus, writes a redacted report and a hash-chained receipt, monitors sources for change (NEW/CHANGED/UNCHANGED with archived history), and packages deterministic shared or full bundles any third party re-verifies offline. See [docs/PILOT.md](docs/PILOT.md).
-- **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.pilot`), and a plain Python API.
+- **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.context`, `gather.pilot`), and a plain Python API.
 - **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering, `[stealth]` adds curl_cffi TLS impersonation. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
 
 ## Install
@@ -86,6 +87,7 @@ Offline demo, no install of extra tools, nothing downloaded:
 ```bash
 python examples/demo.py        # one video parsed, scoped, digested, then a tampered receipt caught
 python examples/pipeline.py    # the whole pipeline: run -> store -> verify -> recall, offline
+python examples/context_selection.py  # inspect verified excerpts and build a private context payload
 ```
 
 `demo.py` prints each item with its hash and `verify=True`, then flips one receipt and shows the digest verification fail. The hash prefixes vary; the verify results are pinned by the test suite. For a browser-viewable version of the same proof, open [examples/gather-demo.html](examples/gather-demo.html).
@@ -102,9 +104,14 @@ gather corpus list ./corpus                 # every item with source, method, an
 gather corpus search ./corpus --terms tiling --method http-get --json
 gather corpus verify ./corpus               # MATCH per body, non-zero exit if anything is corrupt
 gather corpus availability ./corpus         # per-record availability with typed outcomes
+gather corpus context ./corpus --json       # bounded readable excerpts + row refs
 ```
 
-Every item carries its source, ref, method, timestamp, and a sha256 of the content, so `verify` can prove later that nothing in the corpus was altered, and `search` filters by scope terms, source, kind, or method.
+Every item carries its source, ref, method, timestamp, and a sha256 of the content, so `verify` can prove later that nothing in the corpus was altered, and `search` filters by scope terms, source, kind, or method. `context` reads and re-hashes bounded inspected or selected bodies through a confined corpus-layout reader, returns bounded excerpts by default, and exports selected ranges only when the caller supplies the current corpus digest.
+
+Readable context bodies are decoded as UTF-8 and CRLF or CR line endings are normalized to LF before hash verification and range selection. `START` and `LIMIT` are Python string character offsets over that normalized text. `verified_sha256` is the `content_hash` of the full normalized body text encoded as UTF-8; it is not a selected-slice hash. The selected slice, range, source refs, full body hash, and omissions are bound into `selection_digest`.
+
+The context reader pins the opened corpus root for catalog and body reads, but it does not prove a caller-resolved workspace parent relationship. If a host derives `DIR` from an approved workspace plus a relative path, that host must bind the workspace-to-corpus resolution before calling Gather.
 
 ## Source federation, offline
 
@@ -142,7 +149,7 @@ d = digest(items)          # a sealed digest over every item's receipt
 assert verify_digest(d)    # re-derive the seal; False if anything was altered
 ```
 
-The same seams the CLI uses are importable: `gather.extract`, `gather.crawl`, `gather.track`, `gather.schema_extract`, `gather.stream`, `gather.search`, `gather.store`, `gather.run`, and the source adapters. [ARCHITECTURE.md](ARCHITECTURE.md) maps the modules and seams.
+The same seams the CLI uses are importable: `gather.extract`, `gather.crawl`, `gather.track`, `gather.schema_extract`, `gather.stream`, `gather.search`, `gather.store`, `gather.run`, `gather.context`, and the source adapters. [ARCHITECTURE.md](ARCHITECTURE.md) maps the modules and seams.
 
 ## Security notes
 
@@ -156,7 +163,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 - [docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
 - [docs/PILOT.md](docs/PILOT.md): the accountable pilot evidence engine, its manifest boundary, and the private/shared evidence split.
-- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.6.1.
+- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.7.0.
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
 
@@ -183,7 +190,7 @@ Bring papers, transcripts, local docs, or awkward public materials that need pro
 
 ```bash
 python -m pip install -e ".[dev]"
-python -m pytest        # 588+ tests
+python -m pytest        # 650+ tests
 python -m ruff check src tests examples
 python -m mypy
 ```
