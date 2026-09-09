@@ -27,6 +27,15 @@ A human or agent can inspect a stored Gather corpus, see bounded source/comment 
 - `selection_digest`: deterministic hash over corpus digest, selected text, source refs, full body hashes, ranges, and omissions
 - `does_not_prove`: includes truth/support/completeness boundaries
 
+The Python API also accepts a same-process `CorpusRootDescriptor` from callers
+that already hold an opened corpus root fd/HANDLE and its expected
+`CorpusRootIdentity`. Gather duplicates that borrowed authority, validates the
+duplicate against the expected identity, and then uses the same confined reader
+for catalog and body reads. The caller must keep the original descriptor live
+through the call. Descriptor handoff is intentionally Python-only; CLI and MCP
+continue to accept corpus directory strings, not raw handles or file
+descriptors.
+
 The selection call rejects stale `expected_corpus_digest` values, duplicate row refs, unexpected selection fields, unsafe corpus paths, over-budget text windows, and missing/corrupt/oversized selected bodies. Inspection surfaces those body failures with typed omissions and does not mark a row-limited partial inspection as a fully verified corpus.
 
 Text and range semantics are intentionally text-level. Stored bodies are first verified against the exact source text receipt. New rows carry a versioned exact-UTF8 storage witness, folded into the corpus digest, so consumers that pin `expected_corpus_digest` can detect witness stripping or codec changes. Legacy rows without that witness are reconstructed only when exact UTF-8 bytes or the inverse of the old Windows text writer's LF-to-CRLF expansion yields exactly one source text matching the receipt. That reconstructs source text; it does not prove historical raw object-byte integrity.
@@ -35,7 +44,12 @@ Readable excerpts and selected `text` are a view: CRLF or CR line endings are no
 
 The corpus digest is the pinned trust boundary for selection. A caller that obtained a storage-witnessed digest from inspection or `Corpus.digest()` should pass that value back through `expected_corpus_digest` / `--expect-digest`; selection fails if the catalog later strips or changes a sealed storage witness. Recomputing the digest after local catalog mutation accepts the current catalog state and is not an external anti-downgrade proof.
 
-The confined reader pins the corpus root it opens and uses that authority for catalog and selected-body reads. It does not accept caller-provided object paths, and it does not prove that a higher-level host resolved the corpus path under an approved workspace parent without a race. Hosts that derive a corpus path from a workspace grant must enforce that workspace-parent relationship at their own boundary.
+The confined reader pins the corpus root it opens or the same-process descriptor
+it duplicates, and uses that authority for catalog and selected-body reads. It
+does not accept caller-provided object paths, and it does not prove that a
+higher-level host resolved the corpus path under an approved workspace parent
+without a race. Hosts that derive a corpus path from a workspace grant must
+enforce that workspace-parent relationship at their own boundary.
 
 ## CLI/MCP parity
 

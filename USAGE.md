@@ -148,6 +148,14 @@ after mutation accepts the current catalog state.
 
 The reader pins the opened corpus root while loading the catalog and bodies. It does not prove that a caller-resolved `DIR` stayed below an approved workspace parent; hosts that derive a corpus path from workspace authority must bind that parent relationship themselves before calling Gather.
 
+Python hosts that already hold a retained, identity-bound corpus root can call
+`inspect_corpus()` or `select_context()` with a same-process
+`CorpusRootDescriptor`. Gather duplicates the borrowed fd/HANDLE, validates the
+duplicate against the expected `CorpusRootIdentity`, and then uses the same
+bounded confined reader. The caller must keep the original descriptor live
+through the call. This descriptor handoff is intentionally not exposed through
+CLI or MCP, where corpus inputs remain directory strings.
+
 ## MCP
 
 Use `gather mcp` when a host needs the tool over stdio. The MCP surface should
