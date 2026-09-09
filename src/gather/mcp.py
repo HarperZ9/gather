@@ -59,7 +59,10 @@ def _tool_defs() -> list[dict]:
                 "properties": {
                     "path": {"type": "string", "description": "file or directory to read"},
                     "scope": {
-                        "description": "optional comma-separated string or list of scope terms",
+                        "description": (
+                            "optional post-fetch content filter: keep items whose title or body "
+                            "contains any term as a case-insensitive substring; omit for unfiltered capture"
+                        ),
                         "oneOf": [
                             {"type": "string"},
                             {"type": "array", "items": {"type": "string"}},
@@ -78,7 +81,10 @@ def _tool_defs() -> list[dict]:
                     "query": {"type": "string", "description": "arXiv id or free-text query"},
                     "max_results": {"type": "integer", "description": "maximum search results", "minimum": 1},
                     "scope": {
-                        "description": "optional comma-separated string or list of scope terms",
+                        "description": (
+                            "optional post-fetch content filter: keep items whose title or body "
+                            "contains any term as a case-insensitive substring; omit for unfiltered capture"
+                        ),
                         "oneOf": [
                             {"type": "string"},
                             {"type": "array", "items": {"type": "string"}},
