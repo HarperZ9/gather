@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import shutil
@@ -558,6 +559,296 @@ def test_context_posix_descriptor_handoff_reads_original_root_after_path_replace
             shutil.rmtree(root)
         if saved.exists() and not root.exists():
             saved.rename(root)
+
+
+def test_context_posix_descriptor_rejects_unsupported_v9fs_before_catalog_read(tmp_path, monkeypatch):
+    # Catches: admitting descriptor-backed reads on mounts where openat is path-like instead of root-fd-bound.
+    if os.name == "nt":
+        pytest.skip("POSIX descriptor handoff control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "descriptor-original", source="synthetic")])
+    owner, descriptor = _posix_descriptor_for_corpus(ctx, c)
+    state = {"catalog_or_body_read": False}
+
+    def fake_v9fs(_fd):
+        return 0x01021997
+
+    def forbidden_read(*args, **kwargs):
+        state["catalog_or_body_read"] = True
+        raise AssertionError("catalog/body read happened after unsupported filesystem admission")
+
+    monkeypatch.setattr(ctx, "_posix_filesystem_magic", fake_v9fs, raising=False)
+    monkeypatch.setattr(ctx, "_read_open_fd_bytes", forbidden_read)
+    try:
+        with pytest.raises(ValueError, match="UNSAFE_PATH"):
+            ctx.inspect_corpus(descriptor)
+        assert state["catalog_or_body_read"] is False
+    finally:
+        os.close(owner)
+
+
+def test_context_posix_path_rejects_unsupported_v9fs_before_catalog_read(tmp_path, monkeypatch):
+    # Catches: path-backed confined reads trusting openat on unsupported v9fs mounts.
+    if os.name == "nt":
+        pytest.skip("POSIX path authority control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "path-original", source="synthetic")])
+    state = {"catalog_or_body_read": False}
+
+    def fake_v9fs(_fd):
+        return 0x01021997
+
+    def forbidden_read(*args, **kwargs):
+        state["catalog_or_body_read"] = True
+        raise AssertionError("catalog/body read happened after unsupported filesystem admission")
+
+    monkeypatch.setattr(ctx, "_posix_filesystem_magic", fake_v9fs, raising=False)
+    monkeypatch.setattr(ctx, "_read_open_fd_bytes", forbidden_read)
+    with pytest.raises(ValueError, match="UNSAFE_PATH"):
+        ctx.inspect_corpus(c)
+    assert state["catalog_or_body_read"] is False
+
+
+
+def test_context_posix_rejects_unsupported_objects_dir_before_body_read(tmp_path, monkeypatch):
+    # Catches: opening objects/ as a new authority without classifying its actual filesystem.
+    if os.name == "nt" or not Path("/proc/self/fd").exists():
+        pytest.skip("POSIX child directory authority control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "object-child-original", source="synthetic")])
+    original_read = ctx._read_open_fd_bytes
+    state = {"body_read": False}
+
+    def fake_magic(fd):
+        target = os.readlink(f"/proc/self/fd/{fd}")
+        if Path(target).name == "objects":
+            return 0x01021997
+        return 0xEF53
+
+    def reject_body_read(fd, **kwargs):
+        target = os.readlink(f"/proc/self/fd/{fd}")
+        if "objects" in Path(target).parts:
+            state["body_read"] = True
+            raise AssertionError("body read happened after unsupported objects directory admission")
+        return original_read(fd, **kwargs)
+
+    monkeypatch.setattr(ctx, "_posix_filesystem_magic", fake_magic, raising=False)
+    monkeypatch.setattr(ctx, "_read_open_fd_bytes", reject_body_read)
+    inspected = ctx.inspect_corpus(c)
+
+    assert inspected["rows"][0]["body_status"] == "UNSAFE_PATH"
+    assert state["body_read"] is False
+
+
+def test_context_posix_rejects_unsupported_shard_dir_before_body_read(tmp_path, monkeypatch):
+    # Catches: classifying only the corpus root and objects/ directory while trusting shard directories.
+    if os.name == "nt" or not Path("/proc/self/fd").exists():
+        pytest.skip("POSIX child directory authority control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "shard-child-original", source="synthetic")])
+    row = next(c.rows())
+    shard = row["sha256"][:2]
+    original_read = ctx._read_open_fd_bytes
+    state = {"body_read": False}
+
+    def fake_magic(fd):
+        target = Path(os.readlink(f"/proc/self/fd/{fd}"))
+        if target.parent.name == "objects" and target.name == shard:
+            return 0x01021997
+        return 0xEF53
+
+    def reject_body_read(fd, **kwargs):
+        target = os.readlink(f"/proc/self/fd/{fd}")
+        if "objects" in Path(target).parts:
+            state["body_read"] = True
+            raise AssertionError("body read happened after unsupported shard directory admission")
+        return original_read(fd, **kwargs)
+
+    monkeypatch.setattr(ctx, "_posix_filesystem_magic", fake_magic, raising=False)
+    monkeypatch.setattr(ctx, "_read_open_fd_bytes", reject_body_read)
+    inspected = ctx.inspect_corpus(c)
+
+    assert inspected["rows"][0]["body_status"] == "UNSAFE_PATH"
+    assert state["body_read"] is False
+
+
+
+def test_context_posix_rejects_unsupported_catalog_file_before_catalog_read(tmp_path, monkeypatch):
+    # Catches: opening catalog.jsonl as a leaf file on an unsupported filesystem and reading metadata anyway.
+    if os.name == "nt" or not Path("/proc/self/fd").exists():
+        pytest.skip("POSIX file descriptor filesystem control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "catalog-file-original", source="synthetic")])
+    original_read = ctx._read_open_fd_bytes
+    state = {"catalog_read": False}
+
+    def fake_magic(fd):
+        target = Path(os.readlink(f"/proc/self/fd/{fd}"))
+        if target.name == "catalog.jsonl":
+            return 0x01021997
+        return 0xEF53
+
+    def reject_catalog_read(fd, **kwargs):
+        target = Path(os.readlink(f"/proc/self/fd/{fd}"))
+        if target.name == "catalog.jsonl":
+            state["catalog_read"] = True
+            raise AssertionError("catalog read happened after unsupported file descriptor admission")
+        return original_read(fd, **kwargs)
+
+    monkeypatch.setattr(ctx, "_posix_filesystem_magic", fake_magic, raising=False)
+    monkeypatch.setattr(ctx, "_read_open_fd_bytes", reject_catalog_read)
+
+    with pytest.raises(ValueError, match="UNSAFE_PATH"):
+        ctx.inspect_corpus(c)
+    assert state["catalog_read"] is False
+
+
+def test_context_posix_rejects_unsupported_body_file_before_body_read(tmp_path, monkeypatch):
+    # Catches: opening a body object as a leaf file on an unsupported filesystem and reading source text anyway.
+    if os.name == "nt" or not Path("/proc/self/fd").exists():
+        pytest.skip("POSIX file descriptor filesystem control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "body-file-original", source="synthetic")])
+    original_read = ctx._read_open_fd_bytes
+    state = {"body_read": False}
+
+    def fake_magic(fd):
+        target = Path(os.readlink(f"/proc/self/fd/{fd}"))
+        if "objects" in target.parts and target.is_file():
+            return 0x01021997
+        return 0xEF53
+
+    def reject_body_read(fd, **kwargs):
+        target = Path(os.readlink(f"/proc/self/fd/{fd}"))
+        if "objects" in target.parts:
+            state["body_read"] = True
+            raise AssertionError("body read happened after unsupported file descriptor admission")
+        return original_read(fd, **kwargs)
+
+    monkeypatch.setattr(ctx, "_posix_filesystem_magic", fake_magic, raising=False)
+    monkeypatch.setattr(ctx, "_read_open_fd_bytes", reject_body_read)
+    inspected = ctx.inspect_corpus(c)
+
+    assert inspected["rows"][0]["body_status"] == "UNSAFE_PATH"
+    assert state["body_read"] is False
+
+
+def test_context_posix_filesystem_admission_does_not_require_ctypes_statfs_layout(tmp_path, monkeypatch):
+    # Catches: reintroducing a fixed ctypes struct statfs layout that is unsafe on Linux ABIs with larger statfs.
+    if os.name == "nt" or sys.platform != "linux":
+        pytest.skip("Linux filesystem admission ABI control")
+    import ctypes
+
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "no-ctypes-statfs-layout", source="synthetic")])
+
+    def reject_cdll(*_args, **_kwargs):
+        raise AssertionError("ctypes fstatfs ABI path was used")
+
+    monkeypatch.setattr(ctypes, "CDLL", reject_cdll)
+    inspected = ctx.inspect_corpus(c)
+
+    assert inspected["rows"][0]["body_status"] == "MATCH"
+    assert inspected["rows"][0]["excerpt"] == "no-ctypes-statfs-layout"
+
+
+def test_context_posix_unclassified_linux_fd_refuses_before_catalog_read(tmp_path, monkeypatch):
+    # Catches: treating an unclassified Linux fd as safe and reading corpus metadata anyway.
+    if os.name == "nt" or sys.platform != "linux":
+        pytest.skip("Linux filesystem admission unknown-fd control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "unclassified-fd", source="synthetic")])
+    state = {"catalog_read": False}
+
+    def unclassified(_fd):
+        raise OSError(errno.ENOTSUP, "mount type unavailable")
+
+    def forbidden_read(*args, **kwargs):
+        state["catalog_read"] = True
+        raise AssertionError("catalog read happened after unclassified Linux fd admission")
+
+    monkeypatch.setattr(ctx, "_linux_fd_mount_type", unclassified, raising=False)
+    monkeypatch.setattr(ctx, "_read_open_fd_bytes", forbidden_read)
+
+    with pytest.raises(ValueError, match="UNSAFE_PATH"):
+        ctx.inspect_corpus(c)
+    assert state["catalog_read"] is False
+
+def test_context_posix_unknown_filesystem_magic_keeps_existing_confined_reader(tmp_path, monkeypatch):
+    # Catches: treating an unavailable filesystem-magic classifier as a blanket POSIX refusal.
+    if os.name == "nt":
+        pytest.skip("POSIX filesystem admission control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "unknown-platform-still-readable", source="synthetic")])
+    monkeypatch.setattr(ctx, "_posix_filesystem_magic", lambda _fd: None, raising=False)
+
+    inspected = ctx.inspect_corpus(c)
+
+    assert inspected["rows"][0]["body_status"] == "MATCH"
+    assert inspected["rows"][0]["excerpt"] == "unknown-platform-still-readable"
+
+def test_context_posix_v9fs_descriptor_does_not_read_replacement_after_root_rename():
+    # Catches: WSL Windows-drive v9fs openat resolving through the replacement path after root rename.
+    if os.name == "nt":
+        pytest.skip("POSIX descriptor handoff control")
+    mount_root = Path("/mnt/d/Temp")
+    if not mount_root.exists():
+        pytest.skip("WSL /mnt/d v9fs control is unavailable")
+    fs_type = subprocess.run(
+        ["stat", "-f", "-c", "%T", str(mount_root)],
+        check=False,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    if fs_type != "v9fs":
+        pytest.skip("WSL /mnt/d v9fs control is unavailable")
+    import tempfile
+
+    import gather.context as ctx
+
+    base = Path(tempfile.mkdtemp(prefix="gather-v9fs-context-", dir=str(mount_root)))
+    root = base / "corpus"
+    saved = base / "saved-original-corpus"
+    try:
+        c = Corpus(str(root), fsync=False)
+        c.add([_item("document", "x", "x", "descriptor-original", source="synthetic")])
+        replacement = Corpus(str(base / "replacement-corpus"), fsync=False)
+        replacement.add([_item("document", "x", "x", "replacement-canary", source="synthetic")])
+        replacement_root = Path(replacement._root)
+        fd, descriptor = _posix_descriptor_for_corpus(ctx, c)
+        try:
+            root.rename(saved)
+            replacement_root.rename(root)
+            try:
+                inspected = ctx.inspect_corpus(descriptor, max_rows=1, excerpt_chars=40)
+            except ValueError as exc:
+                assert "UNSAFE_PATH" in str(exc)
+            else:
+                serialized = json.dumps(inspected, sort_keys=True)
+                assert "replacement-canary" not in serialized
+                assert inspected["rows"][0]["excerpt"] == "descriptor-original"
+        finally:
+            os.close(fd)
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
 
 
 def test_context_descriptor_handoff_rejects_identity_mismatch_before_catalog_read(tmp_path, monkeypatch):

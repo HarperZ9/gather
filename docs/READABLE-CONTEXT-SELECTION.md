@@ -45,11 +45,21 @@ Readable excerpts and selected `text` are a view: CRLF or CR line endings are no
 The corpus digest is the pinned trust boundary for selection. A caller that obtained a storage-witnessed digest from inspection or `Corpus.digest()` should pass that value back through `expected_corpus_digest` / `--expect-digest`; selection fails if the catalog later strips or changes a sealed storage witness. Recomputing the digest after local catalog mutation accepts the current catalog state and is not an external anti-downgrade proof.
 
 The confined reader pins the corpus root it opens or the same-process descriptor
-it duplicates, and uses that authority for catalog and selected-body reads. It
-does not accept caller-provided object paths, and it does not prove that a
-higher-level host resolved the corpus path under an approved workspace parent
-without a race. Hosts that derive a corpus path from a workspace grant must
-enforce that workspace-parent relationship at their own boundary.
+it duplicates, and uses that authority for catalog and selected-body reads. On
+Linux/WSL filesystems where retained directory fds cannot supply stable
+confined child opens, currently including WSL Windows-drive 9p/v9fs mounts,
+Gather refuses each opened corpus, descendant directory, or catalog/body
+file descriptor before reading corpus metadata or bodies. Linux classification
+uses the opened fd's mount ID from `/proc/self/fdinfo` and the matching entry in
+`/proc/self/mountinfo`; unavailable mount information also refuses the read.
+This avoids assumptions about native `statfs` structure layouts. Outside Linux this
+fd mount-type denylist is unavailable; Gather still enforces its existing
+openat, no-follow, and type checks and does not claim unsupported-mount
+detection there. It does not accept
+caller-provided object paths, and it does not prove that a higher-level host
+resolved the corpus path under an approved workspace parent without a race.
+Hosts that derive a corpus path from a workspace grant must enforce that
+workspace-parent relationship at their own boundary.
 
 ## CLI/MCP parity
 

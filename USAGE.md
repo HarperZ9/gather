@@ -153,8 +153,12 @@ Python hosts that already hold a retained, identity-bound corpus root can call
 `CorpusRootDescriptor`. Gather duplicates the borrowed fd/HANDLE, validates the
 duplicate against the expected `CorpusRootIdentity`, and then uses the same
 bounded confined reader. The caller must keep the original descriptor live
-through the call. This descriptor handoff is intentionally not exposed through
-CLI or MCP, where corpus inputs remain directory strings.
+through the call. On Linux/WSL filesystems where retained directory fds cannot
+supply stable confined reads, currently including WSL Windows-drive 9p/v9fs
+mounts, Gather refuses opened corpus, descendant directory, and catalog/body file
+descriptors before reading `catalog.jsonl` or body objects. This
+descriptor handoff is intentionally not exposed through CLI or MCP, where
+corpus inputs remain directory strings.
 
 ## MCP
 
