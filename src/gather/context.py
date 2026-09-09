@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import stat
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -211,6 +212,9 @@ _UNSAFE_ERRNOS = {
 }
 if hasattr(errno, "EFTYPE"):
     _UNSAFE_ERRNOS.add(errno.EFTYPE)
+_LINUX_9P_MAGIC = 0x01021997
+_UNSUPPORTED_POSIX_AUTHORITY_FS = {_LINUX_9P_MAGIC}
+_UNSUPPORTED_POSIX_AUTHORITY_FS_TYPES = {"9p", "v9fs"}
 
 
 class _MissingPath(Exception):
@@ -542,6 +546,60 @@ def _required_os_flag(name: str) -> int:
     return value
 
 
+def _linux_fd_mount_type(fd: int) -> str:
+    unsupported_errno = getattr(errno, "ENOTSUP", errno.EINVAL)
+    try:
+        fdinfo = Path(f"/proc/self/fdinfo/{fd}").read_text(encoding="utf-8")
+        # Mount paths are filesystem bytes; unrelated names need not be UTF-8.
+        mountinfo = Path("/proc/self/mountinfo").read_text(encoding="utf-8", errors="surrogateescape")
+    except OSError as exc:
+        raise OSError(unsupported_errno, "Linux fd mount type is unavailable") from exc
+    mount_id = ""
+    for line in fdinfo.splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key == "mnt_id":
+            parts = value.strip().split()
+            if parts:
+                mount_id = parts[0]
+                break
+    if not mount_id:
+        raise OSError(unsupported_errno, "Linux fd mount id is unavailable")
+    for line in mountinfo.splitlines():
+        fields = line.split()
+        if not fields or fields[0] != mount_id:
+            continue
+        try:
+            separator = fields.index("-")
+        except ValueError as exc:
+            raise OSError(unsupported_errno, "Linux mountinfo entry is malformed") from exc
+        if separator + 1 >= len(fields):
+            raise OSError(unsupported_errno, "Linux mountinfo entry has no filesystem type")
+        return fields[separator + 1]
+    raise OSError(unsupported_errno, "Linux fd mount id is not present in mountinfo")
+
+
+def _posix_filesystem_magic(fd: int) -> int | None:
+    if sys.platform != "linux":
+        return None
+    fs_type = _linux_fd_mount_type(fd)
+    if fs_type in _UNSUPPORTED_POSIX_AUTHORITY_FS_TYPES:
+        return _LINUX_9P_MAGIC
+    return None
+
+
+def _reject_unsupported_posix_fd_fs(fd: int) -> None:
+    try:
+        magic = _posix_filesystem_magic(fd)
+    except OSError as exc:
+        raise _ReadFailure(UNSAFE_PATH) from exc
+    if magic in _UNSUPPORTED_POSIX_AUTHORITY_FS:
+        raise _ReadFailure(UNSAFE_PATH)
+
+
+def _reject_unsupported_posix_authority_fs(fd: int) -> None:
+    _reject_unsupported_posix_fd_fs(fd)
+
+
 def _read_open_fd_bytes(
     fd: int,
     *,
@@ -680,6 +738,10 @@ class _CorpusAuthority:
         try:
             if not stat.S_ISDIR(os.fstat(fd).st_mode):
                 raise ValueError("cannot safely open corpus root: UNSAFE_PATH")
+            _reject_unsupported_posix_authority_fs(fd)
+        except _ReadFailure as exc:
+            os.close(fd)
+            raise ValueError(f"cannot safely open corpus root: {exc.status}") from exc
         except Exception:
             os.close(fd)
             raise
@@ -702,6 +764,7 @@ class _CorpusAuthority:
             actual = CorpusRootIdentity(platform="posix", device=int(fd_stat.st_dev), inode=int(fd_stat.st_ino))
             if actual != descriptor.expected_identity:
                 raise _ReadFailure(UNSAFE_PATH)
+            _reject_unsupported_posix_authority_fs(fd)
         except _ReadFailure:
             os.close(fd)
             raise
@@ -735,6 +798,7 @@ class _CorpusAuthority:
         try:
             if not stat.S_ISDIR(os.fstat(fd).st_mode):
                 raise _ReadFailure(UNSAFE_PATH)
+            _reject_unsupported_posix_authority_fs(fd)
         except Exception:
             os.close(fd)
             raise
@@ -769,6 +833,7 @@ class _CorpusAuthority:
                 raise _ReadFailure(UNSAFE_PATH) from exc
             raise
         try:
+            _reject_unsupported_posix_fd_fs(fd)
             return _read_open_fd_bytes(fd, max_bytes=max_bytes, budget=budget)
         finally:
             os.close(fd)

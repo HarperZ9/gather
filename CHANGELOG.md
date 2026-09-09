@@ -5,6 +5,14 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.8.1 (2026-09-09)
+
+### POSIX descriptor authority admission
+
+- Linux/WSL confined corpus readers now reject filesystem mounts whose retained directory fd semantics cannot safely anchor child opens across rename/replacement, currently observed on WSL Windows-drive 9p/v9fs mounts.
+- The rejection happens while establishing each opened corpus, descendant directory, or catalog/body file descriptor, before reading `catalog.jsonl` or body objects from that descriptor, and uses the existing typed `UNSAFE_PATH` public failure boundary.
+- Native Windows and native Linux/WSL filesystem roots keep the descriptor-handoff behavior from 1.8.0; POSIX platforms without Linux fd mount-type support keep the existing openat/no-follow/type checks without an unsupported-mount detection claim. CLI and MCP still accept path strings only, with no path fallback for unsupported retained authority.
+
 ## 1.8.0 (2026-09-08)
 
 ### Readable context descriptor handoff
