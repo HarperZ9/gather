@@ -166,6 +166,7 @@ Use `gather mcp` when a host needs the tool over stdio. The MCP surface should
 stay aligned with the CLI envelope and receipt fields. `gather.context` inspects
 stored corpus rows or exports selected readable context with the same type-strict
 caps and expected-digest guard as `gather corpus context`.
+For catalog tools, `scope` is a post-fetch content filter that keeps rows whose title or body contains any term as a case-insensitive substring, so `verified: true` on an empty scoped catalog means the returned digest verified after filtering, not that acquisition returned no source records.
 
 ```bash
 gather mcp
