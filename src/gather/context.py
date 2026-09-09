@@ -8,7 +8,7 @@ import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 
 from gather.availability import assess_availability
 from gather.digest import digest_of_receipts
@@ -84,6 +84,50 @@ class _BodyRead:
     storage_witnessed: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class CorpusRootIdentity:
+    """Process-local identity for an already-opened corpus root."""
+
+    platform: Literal["posix", "windows"]
+    device: int
+    inode: int
+
+    def __post_init__(self) -> None:
+        if self.platform not in {"posix", "windows"}:
+            raise ValueError("corpus root identity platform must be 'posix' or 'windows'")
+        if isinstance(self.device, bool) or not isinstance(self.device, int) or self.device < 0:
+            raise ValueError("corpus root identity device must be a non-negative integer")
+        if isinstance(self.inode, bool) or not isinstance(self.inode, int) or self.inode < 0:
+            raise ValueError("corpus root identity inode must be a non-negative integer")
+
+
+@dataclass(frozen=True, slots=True)
+class CorpusRootDescriptor:
+    """Borrowed same-process corpus root authority for Python callers."""
+
+    expected_identity: CorpusRootIdentity
+    fd: int | None = None
+    handle: int | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.expected_identity, CorpusRootIdentity):
+            raise ValueError("corpus root descriptor requires a CorpusRootIdentity")
+        has_fd = self.fd is not None
+        has_handle = self.handle is not None
+        if has_fd == has_handle:
+            raise ValueError("corpus root descriptor requires exactly one of fd or handle")
+        if has_fd:
+            if self.expected_identity.platform != "posix":
+                raise ValueError("fd descriptors require a posix corpus root identity")
+            if isinstance(self.fd, bool) or not isinstance(self.fd, int) or self.fd < 0:
+                raise ValueError("corpus root descriptor fd must be a non-negative integer")
+        if has_handle:
+            if self.expected_identity.platform != "windows":
+                raise ValueError("handle descriptors require a windows corpus root identity")
+            if isinstance(self.handle, bool) or not isinstance(self.handle, int) or self.handle <= 0:
+                raise ValueError("corpus root descriptor handle must be a positive integer")
+
+
 class _ReadFailure(Exception):
     def __init__(self, status: str, *, bytes_read: int = 0) -> None:
         super().__init__(status)
@@ -117,7 +161,12 @@ def _cap(value: object | None, default: int, name: str, *, hard: int) -> int:
     return value
 
 
-def _as_corpus(corpus: Corpus | str | os.PathLike[str]) -> Corpus:
+_CorpusInput = Corpus | str | os.PathLike[str] | CorpusRootDescriptor
+
+
+def _as_corpus(corpus: _CorpusInput) -> Corpus | CorpusRootDescriptor:
+    if isinstance(corpus, CorpusRootDescriptor):
+        return corpus
     if isinstance(corpus, Corpus):
         return corpus
     return Corpus(os.fspath(corpus))
@@ -251,7 +300,13 @@ def _windows_close_handle(handle: int) -> None:
     close_handle(wintypes.HANDLE(handle))
 
 
-def _windows_handle_attributes(handle: int) -> int:
+@dataclass(frozen=True)
+class _WindowsHandleInfo:
+    attributes: int
+    identity: CorpusRootIdentity
+
+
+def _windows_handle_info(handle: int) -> _WindowsHandleInfo:
     import ctypes
     from ctypes import wintypes
 
@@ -275,7 +330,54 @@ def _windows_handle_attributes(handle: int) -> int:
     get_info.restype = wintypes.BOOL
     if not get_info(wintypes.HANDLE(handle), ctypes.byref(info)):
         _windows_raise_last_error("cannot inspect corpus handle")
-    return int(info.dwFileAttributes)
+    inode = (int(info.nFileIndexHigh) << 32) | int(info.nFileIndexLow)
+    identity = CorpusRootIdentity(platform="windows", device=int(info.dwVolumeSerialNumber), inode=inode)
+    return _WindowsHandleInfo(attributes=int(info.dwFileAttributes), identity=identity)
+
+
+def _windows_handle_attributes(handle: int) -> int:
+    return _windows_handle_info(handle).attributes
+
+
+def _windows_handle_identity(handle: int) -> CorpusRootIdentity:
+    return _windows_handle_info(handle).identity
+
+
+def _windows_duplicate_handle(handle: int) -> int:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = _windows_kernel32()
+    get_current_process = kernel32.GetCurrentProcess
+    get_current_process.argtypes = []
+    get_current_process.restype = wintypes.HANDLE
+    duplicate_handle = kernel32.DuplicateHandle
+    duplicate_handle.argtypes = [
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.HANDLE),
+        wintypes.DWORD,
+        wintypes.BOOL,
+        wintypes.DWORD,
+    ]
+    duplicate_handle.restype = wintypes.BOOL
+    current_process = get_current_process()
+    duplicate = wintypes.HANDLE()
+    if not duplicate_handle(
+        current_process,
+        wintypes.HANDLE(handle),
+        current_process,
+        ctypes.byref(duplicate),
+        0,
+        False,
+        0x00000002,  # DUPLICATE_SAME_ACCESS
+    ):
+        _windows_raise_last_error("cannot duplicate corpus root handle")
+    duplicate_value = duplicate.value
+    if not isinstance(duplicate_value, int) or duplicate_value in (0, ctypes.c_void_p(-1).value):
+        raise ValueError("cannot duplicate corpus root handle")
+    return duplicate_value
 
 
 def _windows_validate_directory_handle(handle: int) -> None:
@@ -488,14 +590,26 @@ def _read_open_fd_bytes(
 class _CorpusAuthority:
     """Operation-scoped authority for catalog and body reads under one corpus root."""
 
-    def __init__(self, corpus: Corpus) -> None:
-        self.corpus = corpus
-        self.root = _corpus_root(corpus)
+    def __init__(self, corpus: Corpus | CorpusRootDescriptor) -> None:
+        self.corpus = corpus if isinstance(corpus, Corpus) else None
+        self.descriptor = corpus if isinstance(corpus, CorpusRootDescriptor) else None
+        self.root = _corpus_root(corpus) if isinstance(corpus, Corpus) else None
         self._missing_root = False
         self._win_dirs: dict[tuple[str, ...], int] = {}
         self._posix_dirs: dict[tuple[str, ...], int] = {}
 
     def __enter__(self) -> _CorpusAuthority:
+        if self.descriptor is not None:
+            try:
+                if os.name == "nt":
+                    self._windows_enter_descriptor(self.descriptor)
+                else:
+                    self._posix_enter_descriptor(self.descriptor)
+            except _ReadFailure as exc:
+                raise ValueError(f"cannot safely open corpus root: {exc.status}") from exc
+            return self
+        if self.root is None:
+            raise ValueError("corpus root is unavailable")
         if not os.path.lexists(self.root):
             self._missing_root = True
             return self
@@ -548,6 +662,9 @@ class _CorpusAuthority:
     def _posix_enter(self) -> None:
         if os.open not in os.supports_dir_fd:
             raise ValueError("confined corpus reads require POSIX openat support on this platform")
+        root = self.root
+        if root is None:
+            raise ValueError("corpus root is unavailable")
         dir_flags = (
             os.O_RDONLY
             | _required_os_flag("O_DIRECTORY")
@@ -555,7 +672,7 @@ class _CorpusAuthority:
             | getattr(os, "O_CLOEXEC", 0)
         )
         try:
-            fd = os.open(self.root, dir_flags)
+            fd = os.open(root, dir_flags)
         except OSError as exc:
             if exc.errno in _UNSAFE_ERRNOS:
                 raise ValueError("cannot safely open corpus root: UNSAFE_PATH") from exc
@@ -566,6 +683,31 @@ class _CorpusAuthority:
         except Exception:
             os.close(fd)
             raise
+        self._posix_dirs[()] = fd
+
+    def _posix_enter_descriptor(self, descriptor: CorpusRootDescriptor) -> None:
+        if os.open not in os.supports_dir_fd:
+            raise ValueError("confined corpus reads require POSIX openat support on this platform")
+        if descriptor.expected_identity.platform != "posix" or descriptor.fd is None or descriptor.handle is not None:
+            raise _ReadFailure(UNSAFE_PATH)
+        try:
+            fd = os.dup(descriptor.fd)
+        except OSError as exc:
+            raise _ReadFailure(UNSAFE_PATH) from exc
+        try:
+            os.set_inheritable(fd, False)
+            fd_stat = os.fstat(fd)
+            if not stat.S_ISDIR(fd_stat.st_mode):
+                raise _ReadFailure(UNSAFE_PATH)
+            actual = CorpusRootIdentity(platform="posix", device=int(fd_stat.st_dev), inode=int(fd_stat.st_ino))
+            if actual != descriptor.expected_identity:
+                raise _ReadFailure(UNSAFE_PATH)
+        except _ReadFailure:
+            os.close(fd)
+            raise
+        except OSError as exc:
+            os.close(fd)
+            raise _ReadFailure(UNSAFE_PATH) from exc
         self._posix_dirs[()] = fd
 
     def _posix_dir_fd(self, parts: tuple[str, ...], *, missing_ok: bool) -> int | None:
@@ -647,6 +789,25 @@ class _CorpusAuthority:
             raise
         self._win_dirs[parts] = handle
         return handle
+
+    def _windows_enter_descriptor(self, descriptor: CorpusRootDescriptor) -> None:
+        if descriptor.expected_identity.platform != "windows" or descriptor.handle is None or descriptor.fd is not None:
+            raise _ReadFailure(UNSAFE_PATH)
+        try:
+            handle = _windows_duplicate_handle(descriptor.handle)
+        except Exception as exc:
+            raise _ReadFailure(UNSAFE_PATH) from exc
+        try:
+            _windows_validate_directory_handle(handle)
+            if _windows_handle_identity(handle) != descriptor.expected_identity:
+                raise _ReadFailure(UNSAFE_PATH)
+        except _ReadFailure:
+            _windows_close_handle(handle)
+            raise
+        except Exception:
+            _windows_close_handle(handle)
+            raise
+        self._win_dirs[()] = handle
 
     def _read_bytes_windows(
         self,
@@ -856,7 +1017,7 @@ def _row_view(authority: _CorpusAuthority, row: dict, *, excerpt_chars: int, max
 
 
 def inspect_corpus(
-    corpus: Corpus | str | os.PathLike[str],
+    corpus: _CorpusInput,
     *,
     max_rows: object | None = None,
     excerpt_chars: object | None = None,
@@ -1019,7 +1180,7 @@ def _select_one(
 
 
 def select_context(
-    corpus: Corpus | str | os.PathLike[str],
+    corpus: _CorpusInput,
     selections: Sequence[object],
     *,
     expected_corpus_digest: str,

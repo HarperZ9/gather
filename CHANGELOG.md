@@ -5,6 +5,14 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.8.0 (2026-09-08)
+
+### Readable context descriptor handoff
+
+- Python context readers now accept a same-process `CorpusRootDescriptor` so a host that already retained a corpus root fd/HANDLE can pass that authority into Gather without reopening the root path.
+- Gather duplicates and identity-checks the borrowed descriptor before reading `catalog.jsonl` or body objects, keeps caller-owned descriptors open, and continues to use the existing bounded confined reader for all catalog/body reads.
+- CLI and MCP context surfaces remain path-string based; descriptor handoff is not serialized across process or JSON boundaries and still does not prove source truth, claim support, coverage completeness, Flywheel deployment, or caller workspace-parent resolution.
+
 ## 1.7.1 (2026-09-08)
 
 ### Corpus newline integrity

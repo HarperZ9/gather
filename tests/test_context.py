@@ -76,6 +76,39 @@ def _patch_os_open_with_dir_fd_support(monkeypatch, ctx, replacement):
     monkeypatch.setattr(ctx.os, "supports_dir_fd", supports_dir_fd)
 
 
+def _posix_descriptor_for_corpus(ctx, c: Corpus):
+    from gather.context import CorpusRootDescriptor, CorpusRootIdentity
+
+    flags = (
+        os.O_RDONLY
+        | ctx._required_os_flag("O_DIRECTORY")
+        | ctx._required_os_flag("O_NOFOLLOW")
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    fd = os.open(c._root, flags)
+    st = os.fstat(fd)
+    return fd, CorpusRootDescriptor(
+        expected_identity=CorpusRootIdentity(platform="posix", device=st.st_dev, inode=st.st_ino),
+        fd=fd,
+    )
+
+
+def _windows_descriptor_for_corpus(ctx, c: Corpus):
+    from gather.context import CorpusRootDescriptor
+
+    handle = ctx._windows_createfile_root(Path(c._root))
+    return handle, CorpusRootDescriptor(
+        expected_identity=ctx._windows_handle_identity(handle),
+        handle=handle,
+    )
+
+
+def _descriptor_for_corpus(ctx, c: Corpus):
+    if os.name == "nt":
+        return _windows_descriptor_for_corpus(ctx, c)
+    return _posix_descriptor_for_corpus(ctx, c)
+
+
 def test_inspect_corpus_returns_bounded_verified_excerpts_and_row_refs(tmp_path):
     # Catches: returning catalog hashes only, whole bodies by default, or unverified body status.
     from gather.context import inspect_corpus
@@ -487,6 +520,179 @@ def test_context_retains_original_root_when_above_root_path_is_replaced(tmp_path
             saved_parent.rename(parent)
         if replacement_parent.exists():
             shutil.rmtree(replacement_parent)
+
+
+def test_context_posix_descriptor_handoff_reads_original_root_after_path_replacement(tmp_path):
+    # Catches: accepting a retained root fd but reopening the corpus path and reading a replacement corpus.
+    if os.name == "nt":
+        pytest.skip("POSIX descriptor handoff control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "descriptor-original", source="synthetic")])
+    initial = ctx.inspect_corpus(c)
+    root = Path(c._root)
+    saved = tmp_path / "saved-original-corpus"
+    replacement = Corpus(str(tmp_path / "replacement-corpus"), fsync=False)
+    replacement.add([_item("document", "x", "x", "replacement-canary", source="synthetic")])
+    replacement_root = Path(replacement._root)
+    fd, descriptor = _posix_descriptor_for_corpus(ctx, c)
+
+    try:
+        root.rename(saved)
+        replacement_root.rename(root)
+
+        inspected = ctx.inspect_corpus(descriptor, max_rows=1, excerpt_chars=40)
+        selected = ctx.select_context(
+            descriptor,
+            [{"row_ref": initial["rows"][0]["row_ref"]}],
+            expected_corpus_digest=initial["corpus_digest"],
+        )
+
+        assert inspected["rows"][0]["excerpt"] == "descriptor-original"
+        assert selected["selections"][0]["text"] == "descriptor-original"
+        assert "replacement-canary" not in json.dumps(selected, sort_keys=True)
+    finally:
+        os.close(fd)
+        if root.exists():
+            shutil.rmtree(root)
+        if saved.exists() and not root.exists():
+            saved.rename(root)
+
+
+def test_context_descriptor_handoff_rejects_identity_mismatch_before_catalog_read(tmp_path, monkeypatch):
+    # Catches: treating a caller descriptor as self-authorizing or falling back to a path read.
+    import gather.context as ctx
+
+    original = Corpus(str(tmp_path / "original-corpus"), fsync=False)
+    original.add([_item("document", "x", "x", "identity-original", source="synthetic")])
+    replacement = Corpus(str(tmp_path / "replacement-corpus"), fsync=False)
+    replacement.add([_item("document", "x", "x", "identity-replacement-canary", source="synthetic")])
+    owner, original_descriptor = _descriptor_for_corpus(ctx, original)
+    borrowed, replacement_descriptor = _descriptor_for_corpus(ctx, replacement)
+    mismatched = type(replacement_descriptor)(
+        expected_identity=original_descriptor.expected_identity,
+        fd=replacement_descriptor.fd,
+        handle=replacement_descriptor.handle,
+    )
+    state = {"catalog_read": False}
+
+    def forbidden_catalog(*args, **kwargs):
+        state["catalog_read"] = True
+        raise AssertionError("catalog read happened after descriptor identity mismatch")
+
+    monkeypatch.setattr(ctx, "_load_catalog_rows", forbidden_catalog)
+    try:
+        with pytest.raises(ValueError, match="UNSAFE_PATH|corpus root|identity"):
+            ctx.inspect_corpus(mismatched)
+        assert state["catalog_read"] is False
+    finally:
+        if os.name == "nt":
+            ctx._windows_close_handle(owner)
+            ctx._windows_close_handle(borrowed)
+        else:
+            os.close(owner)
+            os.close(borrowed)
+
+
+def test_context_descriptor_handoff_keeps_caller_authority_open(tmp_path):
+    # Catches: Gather closing the borrowed fd/HANDLE instead of only its duplicate.
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "caller-owned", source="synthetic")])
+    owner, descriptor = _descriptor_for_corpus(ctx, c)
+    try:
+        inspected = ctx.inspect_corpus(descriptor)
+        assert inspected["rows"][0]["excerpt"] == "caller-owned"
+        if os.name == "nt":
+            ctx._windows_validate_directory_handle(owner)
+        else:
+            assert os.fstat(owner).st_ino == descriptor.expected_identity.inode
+    finally:
+        if os.name == "nt":
+            ctx._windows_close_handle(owner)
+        else:
+            os.close(owner)
+
+
+def test_context_descriptor_handoff_rejects_closed_or_reused_authority(tmp_path):
+    # Catches: accepting a closed/reused descriptor without re-validating identity before reads.
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "closed-root", source="synthetic")])
+    owner, descriptor = _descriptor_for_corpus(ctx, c)
+    if os.name == "nt":
+        ctx._windows_close_handle(owner)
+    else:
+        os.close(owner)
+
+    with pytest.raises(ValueError, match="UNSAFE_PATH|corpus root|identity"):
+        ctx.inspect_corpus(descriptor)
+
+
+def test_context_descriptor_handoff_preserves_body_read_budget_semantics(tmp_path):
+    # Catches: descriptor-backed reads bypassing max_read_bytes accounting.
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "0123456789abcdef", source="synthetic")])
+    owner, descriptor = _descriptor_for_corpus(ctx, c)
+    try:
+        inspected = ctx.inspect_corpus(descriptor, max_read_bytes=10)
+        assert inspected["rows"][0]["body_status"] == "READ_BUDGET_EXHAUSTED"
+        assert inspected["rows"][0]["omissions"] == [{"reason": "read_budget_exhausted", "max_read_bytes": 10}]
+    finally:
+        if os.name == "nt":
+            ctx._windows_close_handle(owner)
+        else:
+            os.close(owner)
+
+
+def test_context_windows_descriptor_handoff_uses_handle_without_path_fallback(tmp_path, monkeypatch):
+    # Catches: accepting a Windows HANDLE argument but still opening the corpus root by path.
+    if os.name != "nt":
+        pytest.skip("Windows descriptor handoff control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "windows-handle", source="synthetic")])
+    owner, descriptor = _windows_descriptor_for_corpus(ctx, c)
+
+    def forbidden_path_open(path):
+        raise AssertionError(f"descriptor-backed context reopened path {path}")
+
+    monkeypatch.setattr(ctx, "_windows_createfile_root", forbidden_path_open)
+    try:
+        inspected = ctx.inspect_corpus(descriptor, max_rows=1, excerpt_chars=40)
+        assert inspected["rows"][0]["excerpt"] == "windows-handle"
+        ctx._windows_validate_directory_handle(owner)
+    finally:
+        ctx._windows_close_handle(owner)
+
+
+def test_context_windows_descriptor_duplicate_failure_keeps_caller_handle_open(tmp_path, monkeypatch):
+    # Catches: treating a failed duplicate as ownership transfer and closing the caller HANDLE.
+    if os.name != "nt":
+        pytest.skip("Windows descriptor handoff control")
+    import gather.context as ctx
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    c.add([_item("document", "x", "x", "windows-duplicate-fault", source="synthetic")])
+    owner, descriptor = _windows_descriptor_for_corpus(ctx, c)
+
+    def failing_duplicate(handle):
+        assert handle == owner
+        raise ValueError("synthetic duplicate failure")
+
+    monkeypatch.setattr(ctx, "_windows_duplicate_handle", failing_duplicate)
+    try:
+        with pytest.raises(ValueError, match="UNSAFE_PATH"):
+            ctx.inspect_corpus(descriptor)
+        ctx._windows_validate_directory_handle(owner)
+    finally:
+        ctx._windows_close_handle(owner)
 
 
 def test_context_reports_bytes_read_when_post_read_authority_check_fails(tmp_path, monkeypatch):
