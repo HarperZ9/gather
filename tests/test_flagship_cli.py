@@ -37,7 +37,7 @@ def test_status_advertises_pilot_command_and_tool(capsys):
     payload = json.loads(capsys.readouterr().out)
     assert "pilot" in payload["native"]["commands"]
     assert "gather.pilot" in payload["native"]["mcp_tools"]
-    assert payload["native"]["current_status"].startswith("1.8.1")
+    assert payload["native"]["current_status"].startswith("1.8.2")
 
 
 

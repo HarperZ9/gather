@@ -22,21 +22,21 @@ receipts.
 
 The showcase (`examples/pilot/showcase-offline.json`) exercises all three:
 
-1. **Venture market diligence** — monitor a portfolio page for change, extract
+1. **Venture market diligence**: monitor a portfolio page for change, extract
    structured organization fields, and capture founder pages.
-2. **Technical and scientific research** — federate scholarly graphs by DOI with
+2. **Technical and scientific research**: federate scholarly graphs by DOI with
    citation-edge provenance, plus local release-note documents.
-3. **Media and operational intelligence** — ingest newsroom feeds, video
+3. **Media and operational intelligence**: ingest newsroom feeds, video
    metadata with comments, JSON engagement records, and a private operator memo.
 
 ## Deployment choices
 
-- **Workstation** — the operator runs the pilot on their own machine against
+- **Workstation**: the operator runs the pilot on their own machine against
   allowlisted local roots and controlled hosts. The showcase runs this way.
-- **Customer-hosted** — the pilot runs inside the customer's network; Gather
+- **Customer-hosted**: the pilot runs inside the customer's network; Gather
   never sees private payloads, only the redacted receipts the customer chooses
   to share.
-- **Zentropy-managed** — Zentropy operates the pilot on a customer's behalf
+- **Zentropy-managed**: Zentropy operates the pilot on a customer's behalf
   under a custody agreement; the same manifest and verification apply.
 
 In every deployment, a shared bundle carries only receipts, hashes, redacted
@@ -48,7 +48,7 @@ A pilot manifest is a closed schema: unknown fields, wildcard hosts, ports,
 userinfo, IP literals, `..` paths, and absolute paths are all rejected. Offline
 network adapters require a fixture; live adapters require an exact allowed
 host. Browser navigation is **not** safe for hostile arbitrary URLs and is
-disabled by default — this is a known limitation, not a feature gap.
+disabled by default: this is a known limitation, not a feature gap.
 
 ## Commands
 

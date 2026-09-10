@@ -165,7 +165,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 - [docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
 - [docs/PILOT.md](docs/PILOT.md): the accountable pilot evidence engine, its manifest boundary, and the private/shared evidence split.
-- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.8.1.
+- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.8.2.
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
 

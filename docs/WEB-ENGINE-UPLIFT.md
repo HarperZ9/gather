@@ -92,15 +92,15 @@ and an honest benchmark table is published. Then, and only then, stop.
 ## Status
 
 - Wedge 1: DONE on branch `feat/accountable-extract-track`.
-  - `src/gather/dom.py` — zero-dep HTML DOM, stable node paths, CSS-lite `select`.
-  - `src/gather/extract.py` — HTML to Markdown plus a re-verifiable `Extraction`
+  - `src/gather/dom.py`: zero-dep HTML DOM, stable node paths, CSS-lite `select`.
+  - `src/gather/extract.py`: HTML to Markdown plus a re-verifiable `Extraction`
     receipt (content hash, per-block path + hash, fetched-vs-inferred `method`).
-  - `src/gather/track.py` — `fingerprint` + `relocate` emitting the closed
+  - `src/gather/track.py`: `fingerprint` + `relocate` emitting the closed
     verdict set MATCH / RELOCATED / DRIFT / GONE with a residual.
   - Tests: `tests/test_dom.py`, `tests/test_extract.py`, `tests/test_track.py`
     (16 new; full suite 305 passed), including tamper and drift negatives.
 - Wedge 2: DONE on the same branch.
-  - `src/gather/fetch.py` — an accountable HTTP GET that reuses net.py's SSRF
+  - `src/gather/fetch.py`: an accountable HTTP GET that reuses net.py's SSRF
     guard and cross-origin credential stripping, and returns a `FetchReceipt`
     (bytes hash, headers digest, recorded redirect chain, status, attempts) with
     conditional GET (ETag / If-Modified-Since, honest 304) and retry/backoff. The
@@ -111,7 +111,7 @@ and an honest benchmark table is published. Then, and only then, stop.
     impersonation) and zero-dep cannot forge a TLS fingerprint; a caller may
     supply their own headers, on the record.
 - Wedge 3: DONE on the same branch.
-  - `src/gather/crawl.py` — a competitive crawler (concurrent wave fetching,
+  - `src/gather/crawl.py`: a competitive crawler (concurrent wave fetching,
     BFS/DFS frontier, URL canonicalization + dedup, robots.txt via stdlib
     `robotparser`, sitemap discovery, depth/page caps, per-host throttle, and
     pause/resume via a serializable `CrawlState`) PLUS an append-only,
@@ -121,7 +121,7 @@ and an honest benchmark table is published. Then, and only then, stop.
     depth/page caps, robots block, sitemap seeding, resume-across-pause chain
     continuity, concurrent-workers parity, and ledger tamper detection.
 - Wedge 4: DONE on the same branch.
-  - `src/gather/schema_extract.py` — `extract_schema` (schema of CSS-lite
+  - `src/gather/schema_extract.py`: `extract_schema` (schema of CSS-lite
     selectors + optional attr/regex/many to a JSON record, each field bound to a
     source node path + hash; the firecrawl `extract` shape) AND `verify_record`,
     the hallucination-REJECT: any value in a proposed record not grounded in the
@@ -130,7 +130,7 @@ and an honest benchmark table is published. Then, and only then, stop.
   - Tests: `tests/test_schema_extract.py` (6; full suite 329 passed), including
     tamper detection and a hallucinated-field rejection negative.
 - Wedge 5-core: DONE on the same branch (the accountable half).
-  - `src/gather/backends.py` — a capability registry + gating: backends declare
+  - `src/gather/backends.py`: a capability registry + gating: backends declare
     capabilities (js-render, stealth, fast-parse); `render()` resolves the best
     available and, when a required capability has no backend, returns
     UNVERIFIABLE with a reason and never a faked render. Every result records
@@ -139,13 +139,13 @@ and an honest benchmark table is published. Then, and only then, stop.
   - Tests: `tests/test_backends.py` (7; full suite 336 passed), including the
     honest-degrade negative (missing capability -> UNVERIFIABLE, not a fake).
 - Wedge 5-backends: DONE on the same branch (opt-in extras; core stays zero-dep).
-  - `src/gather/fastparse.py` — lxml fast-parse producing the IDENTICAL gather
+  - `src/gather/fastparse.py`: lxml fast-parse producing the IDENTICAL gather
     Node tree (paths match stdlib); verified ~2x faster (33 ms vs 69 ms on the
     ~15k-element bench).
-  - `src/gather/backends_browser.py` — Playwright js-render backend. Verified: it
+  - `src/gather/backends_browser.py`: Playwright js-render backend. Verified: it
     really launches headless Chromium and executes JavaScript here. Missing
     browser binary degrades to honest UNVERIFIABLE, never a fake.
-  - `src/gather/backends_stealth.py` — curl_cffi TLS-impersonation transport for
+  - `src/gather/backends_stealth.py`: curl_cffi TLS-impersonation transport for
     the accountable fetch path (same FetchReceipt), with the SSRF guard re-applied
     per redirect hop and cross-origin credential stripping.
   - `pyproject.toml` extras: `fast` / `browser` / `stealth` / `all`.
@@ -157,11 +157,11 @@ and an honest benchmark table is published. Then, and only then, stop.
   search_and_fetch chains leads into the accountable fetch path; searx_provider
   is a no-API-key SearXNG backend. firecrawl search/agent parity.
 - Wedge 7 (DX + performance): DONE, on the same branch.
-  - `src/gather/cache.py` — dev-mode response cache (Scrapling dev-mode parity):
+  - `src/gather/cache.py`: dev-mode response cache (Scrapling dev-mode parity):
     content-addressed store, offline replay, and conditional revalidation that
     serves the cached body on a 304.
-  - `src/gather/export.py` — uniform JSON / JSONL export across every receipt.
-  - `examples/bench.py` — an honest micro-benchmark, plus a real perf fix: node
+  - `src/gather/export.py`: uniform JSON / JSONL export across every receipt.
+  - `examples/bench.py`: an honest micro-benchmark, plus a real perf fix: node
     paths are now assigned at parse time, so `extract` over ~15k elements went
     from 1171 ms to 113 ms (about 10x). See Benchmarks below.
   - Tests: `tests/test_cache.py` + `tests/test_export.py` (9; full suite 345
