@@ -44,11 +44,11 @@ history and requires `--include-private-evidence`.
 
 ## Files
 
-- `showcase-offline.json` — the closed manifest (three missions, six adapters).
-- `showcase-live.json` — a controlled-live template (not part of offline CI).
-- `fixtures/` — original synthetic content with fictional names and reserved
+- `showcase-offline.json`: the closed manifest (three missions, six adapters).
+- `showcase-live.json`: a controlled-live template (not part of offline CI).
+- `fixtures/`: original synthetic content with fictional names and reserved
   example domains. No real person, customer, or secret.
-- `sample/` — a checked-in redacted sample regenerated from the offline
+- `sample/`: a checked-in redacted sample regenerated from the offline
   showcase. `tests/test_pilot_sample.py` pins it against regeneration drift.
 
 Remove the temporary root when done (`.tmp-showcase` is gitignored).

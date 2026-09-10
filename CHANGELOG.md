@@ -5,6 +5,14 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.8.2 (2026-09-10)
+
+### MCP scope clarity
+
+- Documentation now states that Gather MCP scope filtering is an advisory host
+  boundary over declared source scopes, not a private-data scanner or universal
+  access-control substitute.
+
 ## 1.8.1 (2026-09-09)
 
 ### POSIX descriptor authority admission
