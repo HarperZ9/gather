@@ -8,10 +8,26 @@
 [![downloads](https://img.shields.io/pypi/dm/gather-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/gather-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success?style=flat-square&labelColor=14041b)
+![version: 1.8.2](https://img.shields.io/badge/version-1.8.2-26dfe8?style=flat-square&labelColor=14041b)
 
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
 [Project Telos](https://harperz9.github.io) | [gather](https://github.com/HarperZ9/gather) | [crucible](https://github.com/HarperZ9/crucible) | [index](https://github.com/HarperZ9/index) | [forum](https://github.com/HarperZ9/forum) | [telos](https://github.com/HarperZ9/telos) | [learn](https://github.com/HarperZ9/learn) | [emet](https://github.com/HarperZ9/emet) | [buildlang](https://github.com/HarperZ9/buildlang)
+
+## Current status
+
+`gather-engine 1.8.2` is the current source version. Core intake,
+content-addressed corpus storage, exact UTF-8 source-byte receipts, readable
+context selection, descriptor handoff, pilot monitoring, CLI, Python API, and MCP
+surfaces are present in this checkout. Browser rendering, OCR, audio, stealth,
+and fast parsing remain explicit optional capabilities reported by `gather caps`.
+
+## Operator surface
+
+Use `gather status --json` and `gather doctor --json` to inspect the installed
+surface, `gather caps` to see which optional backends are available, and
+`gather mcp` to expose status, documentation, source, context, run, and pilot
+operations to an MCP host.
 
 ## How a pilot run works
 
