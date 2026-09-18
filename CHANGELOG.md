@@ -5,6 +5,11 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+### Presentation parity
+
+- README now exposes the current source version, operator commands, and the
+  boundary between exact source-byte receipts and optional source adapters.
+
 ## 1.8.2 (2026-09-10)
 
 ### MCP scope clarity
