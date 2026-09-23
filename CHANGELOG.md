@@ -10,6 +10,14 @@ built behind a feature branch and reviewed before merge.
 - README now exposes the current source version, operator commands, and the
   boundary between exact source-byte receipts and optional source adapters.
 
+### Catalog line breaks
+
+- Readable context (`inspect_corpus`, `select_context` and their MCP tools) now splits
+  `catalog.jsonl` on LF, CRLF and CR only, the rule `Corpus.rows` reads by. It used
+  `str.splitlines`, which also breaks on U+2028, U+2029 and U+0085. The catalog writer leaves
+  those characters unescaped inside JSON strings, so one title such as a misdecoded
+  Windows-1252 ellipsis made the context surface refuse a corpus that `verify` accepts.
+
 ## 1.8.2 (2026-09-10)
 
 ### MCP scope clarity
