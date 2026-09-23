@@ -23,6 +23,12 @@ pages), `ocr` (tesseract, for scanned images), and `transcribe` (a Whisper-style
 The last three, like video and pdf, are isolated external-tool edges: an external program does
 the work, never a Python dependency.
 
+The video edge is split so its decisions stay testable offline: `gather.ytdlp` builds argv and
+triages stderr, `gather.captions` picks one caption track from the info JSON, `gather.pacing`
+holds the backoff policy and the shared start pacer, and `gather.video_source` runs the calls
+through an injectable runner. `gather.channel` lists a channel's tabs and drives one pass over
+every entry, and `gather.channel_ledger` keeps the per-pass resume ledger and the run summary.
+
 ## The receipt: `Item` and `Provenance`
 
 Every `Item` carries a `Provenance` receipt (`gather.item`):
