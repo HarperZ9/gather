@@ -29,6 +29,7 @@ from gather.pilot_commands import (
     cmd_pilot_run,
     cmd_pilot_verify,
 )
+from gather.video_cmd import add_channel_parser, add_ytdlp_options
 from gather.web_commands import (
     cmd_caps,
     cmd_crawl,
@@ -127,8 +128,10 @@ def build_parser() -> argparse.ArgumentParser:
     video = sub.add_parser("video", help="fetch a video via yt-dlp (needs yt-dlp on PATH and network)")
     video.add_argument("url")
     video.add_argument("--comments", action="store_true", help="also gather comments")
+    add_ytdlp_options(video)
     _add_common(video)
     video.set_defaults(func=cmd_video)
+    add_channel_parser(sub)
 
     web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")
     web.add_argument("url")

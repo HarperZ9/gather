@@ -43,7 +43,8 @@ def build_source(name: str, opts: dict):
         return ArxivSource(max_results=int(opts.get("max_results", 10)))
     if name == "video":
         from gather.video import VideoSource
-        return VideoSource(with_comments=bool(opts.get("comments", False)))
+        return VideoSource(with_comments=bool(opts.get("comments", False)),
+                           captions=str(opts.get("captions", "with")))
     if name == "pdf":
         from gather.pdf import PdfSource
         return PdfSource()
