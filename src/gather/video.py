@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import glob
 import html
 import json
-import os
 import re
-import subprocess
-import sys
-import tempfile
-import time
 
 from gather.item import Item, make_item
 
@@ -64,6 +58,7 @@ def parse_video(
     method: str = "yt-dlp",
     transcript_method: str | None = None,
     auto_captions: bool = False,
+    caption_lang: str | None = None,
 ) -> list[Item]:
     """Turn a yt-dlp info.json (and optional .vtt captions) into Items. Pure: no network.
 
@@ -71,13 +66,33 @@ def parse_video(
     Item per comment yt-dlp captured. ``method`` stamps the metadata and comments. Set
     ``auto_captions`` when the captions are machine-generated: it both collapses their
     rolling-window growth and, unless ``transcript_method`` overrides it, stamps the
-    transcript ``auto-caption`` so it is never recorded as a manual transcript. Each item
-    gets a provenance receipt. Raises ValueError on malformed yt-dlp JSON.
+    transcript ``auto-caption`` so it is never recorded as a manual transcript.
+    ``caption_lang`` (the yt-dlp track key, such as ``en-orig``) is kept in the transcript's
+    meta when given. Each item gets a provenance receipt. Raises ValueError on malformed
+    yt-dlp JSON.
     """
     try:
         info = json.loads(info_json)
     except json.JSONDecodeError as exc:
         raise ValueError(f"not valid yt-dlp JSON: {exc}") from exc
+    if not isinstance(info, dict):
+        raise ValueError("not valid yt-dlp JSON: the top level is not an object")
+    return items_from_info(info, vtt, fetched_at=fetched_at, method=method,
+                           transcript_method=transcript_method, auto_captions=auto_captions,
+                           caption_lang=caption_lang)
+
+
+def items_from_info(
+    info: dict,
+    vtt: str | None,
+    *,
+    fetched_at: float,
+    method: str = "yt-dlp",
+    transcript_method: str | None = None,
+    auto_captions: bool = False,
+    caption_lang: str | None = None,
+) -> list[Item]:
+    """``parse_video`` for an already-decoded info dict (the live edge parses its JSON once)."""
     vid = str(info.get("id", ""))
     title = str(info.get("title", ""))
     uploader = str(info.get("uploader") or info.get("channel") or "")
@@ -99,25 +114,30 @@ def parse_video(
     ]
     if vtt:
         tmethod = transcript_method or ("auto-caption" if auto_captions else method)
+        tmeta = {"uploader": uploader}
+        if caption_lang:
+            tmeta["caption_lang"] = caption_lang
         items.append(
             make_item(
                 kind="transcript", id=vid, title=title,
                 text=transcript_from_vtt(vtt, auto=auto_captions),
                 source="video", ref=vid, method=tmethod, fetched_at=fetched_at,
-                meta={"uploader": uploader},
+                meta=tmeta,
             )
         )
-    for c in info.get("comments") or []:
-        ctext = str(c.get("text", ""))
-        if ctext:
-            items.append(
-                make_item(
-                    kind="comment", id=str(c.get("id", "")), title=f"comment on {title}", text=ctext,
-                    source="video", ref=vid, method=method, fetched_at=fetched_at,
-                    meta=_comment_meta(c),
-                )
-            )
+    items.extend(_comment_items(info, vid, title, method, fetched_at))
     return items
+
+
+def _comment_items(info: dict, vid: str, title: str, method: str, fetched_at: float) -> list[Item]:
+    return [
+        make_item(
+            kind="comment", id=str(c.get("id", "")), title=f"comment on {title}", text=str(c.get("text", "")),
+            source="video", ref=vid, method=method, fetched_at=fetched_at, meta=_comment_meta(c),
+        )
+        for c in info.get("comments") or []
+        if str(c.get("text", ""))
+    ]
 
 
 # Engagement fields carried from a yt-dlp comment into the Item meta: the community's own signal
@@ -134,71 +154,5 @@ def _comment_meta(c: dict) -> dict:
     return meta
 
 
-class VideoSource:
-    """Video intake (metadata, captions, comments) via the yt-dlp CLI.
-
-    The isolated impure edge: it shells out to ``yt-dlp`` (an external tool, not a Python
-    dependency, the way Forum's SubprocessExecutor calls a model CLI) and parses the
-    result with the pure parse_video. Network and the tool live only here; the parsing is
-    tested without either. fetch() needs yt-dlp on PATH. It prefers manual subtitles and
-    falls back to auto-captions, recording which one fed the transcript.
-    """
-
-    name = "video"
-
-    def __init__(self, *, clock=time.time, yt_dlp: str = "yt-dlp", with_comments: bool = False, timeout: float = 120.0) -> None:
-        self._clock = clock
-        self._yt_dlp = yt_dlp
-        self._with_comments = with_comments
-        self._timeout = timeout  # per yt-dlp call; fetch makes up to three calls
-
-    def fetch(self, target: str) -> list[Item]:
-        """Fetch one video's metadata, captions, and (optionally) comments via yt-dlp.
-
-        Needs yt-dlp on PATH and network access. Raises RuntimeError if the metadata call
-        fails. Caption failures are reported to stderr, not silently treated as absent.
-        """
-        cmd = [self._yt_dlp, "--dump-single-json", "--skip-download"]
-        if self._with_comments:
-            cmd.append("--write-comments")
-        cmd += ["--", target]  # end-of-options: a target starting with - cannot be read as a flag
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self._timeout)
-        if proc.returncode != 0:
-            raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()[:200]}")
-        vtt, is_auto = self._fetch_captions(target)
-        # the method records HOW (the yt-dlp tool), a stable label, not the configured binary path
-        return parse_video(
-            proc.stdout, vtt, fetched_at=float(self._clock()), method="yt-dlp",
-            auto_captions=is_auto,
-        )
-
-    def _fetch_captions(self, target: str) -> tuple[str | None, bool]:
-        """Prefer manual subtitles; fall back to auto-captions. Returns ``(vtt, is_auto)``.
-
-        Manual subs are a more direct transcript than machine auto-captions, so they are
-        tried first and the caller stamps the transcript's method by which was used.
-        """
-        manual = self._download_subs(target, auto=False)
-        if manual is not None:
-            return manual, False
-        auto = self._download_subs(target, auto=True)
-        if auto is not None:
-            return auto, True
-        return None, False
-
-    def _download_subs(self, target: str, *, auto: bool) -> str | None:
-        flag = "--write-auto-subs" if auto else "--write-subs"
-        with tempfile.TemporaryDirectory() as d:
-            cmd = [
-                self._yt_dlp, "--skip-download", flag, "--sub-langs", "en.*",
-                "--sub-format", "vtt", "-o", os.path.join(d, "%(id)s.%(ext)s"), "--", target,
-            ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self._timeout)
-            vtts = sorted(glob.glob(os.path.join(d, "*.vtt")))
-            if not vtts:
-                if proc.returncode != 0:
-                    kind = "auto" if auto else "manual"
-                    print(f"gather: yt-dlp {kind} subs failed: {proc.stderr.strip()[:160]}", file=sys.stderr)
-                return None
-            with open(vtts[0], encoding="utf-8") as f:
-                return f.read()
+# The live edge lives in gather.video_source; re-exported here so existing imports keep working.
+from gather.video_source import VideoOutcome, VideoSource  # noqa: E402,F401
