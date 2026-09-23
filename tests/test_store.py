@@ -119,6 +119,7 @@ def test_new_rows_store_newline_text_as_exact_utf8_and_seal_storage(tmp_path):
         row = by_id[ident]
         raw = Path(c._object_path(row["sha256"])).read_bytes()
         assert raw == text.encode("utf-8")
+        assert hashlib.sha256(raw).hexdigest() == row["sha256"]  # disk bytes are the receipt's bytes
         assert c.read_text(row["sha256"]) == text
         assert row["storage"] == {
             "schema": "gather.storage/v1",

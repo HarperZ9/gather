@@ -1610,3 +1610,23 @@ def test_context_mcp_tool_matches_python_selection_payload(tmp_path):
 
     assert resp["result"].get("isError") is not True
     assert body == expected
+
+
+def test_catalog_rows_with_unicode_line_separators_load_through_context(tmp_path):
+    # Catches: str.splitlines cutting a catalog row at U+2028, U+2029 or U+0085, which
+    # json.dumps(ensure_ascii=False) writes unescaped, so the context surface refuses a corpus
+    # that Corpus.rows and Corpus.verify accept. Also covers CRLF and lone-CR row terminators.
+    from gather.context import inspect_corpus
+
+    c = Corpus(str(tmp_path / "corpus"), fsync=False)
+    titles = {"ls": "a\u2028b", "ps": "a\u2029b", "nel": "Wait\u0085 then"}
+    c.add([_item("document", ident, title, f"body {ident}") for ident, title in titles.items()])
+    catalog = Path(c._catalog)
+    rows = catalog.read_bytes().decode("utf-8").replace("\r\n", "\n").split("\n")
+    for terminator in ("\n", "\r\n", "\r"):
+        catalog.write_bytes(terminator.join(rows).encode("utf-8"))
+        assert {r["id"]: r["title"] for r in c.rows()} == titles
+        body = inspect_corpus(c, max_rows=10)
+        assert body["row_count"] == 3
+        assert {r["title"] for r in body["rows"]} == set(titles.values())
+        assert {r["body_status"] for r in body["rows"]} == {"MATCH"}

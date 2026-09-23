@@ -928,7 +928,9 @@ def _load_catalog_rows(
     except UnicodeDecodeError as exc:
         raise ValueError("corpus catalog is not valid UTF-8") from exc
     rows: list[dict] = []
-    for line_number, line in enumerate(text.splitlines(), 1):
+    # Split on LF, CRLF and CR only, the rule Corpus.rows reads by. str.splitlines also breaks
+    # on U+2028, U+2029 and U+0085, which json.dumps(ensure_ascii=False) leaves raw in strings.
+    for line_number, line in enumerate(_view_text(text).split("\n"), 1):
         stripped = line.strip()
         if not stripped:
             continue
