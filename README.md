@@ -8,7 +8,7 @@
 [![downloads](https://img.shields.io/pypi/dm/gather-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/gather-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success?style=flat-square&labelColor=14041b)
-![version: 1.8.2](https://img.shields.io/badge/version-1.8.2-26dfe8?style=flat-square&labelColor=14041b)
+![version: 1.8.3](https://img.shields.io/badge/version-1.8.3-26dfe8?style=flat-square&labelColor=14041b)
 
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
@@ -16,7 +16,7 @@ gather pulls research out of the places most tools break on: arXiv papers, authe
 
 ## Current status
 
-`gather-engine 1.8.2` is the current source version. Core intake,
+`gather-engine 1.8.3` is the current source version. Core intake,
 content-addressed corpus storage, exact UTF-8 source-byte receipts, readable
 context selection, descriptor handoff, pilot monitoring, CLI, Python API, and MCP
 surfaces are present in this checkout. Browser rendering, OCR, audio, stealth,
@@ -181,7 +181,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 - [docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
 - [docs/PILOT.md](docs/PILOT.md): the accountable pilot evidence engine, its manifest boundary, and the private/shared evidence split.
-- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.8.2.
+- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.8.3.
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
 

@@ -5,10 +5,7 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
-### Presentation parity
-
-- README now exposes the current source version, operator commands, and the
-  boundary between exact source-byte receipts and optional source adapters.
+## 1.8.3 (2026-09-23)
 
 ### Catalog line breaks
 
@@ -17,6 +14,15 @@ built behind a feature branch and reviewed before merge.
   `str.splitlines`, which also breaks on U+2028, U+2029 and U+0085. The catalog writer leaves
   those characters unescaped inside JSON strings, so one title such as a misdecoded
   Windows-1252 ellipsis made the context surface refuse a corpus that `verify` accepts.
+- A regression test stores titles carrying each of those characters, rewrites the catalog
+  with LF, CRLF and lone-CR row terminators, and checks that `Corpus.rows` and
+  `inspect_corpus` read the same rows. The store newline test now also checks that the
+  object bytes on disk hash to the catalog `sha256`.
+
+### Presentation parity
+
+- README now exposes the current source version, operator commands, and the
+  boundary between exact source-byte receipts and optional source adapters.
 
 ## 1.8.2 (2026-09-10)
 
