@@ -373,3 +373,10 @@ def test_refresh_checks_the_manifest_it_actually_captures_from(tmp_path, monkeyp
     _call("gather.pilot", {"action": "refresh", "output": str(out)},
           grants=Grants(network_sources=frozenset({"web"})))
     assert len(seen) == 1, f"the stored manifest was read {len(seen)} times in one refresh"
+
+
+def test_the_run_and_pilot_descriptions_state_the_grant():
+    tools = {t["name"]: t for t in handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+             ["result"]["tools"]}
+    assert "GRANT_REQUIRED" in tools["gather.run"]["description"]
+    assert "launch grant" in tools["gather.pilot"]["description"]

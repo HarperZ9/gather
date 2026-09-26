@@ -14,29 +14,20 @@ built behind a feature branch and reviewed before merge.
   secret off the machine with one tool call. `gather.pilot` had the same exposure through a
   live manifest (`auth_env`, and a `browser` option naming any executable). Affected: every
   release with the MCP `gather.run` or `gather.pilot` tool, up to and including 1.8.3.
-- These now need a grant set at launch: `GATHER_ALLOW_EXEC` (`gather mcp --allow-exec`) names
-  the commands a config may run, `GATHER_ALLOW_NETWORK` (`--allow-network`) names the network
-  sources, and `GATHER_AUTH_ENV_ALLOW` (`--auth-env NAME@HOST`) binds each credential variable
-  to the one host it may be sent to, over `https` only. A pilot manifest's `browser` option other
-  than `chromium`, or `no_sandbox`, needs that browser named in `GATHER_ALLOW_EXEC`. A pilot
-  refresh checks the grants on the same read of the stored manifest it captures from. Without the grant the call returns `isError: true` with
-  `structuredContent` `{"code": "GRANT_REQUIRED", "retryable": false, "setup": "<VARIABLE>",
-  "detail": "<fixed sentence>"}` before anything runs, connects or reads a credential. The
-  server reads grants once at startup; nothing in a config, manifest or tool call widens them.
+- These now need a grant set at launch. `GATHER_ALLOW_EXEC` (`gather mcp --allow-exec`) names
+  the commands a config may run. `GATHER_ALLOW_NETWORK` (`--allow-network`) names the network
+  sources. `GATHER_AUTH_ENV_ALLOW` (`--auth-env NAME@HOST`) binds each credential variable to
+  the one host it may be sent to, over `https` only. A pilot manifest's `browser` option other
+  than `chromium`, or `no_sandbox`, needs that browser named in `GATHER_ALLOW_EXEC`.
+- Without the grant the call returns `isError: true` with `structuredContent`
+  `{"code": "GRANT_REQUIRED", "retryable": false, "setup": "<VARIABLE>", "detail": "<fixed
+  sentence>"}` before anything runs, connects or reads a credential. The server reads grants
+  once at startup; nothing in a config, manifest or tool call widens them. A pilot refresh
+  checks the grants on the same read of the stored manifest it captures from.
+- Tool descriptions changed: `gather.run` and `gather.pilot` now say which inputs need a launch
+  grant, so a host sees why a call returns `GRANT_REQUIRED`.
 - Breaking for MCP hosts that relied on the old behavior: add the grant to the server's launch
   configuration. The CLI and the Python API run the operator's own config and are unchanged.
-
-### Release workflow
-
-- The workflow grants nothing by default. `build` reads the repository, `publish` holds only
-  `id-token: write` for trusted publishing, and a new `github-release` job holds only
-  `contents: write`. Checkouts drop the token after cloning.
-- The PyPI upload uses `skip-existing: true`, so a re-run after a partial upload completes.
-- The build checks the tag against the package version and the vendored helper in the wheel
-  against `VENDORED.sha256`, then writes `SHA256SUMS.txt` for the wheel and the sdist. The
-  `github-release` job verifies those sums and creates the GitHub Release with the wheel, the
-  sdist and `SHA256SUMS.txt` attached, or refreshes its files on a re-run. Before this, the
-  release and its checksum file were made by hand.
 
 ### Security: child programs start from an absolute path in a private folder
 
@@ -58,9 +49,21 @@ built behind a feature branch and reviewed before merge.
   present in the working folder.
 - `tests/test_spawn_children.py` plants a decoy named like each child (a real `.exe` on
   Windows) in the caller's folder with `.` on PATH, a fake API key in the environment and a
-  `yt-dlp.conf`. 18 of its 19 tests failed on the unfixed code. With `yt-dlp` installed, a
-  real-tool test shows a planted `yt-dlp.conf` taking effect without the fix and having no
+  `yt-dlp.conf`. 18 of its 19 first tests failed on the unfixed code. With `yt-dlp` installed,
+  a real-tool test shows a planted `yt-dlp.conf` taking effect without the fix and having no
   effect through `VideoSource`.
+
+### Release workflow
+
+- The workflow grants nothing by default. `build` reads the repository, `publish` holds only
+  `id-token: write` for trusted publishing, and a new `github-release` job holds only
+  `contents: write`. Checkouts drop the token after cloning.
+- The PyPI upload uses `skip-existing: true`, so a re-run after a partial upload completes.
+- The build checks the tag against the package version and the vendored helper in the wheel
+  against `VENDORED.sha256`, then writes `SHA256SUMS.txt` for the wheel and the sdist. The
+  `github-release` job verifies those sums and creates the GitHub Release with the wheel, the
+  sdist and `SHA256SUMS.txt` attached, or refreshes its files on a re-run. Before this, the
+  release and its checksum file were made by hand.
 
 ## 1.8.3 (2026-09-23)
 

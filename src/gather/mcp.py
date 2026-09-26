@@ -123,7 +123,9 @@ def _tool_defs() -> list[dict]:
         },
         {
             "name": "gather.run",
-            "description": "Run a multi-source gather config and return the witnessed run record.",
+            "description": "Run a multi-source gather config and return the witnessed run record. "
+                           "Network sources, synthesizer or provenance commands and api credentials "
+                           "need a launch grant; without one the call returns GRANT_REQUIRED.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -179,7 +181,8 @@ def _tool_defs() -> list[dict]:
         },
         {
             "name": "gather.pilot",
-            "description": "Run, refresh, verify, or bundle a controlled Gather pilot.",
+            "description": "Run, refresh, verify, or bundle a controlled Gather pilot. A live manifest's "
+                           "network sources, credentials and browser choice need a launch grant.",
             "inputSchema": {
                 "type": "object",
                 "additionalProperties": False,
