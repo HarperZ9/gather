@@ -24,6 +24,18 @@ built behind a feature branch and reviewed before merge.
 - Breaking for MCP hosts that relied on the old behavior: add the grant to the server's launch
   configuration. The CLI and the Python API run the operator's own config and are unchanged.
 
+### Release workflow
+
+- The workflow grants nothing by default. `build` reads the repository, `publish` holds only
+  `id-token: write` for trusted publishing, and a new `github-release` job holds only
+  `contents: write`. Checkouts drop the token after cloning.
+- The PyPI upload uses `skip-existing: true`, so a re-run after a partial upload completes.
+- The build checks the tag against the package version and the vendored helper in the wheel
+  against `VENDORED.sha256`, then writes `SHA256SUMS.txt` for the wheel and the sdist. The
+  `github-release` job verifies those sums and creates the GitHub Release with the wheel, the
+  sdist and `SHA256SUMS.txt` attached, or refreshes its files on a re-run. Before this, the
+  release and its checksum file were made by hand.
+
 ### Security: child programs start from an absolute path in a private folder
 
 - `pdftotext`, `yt-dlp`, `tesseract`, `whisper` and the headless browser started by bare name
