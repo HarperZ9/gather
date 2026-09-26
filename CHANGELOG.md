@@ -24,6 +24,30 @@ built behind a feature branch and reviewed before merge.
 - Breaking for MCP hosts that relied on the old behavior: add the grant to the server's launch
   configuration. The CLI and the Python API run the operator's own config and are unchanged.
 
+### Security: child programs start from an absolute path in a private folder
+
+- `pdftotext`, `yt-dlp`, `tesseract`, `whisper` and the headless browser started by bare name
+  from the server's working folder. On Windows a same-named `.exe` in that folder ran in place
+  of the real tool, and on any platform a `.` entry on PATH did the same. `yt-dlp` also read a
+  `yt-dlp.conf` from that folder, and a config can carry `--exec`. The `synthesizer` and
+  `provenance` commands had the same lookup. Affected: every release up to and including 1.8.3.
+- Every child now starts through `gather.spawn`, which calls the vendored safe spawn helper
+  (`SAFE_SPAWN_VERSION` 1.0.0, hash-pinned in `VENDORED.sha256`). The program resolves to an
+  absolute path (`GATHER_<TOOL>` overrides win; relative and empty PATH entries never count),
+  runs in a new private empty folder, and sees an environment allowlist instead of Gather's
+  whole environment. `yt-dlp` gets `--ignore-config`. On Windows the child also gets
+  `NoDefaultCurrentDirectoryInExePath=1`, and a batch-file target refuses cmd.exe
+  metacharacters. Output stays bytes, so receipts hash exactly what the tool wrote.
+- Changes you may notice: a command given as a relative path is refused; a synthesizer that
+  reads its API key from the environment needs `GATHER_CHILD_ENV=KEY_NAME`; `yt-dlp` no longer
+  reads your user `yt-dlp.conf`; a `python -m` provenance command must be installed, not only
+  present in the working folder.
+- `tests/test_spawn_children.py` plants a decoy named like each child (a real `.exe` on
+  Windows) in the caller's folder with `.` on PATH, a fake API key in the environment and a
+  `yt-dlp.conf`. 18 of its 19 tests failed on the unfixed code. With `yt-dlp` installed, a
+  real-tool test shows a planted `yt-dlp.conf` taking effect without the fix and having no
+  effect through `VideoSource`.
+
 ## 1.8.3 (2026-09-23)
 
 ### Catalog line breaks

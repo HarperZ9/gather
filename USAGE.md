@@ -196,6 +196,28 @@ API run your own config and keep full trust.
 gather mcp --allow-network arxiv --allow-exec llm
 ```
 
+## External tools
+
+The `pdf`, `ocr`, `transcribe`, `video` and `browser` adapters, and a run's
+`synthesizer` and `provenance` commands, start another program. Gather starts
+each one the same way:
+
+- It resolves the program to an absolute path. `GATHER_PDFTOTEXT`,
+  `GATHER_TESSERACT`, `GATHER_WHISPER`, `GATHER_YT_DLP` and `GATHER_CHROMIUM`
+  take an absolute path and win over PATH. The PATH lookup skips `.` and every
+  other relative entry, so a file named like the tool in your working folder
+  never runs. A command given as a relative path (`./tools/synth`) is refused;
+  give a bare name on PATH or an absolute path.
+- It starts the program in a new private empty folder, so the program reads no
+  configuration from your working folder. `yt-dlp` also gets `--ignore-config`,
+  so no `yt-dlp.conf` changes what it runs, including your user config.
+- It passes a short environment allowlist (`PATH`, the system and home
+  variables, and for `yt-dlp` and the browser the proxy and CA variables).
+  Name anything else a program needs, such as a synthesizer's API key, in
+  `GATHER_CHILD_ENV=NAME1,NAME2`.
+- A Python command gets `-P`, so it cannot import a module planted beside it.
+  Install the module a `python -m` provenance command runs.
+
 ## Verify
 
 ```bash

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import glob
 import os
-import subprocess
 import tempfile
 import time
 
 from gather.item import Item, make_item
+from gather.spawn import run_tool
 
 
 def transcribe_item(name: str, text: str, *, fetched_at: float, ref: str, method: str = "transcribe") -> Item:
@@ -26,7 +26,7 @@ class TranscribeSource:
     receipt's ``transcribe`` method records that this is a machine transcription, not a manual one,
     so its errors are on the record. The audio path is resolved to an absolute path before it is
     passed to the tool, so a filename starting with ``-`` cannot be read as a flag. fetch() needs
-    the transcription tool on PATH.
+    the transcription tool on PATH (or ``GATHER_WHISPER``), started through gather.spawn.
     """
 
     name = "transcribe"
@@ -43,10 +43,8 @@ class TranscribeSource:
             raise FileNotFoundError(f"no such audio file: {target}")
         path = os.path.abspath(target)  # absolute path cannot be parsed as a flag
         with tempfile.TemporaryDirectory() as d:
-            proc = subprocess.run(
-                [self._whisper, path, "--model", self._model, "--output_format", "txt", "--output_dir", d],
-                capture_output=True, timeout=self._timeout,
-            )
+            proc = run_tool(self._whisper, [path, "--model", self._model, "--output_format", "txt",
+                                            "--output_dir", d], timeout=self._timeout)
             if proc.returncode != 0:
                 raise RuntimeError(f"whisper failed: {proc.stderr.decode('utf-8', 'replace').strip()[:200]}")
             txts = sorted(glob.glob(os.path.join(d, "*.txt")))

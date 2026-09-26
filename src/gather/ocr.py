@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import time
 
 from gather.item import Item, make_item
+from gather.spawn import run_tool
 
 
 def ocr_item(name: str, text: str, *, fetched_at: float, ref: str, method: str = "ocr") -> Item:
@@ -24,7 +24,7 @@ class OcrSource:
     method records that this is a machine reading of an image, not a transcript of a text source,
     so a noisy read is never mistaken for the real words. The image path is resolved to an absolute
     path before it is passed to the tool, so a filename starting with ``-`` cannot be read as a
-    flag. fetch() needs tesseract on PATH.
+    flag. fetch() needs tesseract on PATH (or ``GATHER_TESSERACT``), started through gather.spawn.
     """
 
     name = "ocr"
@@ -40,10 +40,7 @@ class OcrSource:
         if not os.path.isfile(target):
             raise FileNotFoundError(f"no such image file: {target}")
         path = os.path.abspath(target)  # absolute path cannot be parsed as a flag by tesseract
-        proc = subprocess.run(
-            [self._tesseract, path, "stdout", "-l", self._lang],
-            capture_output=True, timeout=self._timeout,
-        )
+        proc = run_tool(self._tesseract, [path, "stdout", "-l", self._lang], timeout=self._timeout)
         if proc.returncode != 0:
             raise RuntimeError(f"tesseract failed: {proc.stderr.decode('utf-8', 'replace').strip()[:200]}")
         text = proc.stdout.decode("utf-8", "replace")

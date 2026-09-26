@@ -28,7 +28,7 @@ def test_browser_guard_runs_before_the_subprocess(monkeypatch):
     def _boom(*a, **k):
         raise AssertionError("subprocess must not run for a blocked URL")
 
-    monkeypatch.setattr(browser_mod.subprocess, "run", _boom)
+    monkeypatch.setattr(browser_mod, "run_tool", _boom)
     with pytest.raises(ValueError):
         BrowserSource().fetch("http://169.254.169.254/latest/meta-data/")
 

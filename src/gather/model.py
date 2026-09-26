@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import subprocess
-
 from gather.item import Item
+from gather.spawn import run_tool
 
 DEFAULT_MAX_INPUT_CHARS = 8000
 DEFAULT_MAX_INPUTS = 50  # cap the fan-in so a large corpus cannot build an unbounded model prompt
@@ -44,7 +43,9 @@ class SubprocessSynthesizer:
 
     The command is operator-configured (e.g. ``["llm", "-m", "some-model"]``). The prompt, which is
     built from gathered (possibly untrusted) content, is written to the process's STDIN, never the
-    argv, so no gathered text can be parsed as a flag. fetch-time only; needs the CLI on PATH.
+    argv, so no gathered text can be parsed as a flag. fetch-time only; needs the CLI on PATH or an
+    absolute path. It starts through gather.spawn in a private folder with an environment
+    allowlist: name its API key in ``GATHER_CHILD_ENV`` for it to reach the CLI.
     """
 
     method = "synthesized"
@@ -61,9 +62,8 @@ class SubprocessSynthesizer:
 
     def synthesize(self, inputs: list[Item], prompt: str) -> str:
         body = build_prompt(inputs, prompt, max_chars=self._max_input_chars, max_inputs=self._max_inputs)
-        proc = subprocess.run(
-            self._command, input=body.encode("utf-8"), capture_output=True, timeout=self._timeout,
-        )
+        proc = run_tool(self._command[0], self._command[1:], input=body.encode("utf-8"),
+                        timeout=self._timeout)
         if proc.returncode != 0:
             raise RuntimeError(f"synthesizer failed: {proc.stderr.decode('utf-8', 'replace').strip()[:200]}")
         statement = proc.stdout.decode("utf-8", "replace").strip()

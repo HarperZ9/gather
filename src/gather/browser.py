@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import subprocess
 import time
 
 from gather.item import Item, make_item
 from gather.net import validate_public_http_url
+from gather.spawn import run_tool
 from gather.web import html_to_title_text
 
 
@@ -40,7 +40,8 @@ class BrowserSource:
       to run as root in a container) and is a real hardening downgrade while executing untrusted
       JavaScript; use it only when you must, and prefer running as a non-root user instead.
 
-    fetch() needs the browser on PATH and network.
+    fetch() needs the browser on PATH (or ``GATHER_CHROMIUM``) and network. The browser starts
+    through gather.spawn: an absolute path, a private empty folder, an environment allowlist.
     """
 
     name = "browser"
@@ -55,11 +56,11 @@ class BrowserSource:
 
     def fetch(self, target: str) -> list[Item]:
         url = validate_public_http_url(target)  # guards the INITIAL navigation only (see class doc)
-        cmd = [self._browser, "--headless=new", "--disable-gpu"]
+        cmd = ["--headless=new", "--disable-gpu"]
         if self._no_sandbox:
             cmd.append("--no-sandbox")
         cmd += [f"--virtual-time-budget={int(self._virtual_time_ms)}", "--dump-dom", url]
-        proc = subprocess.run(cmd, capture_output=True, timeout=self._timeout)
+        proc = run_tool(self._browser, cmd, timeout=self._timeout, network=True)
         if proc.returncode != 0:
             raise RuntimeError(f"browser failed: {proc.stderr.decode('utf-8', 'replace').strip()[:200]}")
         html = proc.stdout.decode("utf-8", "replace")
