@@ -5,6 +5,25 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+### Security: launch-only grants on the MCP surface
+
+- `gather.run` took a config from tool arguments and ran whatever `synthesizer` or
+  `provenance` command it named, fetched any network source it listed, and read any
+  environment variable named as `auth_env` and sent its value as a bearer token to the host
+  in the config. A model, or text a model was asked to read, could run commands and send a
+  secret off the machine with one tool call. `gather.pilot` had the same exposure through a
+  live manifest (`auth_env`, and a `browser` option naming any executable). Affected: every
+  release with the MCP `gather.run` or `gather.pilot` tool, up to and including 1.8.3.
+- These now need a grant set at launch: `GATHER_ALLOW_EXEC` (`gather mcp --allow-exec`) names
+  the commands a config may run, `GATHER_ALLOW_NETWORK` (`--allow-network`) names the network
+  sources, and `GATHER_AUTH_ENV_ALLOW` (`--auth-env NAME@HOST`) binds each credential variable
+  to the one host it may be sent to. Without the grant the call returns `isError: true` with
+  `structuredContent` `{"code": "GRANT_REQUIRED", "retryable": false, "setup": "<VARIABLE>",
+  "detail": "<fixed sentence>"}` before anything runs, connects or reads a credential. The
+  server reads grants once at startup; nothing in a config, manifest or tool call widens them.
+- Breaking for MCP hosts that relied on the old behavior: add the grant to the server's launch
+  configuration. The CLI and the Python API run the operator's own config and are unchanged.
+
 ## 1.8.3 (2026-09-23)
 
 ### Catalog line breaks

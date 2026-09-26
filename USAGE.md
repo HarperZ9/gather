@@ -172,6 +172,30 @@ For catalog tools, `scope` is a post-fetch content filter that keeps rows whose 
 gather mcp
 ```
 
+### Launch grants
+
+A `gather.run` config and a `gather.pilot` manifest can come from tool arguments,
+so the model controls them. Anything in them that runs a command, reaches the
+network or sends a credential needs a grant you set when you add the server to
+the host. With no grant the call returns `GRANT_REQUIRED` and names the variable
+to set. Nothing starts, connects or reads the credential first.
+
+| Grant | Flag | Covers |
+|:-|:-|:-|
+| `GATHER_ALLOW_EXEC=llm,/opt/prov/check` | `--allow-exec COMMAND` | the `synthesizer` and `provenance` commands a config may run, matched on the command's first element; a pilot `browser` option other than `chromium` |
+| `GATHER_ALLOW_NETWORK=web,feed` or `all` | `--allow-network SOURCE` | the network sources a config or a live pilot manifest may use: `web`, `feed`, `arxiv`, `scholar`, `video`, `api`, `browser` |
+| `GATHER_AUTH_ENV_ALLOW=GATHER_API_TOKEN@api.example.com` | `--auth-env NAME@HOST` | the `api` source may read variable `NAME` only to send it to that exact host |
+
+The server reads grants once, at launch. A later change to its environment
+grants nothing, and no field in a config, a manifest or a tool call is read as a
+grant. Local sources (`docs`, `pdf`, `ocr`, `transcribe`) and the dedicated
+`gather.arxiv` tool need no grant. The CLI (`gather run CONFIG`) and the Python
+API run your own config and keep full trust.
+
+```bash
+gather mcp --allow-network arxiv --allow-exec llm
+```
+
 ## Verify
 
 ```bash

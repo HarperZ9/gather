@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from gather.grants import OPERATOR, Grants, check_run_config
+
 if TYPE_CHECKING:
     from gather.derive import Synthesizer
     from gather.item import Item
@@ -66,10 +68,16 @@ def build_source(name: str, opts: dict):
     raise ValueError(f"unknown source: {name!r}")
 
 
-def plan_from_config(cfg: dict) -> RunPlan:
+def plan_from_config(cfg: dict, *, grants: Grants = OPERATOR) -> RunPlan:
+    """Build a run plan. ``grants`` defaults to the operator's full trust (the CLI and the Python
+    API run the operator's own config); the MCP surface passes its launch grants, and a config
+    that needs a grant they lack raises ``GrantRequired`` before any source or command is built."""
     from gather.derive import NullSynthesizer
     from gather.store import Corpus
 
+    if not isinstance(cfg, dict):
+        raise ValueError("config must be a JSON object")
+    check_run_config(cfg, grants)
     job_specs = cfg.get("jobs", [])
     if not isinstance(job_specs, list) or not job_specs:
         raise ValueError("config needs a non-empty 'jobs' list")
@@ -87,7 +95,7 @@ def plan_from_config(cfg: dict) -> RunPlan:
     synth_cmd = cfg.get("synthesizer")
     synthesizer: Synthesizer | None
     if synth_cmd:
-        if not isinstance(synth_cmd, list):
+        if not isinstance(synth_cmd, list) or not all(isinstance(a, str) for a in synth_cmd):
             raise ValueError('"synthesizer" must be a command list, e.g. ["llm", "-m", "model"]')
         from gather.model import SubprocessSynthesizer
         synthesizer = SubprocessSynthesizer(synth_cmd)
@@ -97,7 +105,7 @@ def plan_from_config(cfg: dict) -> RunPlan:
         synthesizer = None
 
     prov_cmd = cfg.get("provenance")
-    if prov_cmd is not None and not isinstance(prov_cmd, list):
+    if prov_cmd is not None and (not isinstance(prov_cmd, list) or not all(isinstance(a, str) for a in prov_cmd)):
         raise ValueError('"provenance" must be a command list, e.g. ["python", "-m", "provenance", "check"]')
     provider = None
     if prov_cmd:
