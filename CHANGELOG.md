@@ -5,6 +5,8 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.9.0 (2026-09-26)
+
 ### Security: launch-only grants on the MCP surface
 
 - `gather.run` took a config from tool arguments and ran whatever `synthesizer` or
