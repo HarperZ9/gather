@@ -11,6 +11,7 @@ import tempfile
 import time
 
 from gather.item import Item, make_item
+from gather.spawn import run_tool
 
 _VTT_TAG = re.compile(r"<[^>]+>")
 
@@ -134,13 +135,19 @@ def _comment_meta(c: dict) -> dict:
     return meta
 
 
+# yt-dlp reads yt-dlp.conf from its working folder, the user's config and a file beside its
+# executable, and a config can carry --exec. Gather passes its own flags only.
+_NO_CONFIG = ("--ignore-config",)
+
+
 class VideoSource:
     """Video intake (metadata, captions, comments) via the yt-dlp CLI.
 
     The isolated impure edge: it shells out to ``yt-dlp`` (an external tool, not a Python
     dependency, the way Forum's SubprocessExecutor calls a model CLI) and parses the
     result with the pure parse_video. Network and the tool live only here; the parsing is
-    tested without either. fetch() needs yt-dlp on PATH. It prefers manual subtitles and
+    tested without either. fetch() needs yt-dlp on PATH (or ``GATHER_YT_DLP``); it starts
+    through gather.spawn with ``--ignore-config``, so no config file changes what it runs. It prefers manual subtitles and
     falls back to auto-captions, recording which one fed the transcript.
     """
 
@@ -152,17 +159,23 @@ class VideoSource:
         self._with_comments = with_comments
         self._timeout = timeout  # per yt-dlp call; fetch makes up to three calls
 
+    def _run(self, args: list[str]) -> subprocess.CompletedProcess:
+        proc = run_tool(self._yt_dlp, args, timeout=self._timeout, network=True)
+        return subprocess.CompletedProcess(proc.args, proc.returncode,
+                                           proc.stdout.decode("utf-8", "replace"),
+                                           proc.stderr.decode("utf-8", "replace"))
+
     def fetch(self, target: str) -> list[Item]:
         """Fetch one video's metadata, captions, and (optionally) comments via yt-dlp.
 
         Needs yt-dlp on PATH and network access. Raises RuntimeError if the metadata call
         fails. Caption failures are reported to stderr, not silently treated as absent.
         """
-        cmd = [self._yt_dlp, "--dump-single-json", "--skip-download"]
+        cmd = [*_NO_CONFIG, "--dump-single-json", "--skip-download"]
         if self._with_comments:
             cmd.append("--write-comments")
         cmd += ["--", target]  # end-of-options: a target starting with - cannot be read as a flag
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self._timeout)
+        proc = self._run(cmd)
         if proc.returncode != 0:
             raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()[:200]}")
         vtt, is_auto = self._fetch_captions(target)
@@ -190,10 +203,10 @@ class VideoSource:
         flag = "--write-auto-subs" if auto else "--write-subs"
         with tempfile.TemporaryDirectory() as d:
             cmd = [
-                self._yt_dlp, "--skip-download", flag, "--sub-langs", "en.*",
+                *_NO_CONFIG, "--skip-download", flag, "--sub-langs", "en.*",
                 "--sub-format", "vtt", "-o", os.path.join(d, "%(id)s.%(ext)s"), "--", target,
             ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self._timeout)
+            proc = self._run(cmd)
             vtts = sorted(glob.glob(os.path.join(d, "*.vtt")))
             if not vtts:
                 if proc.returncode != 0:

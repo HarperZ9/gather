@@ -172,6 +172,55 @@ For catalog tools, `scope` is a post-fetch content filter that keeps rows whose 
 gather mcp
 ```
 
+### Launch grants
+
+A `gather.run` config and a `gather.pilot` manifest can come from tool arguments,
+so the model controls them. Anything in them that runs a command, reaches the
+network or sends a credential needs a grant you set when you add the server to
+the host. With no grant the call returns `GRANT_REQUIRED` and names the variable
+to set. Nothing starts, connects or reads the credential first.
+
+| Grant | Flag | Covers |
+|:-|:-|:-|
+| `GATHER_ALLOW_EXEC=llm,/opt/prov/check` | `--allow-exec COMMAND` | the `synthesizer` and `provenance` commands a config may run, matched on the command's first element; a pilot `browser` option other than `chromium`, or `no_sandbox` |
+| `GATHER_ALLOW_NETWORK=web,feed` or `all` | `--allow-network SOURCE` | the network sources a config or a live pilot manifest may use: `web`, `feed`, `arxiv`, `scholar`, `video`, `api`, `browser` |
+| `GATHER_AUTH_ENV_ALLOW=GATHER_API_TOKEN@api.example.com` | `--auth-env NAME@HOST` | the `api` source may read variable `NAME` only to send it over `https` to that exact host |
+
+Grant the program itself, not an interpreter: the model chooses the rest of the
+command line, so granting `python` or a shell grants arbitrary code.
+
+The server reads grants once, at launch. A later change to its environment
+grants nothing, and no field in a config, a manifest or a tool call is read as a
+grant. Local sources (`docs`, `pdf`, `ocr`, `transcribe`) and the dedicated
+`gather.arxiv` tool need no grant. The CLI (`gather run CONFIG`) and the Python
+API run your own config and keep full trust.
+
+```bash
+gather mcp --allow-network arxiv --allow-exec llm
+```
+
+## External tools
+
+The `pdf`, `ocr`, `transcribe`, `video` and `browser` adapters, and a run's
+`synthesizer` and `provenance` commands, start another program. Gather starts
+each one the same way:
+
+- It resolves the program to an absolute path. `GATHER_PDFTOTEXT`,
+  `GATHER_TESSERACT`, `GATHER_WHISPER`, `GATHER_YT_DLP` and `GATHER_CHROMIUM`
+  take an absolute path and win over PATH. The PATH lookup skips `.` and every
+  other relative entry, so a file named like the tool in your working folder
+  never runs. A command given as a relative path (`./tools/synth`) is refused;
+  give a bare name on PATH or an absolute path.
+- It starts the program in a new private empty folder, so the program reads no
+  configuration from your working folder. `yt-dlp` also gets `--ignore-config`,
+  so no `yt-dlp.conf` changes what it runs, including your user config.
+- It passes a short environment allowlist (`PATH`, the system and home
+  variables, and for `yt-dlp` and the browser the proxy and CA variables).
+  Name anything else a program needs, such as a synthesizer's API key, in
+  `GATHER_CHILD_ENV=NAME1,NAME2`.
+- A Python command gets `-P`, so it cannot import a module planted beside it.
+  Install the module a `python -m` provenance command runs.
+
 ## Verify
 
 ```bash

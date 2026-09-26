@@ -38,6 +38,13 @@ from gather.web_commands import (
 )
 
 
+def _serve_mcp(args) -> int:
+    from gather.grants import Grants
+
+    return serve_mcp(grants=Grants.from_launch(
+        exec_commands=args.allow_exec, network=args.allow_network, auth_env=args.auth_env))
+
+
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
     p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
@@ -239,7 +246,16 @@ def build_parser() -> argparse.ArgumentParser:
     monitor.set_defaults(func=cmd_monitor)
 
     mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
-    mcp.set_defaults(func=lambda _args: serve_mcp())
+    mcp.add_argument("--allow-exec", action="append", default=[], metavar="COMMAND",
+                     help="let a gather.run config run this synthesizer or provenance command "
+                          "(repeatable; adds to GATHER_ALLOW_EXEC)")
+    mcp.add_argument("--allow-network", action="append", default=[], metavar="SOURCE",
+                     help="let tool calls use this network source, or 'all' "
+                          "(repeatable; adds to GATHER_ALLOW_NETWORK)")
+    mcp.add_argument("--auth-env", action="append", default=[], metavar="NAME@HOST",
+                     help="let the api source send variable NAME to HOST only "
+                          "(repeatable; adds to GATHER_AUTH_ENV_ALLOW)")
+    mcp.set_defaults(func=_serve_mcp)
 
     pilot = sub.add_parser(
         "pilot",

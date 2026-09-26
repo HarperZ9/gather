@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import time
 
 from gather.item import Item, make_item
+from gather.spawn import run_tool
 
 
 def pdf_item(name: str, text: str, *, fetched_at: float, ref: str, method: str = "pdftotext") -> Item:
@@ -23,7 +23,8 @@ class PdfSource:
     best-effort reading; a scanned (image-only) PDF yields little or nothing, and layout can
     reorder columns. The receipt's "pdftotext" method records that this is a tool's reading of
     the file, not the authoritative document, so a thin extraction is never mistaken for the
-    full content. fetch() needs pdftotext on PATH.
+    full content. fetch() needs pdftotext on PATH (or ``GATHER_PDFTOTEXT``); it starts through
+    gather.spawn, so a same-named file in the caller's folder never runs.
     """
 
     name = "pdf"
@@ -36,10 +37,8 @@ class PdfSource:
     def fetch(self, target: str) -> list[Item]:
         if not os.path.isfile(target):
             raise FileNotFoundError(f"no such file: {target}")
-        proc = subprocess.run(
-            [self._pdftotext, "-q", "-enc", "UTF-8", "--", target, "-"],
-            capture_output=True, timeout=self._timeout,
-        )
+        path = os.path.abspath(target)  # the child runs in a private folder, not the caller's
+        proc = run_tool(self._pdftotext, ["-q", "-enc", "UTF-8", "--", path, "-"], timeout=self._timeout)
         if proc.returncode != 0:
             raise RuntimeError(f"pdftotext failed: {proc.stderr.decode('utf-8', 'replace').strip()[:200]}")
         text = proc.stdout.decode("utf-8", "replace")

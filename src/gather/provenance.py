@@ -5,6 +5,7 @@ import subprocess
 from typing import Protocol
 
 from gather.item import Item
+from gather.spawn import ToolRefused, run_tool
 
 
 class ProvenanceProvider(Protocol):
@@ -35,7 +36,8 @@ class SubprocessProvenanceProvider:
     argv, so a gathered ref cannot be parsed as a flag) and parses a JSON verdict from its stdout.
     The command is operator-configured, e.g. ``["python", "-m", "provenance", "check", "--json"]``.
     A non-zero exit or unparseable output yields ``{"error": ...}`` rather than raising, so one
-    unprovable item does not abort a whole run. fetch-time only; needs the tool on PATH.
+    unprovable item does not abort a whole run. fetch-time only; needs the tool on PATH or an absolute
+    path, and it starts through gather.spawn (a private folder and an environment allowlist).
     """
 
     def __init__(self, command: list[str], *, timeout: float = 60.0, max_output_bytes: int = 65536) -> None:
@@ -52,10 +54,9 @@ class SubprocessProvenanceProvider:
             sort_keys=True,
         )
         try:
-            proc = subprocess.run(
-                self._command, input=request.encode("utf-8"), capture_output=True, timeout=self._timeout,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
+            proc = run_tool(self._command[0], self._command[1:], input=request.encode("utf-8"),
+                            timeout=self._timeout)
+        except (OSError, ToolRefused, subprocess.TimeoutExpired) as exc:
             return {"error": f"provenance tool did not run: {str(exc)[:120]}"}
         if proc.returncode != 0:
             return {"error": f"provenance tool failed: {proc.stderr.decode('utf-8', 'replace').strip()[:120]}"}

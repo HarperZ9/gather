@@ -6,6 +6,7 @@ from typing import Any
 
 from gather import __version__
 from gather.flagship import doctor_payload, status_payload
+from gather.grants import NONE, GrantRequired, Grants, check_pilot_manifest
 from gather.payloads import catalog_digest_payload
 from gather.scope import filter_scope
 
@@ -22,6 +23,12 @@ def _err(mid: Any, code: int, message: str) -> dict:
 
 def _text_result(text: str, *, is_error: bool = False) -> dict:
     return {"content": [{"type": "text", "text": text}], "isError": is_error}
+
+
+def _refusal(exc: GrantRequired) -> dict:
+    body = exc.payload()
+    return {"content": [{"type": "text", "text": json.dumps(body)}], "isError": True,
+            "structuredContent": body}
 
 
 def _scope_terms(raw: object) -> list[str]:
@@ -116,7 +123,9 @@ def _tool_defs() -> list[dict]:
         },
         {
             "name": "gather.run",
-            "description": "Run a multi-source gather config and return the witnessed run record.",
+            "description": "Run a multi-source gather config and return the witnessed run record. "
+                           "Network sources, synthesizer or provenance commands and api credentials "
+                           "need a launch grant; without one the call returns GRANT_REQUIRED.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -172,7 +181,8 @@ def _tool_defs() -> list[dict]:
         },
         {
             "name": "gather.pilot",
-            "description": "Run, refresh, verify, or bundle a controlled Gather pilot.",
+            "description": "Run, refresh, verify, or bundle a controlled Gather pilot. A live manifest's "
+                           "network sources, credentials and browser choice need a launch grant.",
             "inputSchema": {
                 "type": "object",
                 "additionalProperties": False,
@@ -217,7 +227,7 @@ def _federation_tool(args: dict) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
-def _pilot_tool(args: dict) -> str:
+def _pilot_tool(args: dict, grants: Grants) -> str:
     from pathlib import Path
 
     from gather.pilot import refresh_pilot, run_pilot, verify_pilot
@@ -239,6 +249,7 @@ def _pilot_tool(args: dict) -> str:
             validated = load_pilot_manifest(manifest)
         else:
             raise ValueError("gather.pilot run requires a manifest object or path")
+        check_pilot_manifest(validated, grants)
         result = run_pilot(validated, Path(output))
         return json.dumps(
             {
@@ -251,7 +262,8 @@ def _pilot_tool(args: dict) -> str:
             sort_keys=True,
         )
     if action == "refresh":
-        result = refresh_pilot(Path(output))
+        # refresh re-captures from the stored manifest, so the same grants apply to that one read
+        result = refresh_pilot(Path(output), authorize=lambda m: check_pilot_manifest(m, grants))
         return json.dumps(
             {"action": "refresh", "monitor_report": result.monitor_report},
             indent=2,
@@ -289,7 +301,7 @@ def _pilot_tool(args: dict) -> str:
     )
 
 
-def call_tool(name: str, args: dict) -> str:
+def call_tool(name: str, args: dict, grants: Grants = NONE) -> str:
     if name == "gather.status":
         return json.dumps(status_payload(), indent=2, sort_keys=True)
     if name == "gather.doctor":
@@ -371,17 +383,18 @@ def call_tool(name: str, args: dict) -> str:
         else:
             raise ValueError("gather.run requires config as an inline object or non-empty config path")
         try:
-            plan = plan_from_config(cfg)
+            plan = plan_from_config(cfg, grants=grants)
         except (ValueError, KeyError) as exc:
             raise ValueError(f"bad config: {exc}") from exc
         record, _items = run_plan(plan)
         return json.dumps(record.to_dict(), indent=2, ensure_ascii=False)
     if name == "gather.pilot":
-        return _pilot_tool(args)
+        return _pilot_tool(args, grants)
     raise ValueError(f"unknown tool: {name}")
 
 
-def handle_request(req: dict) -> dict | None:
+def handle_request(req: dict, grants: Grants | None = None) -> dict | None:
+    """Answer one JSON-RPC request. ``grants`` are the launch grants; None grants nothing."""
     method = req.get("method")
     mid = req.get("id")
 
@@ -403,16 +416,21 @@ def handle_request(req: dict) -> dict | None:
         if not isinstance(name, str) or name not in {tool["name"] for tool in _tool_defs()}:
             return _err(mid, -32602, f"unknown tool: {name!r}")
         try:
-            text = call_tool(name, params.get("arguments") or {})
+            text = call_tool(name, params.get("arguments") or {}, NONE if grants is None else grants)
             return _ok(mid, _text_result(text))
+        except GrantRequired as exc:
+            return _ok(mid, _refusal(exc))
         except Exception as exc:
             return _ok(mid, _text_result(f"error: {exc}", is_error=True))
     return _err(mid, -32601, f"method not found: {method}")
 
 
-def serve(stdin=None, stdout=None) -> int:
+def serve(stdin=None, stdout=None, grants: Grants | None = None) -> int:
+    """Serve MCP over stdio. Grants are fixed here, at launch: from ``grants`` when given, else
+    from the environment as it is now. A later change to the environment grants nothing."""
     stdin = stdin if stdin is not None else sys.stdin
     stdout = stdout if stdout is not None else sys.stdout
+    grants = Grants.from_env() if grants is None else grants
     for line in stdin:
         line = line.strip()
         if not line:
@@ -423,7 +441,7 @@ def serve(stdin=None, stdout=None) -> int:
             stdout.write(json.dumps(_err(None, -32700, "parse error")) + "\n")
             stdout.flush()
             continue
-        response = handle_request(request)
+        response = handle_request(request, grants)
         if response is not None:
             stdout.write(json.dumps(response) + "\n")
             stdout.flush()

@@ -106,7 +106,10 @@ previous one, so the ledger can be re-derived and checked for edits.
 That is the core loop: fetch, store, inspect, re-check. The harder adapters
 (`pdf`, `browser`, `ocr`, `transcribe`, `video`) work the same way and each
 needs only its own external tool on PATH (`pdftotext`, `chromium`, `tesseract`,
-`whisper`, `yt-dlp`).
+`whisper`, `yt-dlp`), or at the absolute path in `GATHER_PDFTOTEXT`,
+`GATHER_CHROMIUM`, `GATHER_TESSERACT`, `GATHER_WHISPER` or `GATHER_YT_DLP`. Each tool
+starts in a private empty folder with a short environment allowlist, so a file
+named like the tool in your working folder never runs in its place.
 
 ## The web-data engine
 
