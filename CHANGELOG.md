@@ -17,7 +17,9 @@ built behind a feature branch and reviewed before merge.
 - These now need a grant set at launch: `GATHER_ALLOW_EXEC` (`gather mcp --allow-exec`) names
   the commands a config may run, `GATHER_ALLOW_NETWORK` (`--allow-network`) names the network
   sources, and `GATHER_AUTH_ENV_ALLOW` (`--auth-env NAME@HOST`) binds each credential variable
-  to the one host it may be sent to. Without the grant the call returns `isError: true` with
+  to the one host it may be sent to, over `https` only. A pilot manifest's `browser` option other
+  than `chromium`, or `no_sandbox`, needs that browser named in `GATHER_ALLOW_EXEC`. A pilot
+  refresh checks the grants on the same read of the stored manifest it captures from. Without the grant the call returns `isError: true` with
   `structuredContent` `{"code": "GRANT_REQUIRED", "retryable": false, "setup": "<VARIABLE>",
   "detail": "<fixed sentence>"}` before anything runs, connects or reads a credential. The
   server reads grants once at startup; nothing in a config, manifest or tool call widens them.

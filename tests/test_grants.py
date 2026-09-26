@@ -327,3 +327,49 @@ def test_a_live_pilot_manifest_cannot_name_its_own_browser_executable(tmp_path, 
                  grants=grants)
     assert _refusal(resp)["setup"] == "GATHER_ALLOW_EXEC"
     assert sealed == []
+
+
+# --- found in the security review of this change ------------------------------------------------
+
+def test_a_live_pilot_manifest_cannot_turn_off_the_browser_sandbox(tmp_path, sealed):
+    manifest = _live_manifest("browser", "https://example.org/a", {"no_sandbox": True})
+    grants = Grants(network_sources=frozenset({"browser"}))
+    resp = _call("gather.pilot", {"action": "run", "output": str(tmp_path / "p"), "manifest": manifest},
+                 grants=grants)
+    assert _refusal(resp)["setup"] == "GATHER_ALLOW_EXEC"
+    assert sealed == []
+
+
+def test_a_credential_is_never_sent_over_plain_http(api_stub):
+    grants = Grants(network_sources=frozenset({"api"}),
+                    auth_env=frozenset({("GATHER_API_TOKEN", "api.example.com")}))
+    resp = _call("gather.run", {"config": _api_config("GATHER_API_TOKEN", "http://api.example.com/items")},
+                 grants=grants)
+    assert _refusal(resp)["setup"] == "GATHER_AUTH_ENV_ALLOW"
+    assert api_stub == []
+
+
+def test_refresh_checks_the_manifest_it_actually_captures_from(tmp_path, monkeypatch, sealed):
+    """The grant check and the capture must use one read of the stored manifest; a second read
+    could see a file swapped after the check."""
+    import gather.pilot as pilot_mod
+    from gather.pilot_manifest import load_pilot_manifest
+
+    seen = []
+
+    def counting_load(path):
+        seen.append(str(path))
+        return load_pilot_manifest(path)
+
+    monkeypatch.setattr("gather.pilot_manifest.load_pilot_manifest", counting_load)
+    monkeypatch.setattr(pilot_mod, "verify_pilot", lambda root: type("V", (), {"ok": True})())
+    out = tmp_path / "p"
+    out.mkdir()
+    (out / "manifest.json").write_text(json.dumps(_live_manifest("web", "https://example.org/a")),
+                                       encoding="utf-8")
+    denied = _call("gather.pilot", {"action": "refresh", "output": str(out)})
+    assert _refusal(denied)["setup"] == "GATHER_ALLOW_NETWORK"
+    seen.clear()
+    _call("gather.pilot", {"action": "refresh", "output": str(out)},
+          grants=Grants(network_sources=frozenset({"web"})))
+    assert len(seen) == 1, f"the stored manifest was read {len(seen)} times in one refresh"

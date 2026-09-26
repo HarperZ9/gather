@@ -35,8 +35,13 @@ with open(LOG, "a", encoding="utf-8") as fh:
     fh.write(json.dumps({"tool": TOOL, "argv": args, "cwd": os.getcwd(),
                          "listing": sorted(os.listdir(".")),
                          "env": sorted(os.environ)}) + "\n")
+target = {"pdftotext": lambda: args[args.index("--") + 1], "tesseract": lambda: args[0],
+          "whisper": lambda: args[0]}.get(TOOL)
+if target is not None and not os.path.isfile(target()):
+    sys.stderr.write("input file not found from the child's folder")
+    sys.exit(1)
 if TOOL == "pdftotext":
-    sys.stdout.write("REAL-PDF text")
+    sys.stdout.buffer.write(b"REAL-PDF text\r\nline two")
 elif TOOL == "tesseract":
     sys.stdout.write("REAL-OCR text")
 elif TOOL == "whisper":
@@ -163,6 +168,11 @@ def test_a_child_planted_in_the_callers_folder_never_runs(tool, planted):
     assert not planted["marker"].exists(), f"a planted {tool} in the caller's folder ran"
     assert "REAL-" in " ".join(it.text + it.title for it in items)
     _assert_private(_log(planted["log"]), planted["repo"])
+
+
+def test_tool_output_reaches_the_receipt_byte_for_byte(planted):
+    # no newline translation: a CRLF the tool wrote is the CRLF the receipt hashes
+    assert PdfSource().fetch("doc.pdf")[0].text == "REAL-PDF text\r\nline two"
 
 
 @pytest.mark.parametrize("tool", TOOLS)

@@ -711,8 +711,12 @@ def refresh_pilot(
     *,
     clock: Callable[[], float] = time.time,
     event_sink: PilotEventSink | None = None,
+    authorize: Callable[[PilotManifest], None] | None = None,
 ) -> PilotResult:
     """Re-capture monitored sources, archive the prior view, and re-verify.
+
+    ``authorize`` sees the stored manifest right after it is read, before any capture, and
+    may raise to refuse; the MCP surface checks its launch grants here, on the same read.
 
     Accepts no manifest or policy override: the pilot is reconstructed solely
     from ``manifest.json`` inside the artifact root. Refuses before any capture
@@ -725,6 +729,8 @@ def refresh_pilot(
         raise PilotRefusal("pilot root does not verify; refusing refresh")
 
     manifest = load_pilot_manifest(root / "manifest.json")
+    if authorize is not None:
+        authorize(manifest)
     corpus = Corpus(str(root / "corpus"))
     sequence = 0
 

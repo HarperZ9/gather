@@ -182,9 +182,12 @@ to set. Nothing starts, connects or reads the credential first.
 
 | Grant | Flag | Covers |
 |:-|:-|:-|
-| `GATHER_ALLOW_EXEC=llm,/opt/prov/check` | `--allow-exec COMMAND` | the `synthesizer` and `provenance` commands a config may run, matched on the command's first element; a pilot `browser` option other than `chromium` |
+| `GATHER_ALLOW_EXEC=llm,/opt/prov/check` | `--allow-exec COMMAND` | the `synthesizer` and `provenance` commands a config may run, matched on the command's first element; a pilot `browser` option other than `chromium`, or `no_sandbox` |
 | `GATHER_ALLOW_NETWORK=web,feed` or `all` | `--allow-network SOURCE` | the network sources a config or a live pilot manifest may use: `web`, `feed`, `arxiv`, `scholar`, `video`, `api`, `browser` |
-| `GATHER_AUTH_ENV_ALLOW=GATHER_API_TOKEN@api.example.com` | `--auth-env NAME@HOST` | the `api` source may read variable `NAME` only to send it to that exact host |
+| `GATHER_AUTH_ENV_ALLOW=GATHER_API_TOKEN@api.example.com` | `--auth-env NAME@HOST` | the `api` source may read variable `NAME` only to send it over `https` to that exact host |
+
+Grant the program itself, not an interpreter: the model chooses the rest of the
+command line, so granting `python` or a shell grants arbitrary code.
 
 The server reads grants once, at launch. A later change to its environment
 grants nothing, and no field in a config, a manifest or a tool call is read as a

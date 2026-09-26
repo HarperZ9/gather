@@ -259,10 +259,8 @@ def _pilot_tool(args: dict, grants: Grants) -> str:
             sort_keys=True,
         )
     if action == "refresh":
-        stored = Path(output) / "manifest.json"
-        if stored.is_file():  # refresh re-captures from the stored manifest: same grants apply
-            check_pilot_manifest(load_pilot_manifest(stored), grants)
-        result = refresh_pilot(Path(output))
+        # refresh re-captures from the stored manifest, so the same grants apply to that one read
+        result = refresh_pilot(Path(output), authorize=lambda m: check_pilot_manifest(m, grants))
         return json.dumps(
             {"action": "refresh", "monitor_report": result.monitor_report},
             indent=2,

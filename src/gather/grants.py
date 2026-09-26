@@ -118,9 +118,10 @@ class Grants:
     def require_credential(self, name: object, url: object) -> None:
         if self.operator:
             return
-        host = urllib.parse.urlsplit(url).hostname if isinstance(url, str) else None
+        parts = urllib.parse.urlsplit(url.strip()) if isinstance(url, str) else None
+        host = parts.hostname if parts is not None and parts.scheme.lower() == "https" else None
         if not isinstance(name, str) or not host or (name, host.lower()) not in self.auth_env:
-            raise GrantRequired(AUTH_VAR)
+            raise GrantRequired(AUTH_VAR)  # a credential travels only over https to its bound host
 
 
 OPERATOR = Grants(operator=True)
@@ -155,5 +156,5 @@ def check_pilot_manifest(manifest: object, grants: Grants) -> None:
                 grants.require_credential(source.options.get("auth_env", DEFAULT_AUTH_ENV), source.target)
             if source.adapter == "browser":
                 browser = source.options.get("browser", DEFAULT_BROWSER)
-                if browser != DEFAULT_BROWSER:
-                    grants.require_command(browser)
+                if browser != DEFAULT_BROWSER or source.options.get("no_sandbox", False) is not False:
+                    grants.require_command(browser)  # another executable, or the sandbox turned off
