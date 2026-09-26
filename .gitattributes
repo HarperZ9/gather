@@ -6,3 +6,6 @@ docs/art/*.json text eol=lf
 
 # Pilot fixture hashes are byte-level evidence; keep shipped fixture checkouts LF.
 examples/pilot/fixtures/** text eol=lf
+
+# Vendored helpers are hash-pinned (VENDORED.sha256); keep their bytes exactly as copied.
+**/_vendor/safe_spawn.py -text
