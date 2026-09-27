@@ -63,7 +63,8 @@ def add_ytdlp_options(p, *, timeout: float = DEFAULT_TIMEOUT) -> None:
                    help="yt-dlp: seconds to sleep before each subtitle download")
     p.add_argument("--timeout", type=float, default=timeout, metavar="S", help="seconds per yt-dlp call")
     p.add_argument("--retries", type=int, default=None, metavar="N",
-                   help="attempts per yt-dlp call while throttled (HTTP 429), counting the first")
+                   help="attempts per yt-dlp call while throttled (HTTP 429, a bot check, a session "
+                        "rate limit), counting the first")
     p.add_argument("--backoff-base", type=float, default=None, metavar="S", help="first backoff wait")
     p.add_argument("--backoff-cap", type=float, default=None, metavar="S", help="ceiling on one backoff wait")
     p.add_argument("--backoff-budget", type=float, default=None, metavar="S",

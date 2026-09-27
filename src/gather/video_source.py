@@ -10,6 +10,10 @@ download of exactly the chosen track from the saved info JSON (``--load-info-jso
 caption endpoint sees one request per video and a throttle retry never re-extracts the page.
 ``captions`` selects the pass: ``with`` (default), ``skip`` (metadata and comments only), or
 ``only`` (the transcript item only).
+
+A zero exit from the extraction is not taken on trust. yt-dlp reports YouTube's playability
+reason (a bot check, a session rate limit, a private video) as a warning when it runs with
+``--ignore-no-formats-error``, and ``check_playability`` turns that back into a failure.
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from gather.ytdlp import (
     Runner,
     YtDlpConfig,
     base_argv,
+    check_playability,
     subprocess_runner,
     throttle_reason,
 )
@@ -158,13 +163,19 @@ class VideoSource:
             out.error, out.error_code = f"yt-dlp failed: {res.reason()}", res.code()
         return res, out
 
-    def _call(self, argv: list[str], step: str, out: VideoOutcome, *,
-              timeout: float | None = None) -> CallResult:
+    def _call(self, argv: list[str], step: str, out: VideoOutcome, *, timeout: float | None = None,
+              check: Callable[[CallResult], CallResult] | None = None) -> CallResult:
         """Run yt-dlp with bounded backoff on throttle signals; record every retry and the
-        final failure on ``out`` and in the log."""
+        final failure on ``out`` and in the log. ``check`` reads each result before the retry
+        decision, so a throttle it finds is retried like any other."""
         limit = self._cfg.timeout if timeout is None else timeout
+
+        def once() -> CallResult:
+            res = self._runner(argv, limit)
+            return check(res) if check is not None else res
+
         result = run_with_backoff(
-            lambda: self._runner(argv, limit), retryable=throttle_reason,
+            once, retryable=throttle_reason,
             policy=self._backoff, step=step, sleep=self._sleep, rand=self._rand,
             on_retry=lambda r: self._log(
                 f"gather: yt-dlp {step} throttled ({r['reason'][:160]}); "
@@ -180,11 +191,14 @@ class VideoSource:
         return result.value
 
     def _extract(self, target: str, out: VideoOutcome) -> dict | None:
+        # --ignore-no-formats-error keeps the metadata and caption tracks of a video whose formats
+        # are missing; check_playability fails the call again when the reason was a bot check, a
+        # session rate limit, or a private, removed, blocked or upcoming video
         argv = self._base + ["--dump-single-json", "--skip-download", "--ignore-no-formats-error"]
         if self._with_comments and self._captions != "only":
             argv.append("--write-comments")
         argv += ["--", target]  # end-of-options: a target starting with - cannot be read as a flag
-        res = self._call(argv, "metadata", out)
+        res = self._call(argv, "metadata", out, check=check_playability)
         if not res.ok:
             out.error, out.error_code = f"yt-dlp failed: {res.reason()}", res.code()
             return None

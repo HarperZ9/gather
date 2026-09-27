@@ -1,6 +1,17 @@
+import json
 import sys
 
+import fake_ytdlp
 import pytest
+from fake_ytdlp import (
+    BOT_CHECK,
+    GEO,
+    NO_FORMATS,
+    PRIVATE,
+    REMOVED,
+    SESSION_LIMIT,
+    UPCOMING,
+)
 
 import gather.ytdlp as ytdlp_mod
 from gather.spawn import ToolRefused
@@ -8,8 +19,10 @@ from gather.ytdlp import (
     CallResult,
     YtDlpConfig,
     base_argv,
+    check_playability,
     classify,
     failure_reason,
+    playability_warning,
     resolve_js_runtime,
     subprocess_runner,
     throttle_reason,
@@ -133,3 +146,75 @@ def test_runner_names_the_program_as_given_never_a_resolved_path(tmp_path):
     missing = str(tmp_path / "tools" / "yt-dlp")
     res = subprocess_runner([missing], 5)
     assert res.code() == "tool-missing" and str(tmp_path) not in res.reason()
+
+
+# --- playability: what yt-dlp says, with --ignore-no-formats-error, when a video serves nothing ----
+
+def test_youtubes_session_rate_limit_is_a_throttle_not_an_unavailable_video():
+    # yt-dlp 2026.08.19 prefixes YouTube's own "Video unavailable" to the session limit
+    for prefix in ("ERROR: [youtube] abc: ", "WARNING: [youtube] "):
+        assert classify(prefix + SESSION_LIMIT) == "rate-limited"
+    assert throttle_reason(CallResult(1, "", f"ERROR: [youtube] abc: {SESSION_LIMIT}\n")).startswith("rate-limited")
+    assert classify("ERROR: [youtube] abc: " + REMOVED) == "unavailable"   # a removed video stays terminal
+
+
+def _page(formats=()):
+    return json.dumps({"id": "abc", "title": "T", "formats": list(formats), "automatic_captions": {}})
+
+
+def _warned(reason):
+    return f"{fake_ytdlp.WARN}WARNING: [youtube] {reason}\n{NO_FORMATS}"
+
+
+@pytest.mark.parametrize("reason,code,throttle", [
+    (BOT_CHECK, "bot-check", True),
+    (SESSION_LIMIT, "rate-limited", True),
+    (PRIVATE, "private", False),
+    (REMOVED, "unavailable", False),
+    (GEO, "geo-blocked", False),
+    (UPCOMING, "upcoming", False),
+], ids=["bot-check", "session-limit", "private", "removed", "geo", "upcoming"])
+def test_a_zero_exit_that_served_no_formats_fails_with_its_playability_reason(reason, code, throttle):
+    res = check_playability(CallResult(0, _page(), _warned(reason)))
+    assert res.returncode == 0 and not res.ok and res.code() == code
+    assert res.reason().startswith("served no formats: WARNING: [youtube] ")
+    assert (throttle_reason(res) is not None) is throttle
+    assert "older than 90 days" not in res.reason()
+
+
+def test_no_formats_without_a_playability_reason_stays_a_success():
+    # a video YouTube serves only through a client yt-dlp skipped still has metadata and captions
+    res = CallResult(0, _page(), fake_ytdlp.WARN + NO_FORMATS)
+    assert check_playability(res) is res and res.ok
+
+
+def test_a_throttle_warning_on_a_call_that_still_served_formats_stays_a_success():
+    stderr = "WARNING: [youtube] abc: Unable to download webpage: HTTP Error 429: Too Many Requests\n"
+    res = CallResult(0, _page([{"format_id": "18", "url": "https://x/v.mp4"}]), stderr)
+    assert check_playability(res) is res and res.ok
+
+
+def test_only_extractor_warnings_are_read_as_playability():
+    # yt-dlp's own no-formats lines and a version warning never name a reason
+    assert playability_warning(fake_ytdlp.WARN + NO_FORMATS) is None
+    assert playability_warning("[youtube] abc: Private video\n") is None     # not a warning line
+    assert playability_warning(_warned(PRIVATE)).startswith("WARNING: [youtube] Private video.")
+
+
+def test_a_throttle_line_wins_over_a_terminal_line():
+    stderr = f"WARNING: [youtube] {PRIVATE}\nWARNING: [youtube] {BOT_CHECK}\n{NO_FORMATS}"
+    assert classify(playability_warning(stderr)) == "bot-check"
+
+
+def test_a_failed_or_unreadable_call_is_left_as_it_is():
+    failed = CallResult(1, "", f"ERROR: [youtube] abc: {BOT_CHECK}\n")
+    assert check_playability(failed) is failed
+    garbled = CallResult(0, "not json", _warned(BOT_CHECK))   # the caller's JSON check reports it
+    assert check_playability(garbled) is garbled
+
+
+def test_a_replacement_character_for_the_curly_apostrophe_still_reads_as_a_bot_check():
+    # on Windows yt-dlp writes stderr in the console code page, so "you’re" can arrive as one
+    # undecodable byte; the runner decodes it as U+FFFD
+    garbled = _warned(BOT_CHECK.replace("’", "�"))
+    assert check_playability(CallResult(0, _page(), garbled)).code() == "bot-check"

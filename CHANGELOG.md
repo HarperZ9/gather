@@ -21,10 +21,17 @@ built behind a feature branch and reviewed before merge.
   first, then the original-language auto-caption (`en-orig`). The old `en.*` pattern fetched
   every English variant and could pick a machine translation; a translation-only video is
   now recorded as missing with the reason `translation-only`.
-- HTTP 429 and bot checks are retried with exponential backoff and jitter, bounded by
-  attempts and by total wait. Every retry and final failure is logged and recorded. A
-  channel run stops starting new entries once an entry spends its whole budget still
-  throttled, and records the rest as stopped.
+- HTTP 429, bot checks and YouTube's session rate limit are retried with exponential
+  backoff and jitter, bounded by attempts and by total wait. Every retry and final failure
+  is logged and recorded. A channel run stops starting new entries once an entry spends its
+  whole budget still throttled, and records the rest as stopped.
+- The extraction runs with `--ignore-no-formats-error`, so a video whose formats are missing
+  still yields its metadata and caption tracks. With that flag yt-dlp reports YouTube's
+  playability reason as a warning and exits 0. When the extraction lists no formats, Gather
+  reads that warning: a bot check or a session rate limit is retried like an HTTP 429, and
+  a private, members-only, age-restricted or removed video is recorded as failed with that
+  reason and settled. A geo-blocked or upcoming video is recorded as failed and tried again
+  on the next run. None of them stores a metadata item or a "no captions offered" outcome.
 - yt-dlp runs with `--js-runtimes node` when it can start `node` (`--js-runtime` overrides),
   and `--sleep-requests` / `--sleep-subtitles` pass through. The check uses the same PATH
   lookup as every child Gather starts, so a `node` only the working folder holds does not

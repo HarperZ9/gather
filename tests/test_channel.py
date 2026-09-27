@@ -2,11 +2,17 @@ import json
 import os
 
 import pytest
-from fake_ytdlp import FakeYtDlp, video_info
+from fake_ytdlp import BOT_CHECK, PRIVATE, FakeYtDlp, video_info
 
 import gather.video_source as video_source_mod
 from gather.channel import ChannelRun, merge_entries, parse_listing, tab_urls
-from gather.channel_ledger import is_settled, latest_rows, pass_name, summarize
+from gather.channel_ledger import (
+    is_settled,
+    latest_rows,
+    pass_name,
+    stored_refs,
+    summarize,
+)
 from gather.cli import main
 from gather.pacing import BackoffPolicy, Pacer
 from gather.store import Corpus
@@ -161,3 +167,65 @@ def test_channel_command_captions_pass_stops_and_exits_nonzero(tmp_path, monkeyp
 def test_channel_command_rejects_bad_options(tmp_path, capsys):
     assert main(["channel", CHAN, "--store", str(tmp_path), "--tabs", "community"]) == 2
     assert main(["channel", CHAN, "--store", str(tmp_path), "--concurrency", "0"]) == 2
+
+
+# --- playability warnings: yt-dlp exits 0 on these under --ignore-no-formats-error ----------------
+
+def _entries(ids):
+    return [{"id": v, "url": f"https://www.youtube.com/watch?v={v}", "tab": "videos"} for v in ids]
+
+
+def test_a_bot_check_warning_stops_the_pass_and_leaves_the_entry_pending(tmp_path):
+    ids = ["v0", "v1", "v2"]
+    fake = FakeYtDlp({v: video_info(v) for v in ids})
+    for v in ids:
+        fake.unplayable[v] = (BOT_CHECK, -1)
+    run = ChannelRun(_source(fake, "only"), Corpus(str(tmp_path)), str(tmp_path / "ledger.jsonl"), "captions",
+                     Pacer(0, 0), concurrency=1, max_throttled=1, log=lambda m: None)
+    rows = run.run(_entries(ids))
+    assert run.stop_reason and "v0: metadata still throttled" in run.stop_reason
+    assert [r["status"] for r in rows] == ["failed", "stopped", "stopped"]
+    assert rows[0]["code"] == "bot-check" and rows[0]["throttled"] and rows[0]["retries"] == 1
+    assert rows[0]["caption"] == "missing" and rows[0]["caption_reason"] == "bot-check"
+    assert not is_settled(rows[0], "captions")                   # the next run tries it again
+    assert len(fake.calls) == 2 and run.stored == {"added": 0, "deduped": 0}
+
+
+def test_channel_command_resumes_an_entry_a_bot_check_stopped(tmp_path, monkeypatch, capsys):
+    fake = FakeYtDlp({v: video_info(v) for v in ("a", "b", "c")}, tabs={"videos": ["a", "b", "c"]})
+    fake.unplayable["a"] = (BOT_CHECK, -1)
+    monkeypatch.setattr(video_source_mod, "subprocess_runner", fake)
+    store = str(tmp_path / "corpus")
+    argv = ["channel", CHAN, "--store", store, "--tabs", "videos", "--no-captions", "--concurrency", "1",
+            "--interval", "0", "--jitter", "0", "--retries", "2", "--backoff-base", "0.01",
+            "--js-runtime", "none", "--json"]
+    assert main(argv) == 1
+    first = json.loads(capsys.readouterr().out)
+    assert first["stopped"] and first["run"]["failures_by_reason"] == {"bot-check": 1}
+    assert first["run"]["status"] == {"failed": 1, "stopped": 2} and first["stored_this_run"]["added"] == 0
+
+    del fake.unplayable["a"]                                     # the session cools down
+    assert main(argv) == 0
+    again = json.loads(capsys.readouterr().out)
+    assert again["resume"] == {"settled_before_run": 0, "gathered_this_run": 3}
+    assert again["pass_totals"]["status"] == {"ok": 3}
+    assert stored_refs(Corpus(store).rows(), "metadata") == {"a", "b", "c"}
+
+
+def test_channel_command_settles_a_private_video_warning_as_a_failure(tmp_path, monkeypatch, capsys):
+    fake = FakeYtDlp({v: video_info(v) for v in ("a", "b")}, tabs={"videos": ["a", "b"]})
+    fake.unplayable["b"] = (PRIVATE, -1)
+    monkeypatch.setattr(video_source_mod, "subprocess_runner", fake)
+    store = str(tmp_path / "corpus")
+    argv = ["channel", CHAN, "--store", store, "--tabs", "videos", "--no-captions", "--interval", "0",
+            "--jitter", "0", "--js-runtime", "none", "--json"]
+    assert main(argv) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["run"]["failures_by_reason"] == {"private": 1} and summary["run"]["retries"]["total"] == 0
+    row = latest_rows(os.path.join(store, "intake", "ledger-metadata.jsonl"))["b"]
+    assert row["status"] == "failed" and is_settled(row, "metadata")
+    assert stored_refs(Corpus(store).rows(), "metadata") == {"a"}   # no degraded metadata item for b
+    before = len(fake.calls)
+    assert main(argv) == 0
+    assert json.loads(capsys.readouterr().out)["resume"] == {"settled_before_run": 2, "gathered_this_run": 0}
+    assert len(fake.calls) - before == 1                         # only the tab listing

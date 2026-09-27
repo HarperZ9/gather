@@ -1,5 +1,15 @@
 import pytest
-from fake_ytdlp import FakeYtDlp, asr, video_info
+from fake_ytdlp import (
+    BOT_CHECK,
+    GEO,
+    PRIVATE,
+    REMOVED,
+    SESSION_LIMIT,
+    UPCOMING,
+    FakeYtDlp,
+    asr,
+    video_info,
+)
 
 from gather.pacing import BackoffPolicy
 from gather.video import VideoSource as ReExported
@@ -124,6 +134,58 @@ def test_metadata_failure_reports_the_error_line_not_the_version_warning():
         src.fetch(URL)
     out = src.gather(URL)
     assert out.error_code == "unavailable" and out.caption_reason == "unavailable"
+
+
+def _metadata_calls(fake):
+    return [c for c in fake.calls if "--load-info-json" not in c]
+
+
+@pytest.mark.parametrize("reason,code", [(BOT_CHECK, "bot-check"), (SESSION_LIMIT, "rate-limited")],
+                         ids=["bot-check", "session-limit"])
+def test_a_throttle_warning_on_a_zero_exit_is_retried_then_marked_throttled(reason, code):
+    fake = FakeYtDlp({"abc": video_info("abc")})
+    fake.unplayable["abc"] = (reason, -1)
+    src, logs, slept = make(fake)
+    out = src.gather(URL)
+    assert not out.ok and out.error_code == code and out.throttled
+    assert out.error.startswith("yt-dlp failed: served no formats: WARNING: [youtube] ")
+    assert len(_metadata_calls(fake)) == 3 and slept == [1, 2]     # two retries, then the budget is spent
+    assert out.attempts[-1]["final"] is True and out.attempts[-1]["step"] == "metadata"
+    assert out.items == [] and out.caption == "missing" and out.caption_reason == code
+    assert not any("--load-info-json" in c for c in fake.calls)    # never asks for a track it was not shown
+    assert any("backoff budget spent" in m for m in logs)
+
+
+def test_a_bot_check_that_clears_is_gathered_on_the_retry():
+    fake = FakeYtDlp({"abc": video_info("abc")})
+    fake.unplayable["abc"] = (BOT_CHECK, 1)
+    src, _, slept = make(fake)
+    out = src.gather(URL)
+    assert out.ok and not out.throttled and slept == [1]
+    assert out.caption == "auto" and {i.kind for i in out.items} == {"metadata", "transcript"}
+    assert out.attempts[0]["reason"].startswith("bot-check: served no formats")
+
+
+@pytest.mark.parametrize("reason,code", [(PRIVATE, "private"), (REMOVED, "unavailable"),
+                                         (GEO, "geo-blocked"), (UPCOMING, "upcoming")],
+                         ids=["private", "removed", "geo", "upcoming"])
+def test_a_playability_warning_that_is_not_a_throttle_fails_without_a_retry(reason, code):
+    fake = FakeYtDlp({"abc": video_info("abc")})
+    fake.unplayable["abc"] = (reason, -1)
+    src, _, slept = make(fake, captions="skip")
+    with pytest.raises(RuntimeError, match="served no formats"):
+        src.fetch(URL)
+    out = src.gather(URL)
+    assert out.error_code == code and not out.throttled and out.items == []   # no degraded metadata item
+    assert slept == [] and len(fake.calls) == 2                              # one call per gather
+
+
+def test_a_video_that_lists_no_formats_for_no_stated_reason_keeps_its_captions():
+    fake = FakeYtDlp({"abc": video_info("abc", formats=False)})
+    src, _, _ = make(fake)
+    out = src.gather(URL)
+    assert out.ok and out.caption == "auto" and not out.attempts
+    assert "--ignore-no-formats-error" in fake.calls[0]
 
 
 def test_unknown_caption_mode_is_rejected():

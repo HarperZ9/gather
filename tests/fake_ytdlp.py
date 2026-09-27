@@ -3,6 +3,13 @@
 It answers the three call shapes Gather makes (flat listing, ``-J`` extraction, caption download
 from ``--load-info-json``), records every argv it saw, and can be told to answer a step with
 HTTP 429 a set number of times, or always.
+
+A playability reason (a bot check, a session rate limit, a private video) gets the answer
+yt-dlp 2026.08.19 gives. With ``--ignore-no-formats-error`` it prints the reason as an extractor
+``WARNING``, then its two no-formats warnings, dumps the page's metadata with no formats and no
+caption tracks, and exits 0. Without the flag it prints an ``ERROR`` and exits 1. A video that
+lists no formats and gives no reason gets only the two no-formats warnings. ``fail`` answers
+with a non-zero exit whatever the argv holds, for an error yt-dlp raises outright.
 """
 
 from __future__ import annotations
@@ -19,6 +26,26 @@ ERR_429_META = WARN + "ERROR: [youtube] abc: Unable to download API page: HTTP E
 
 VTT = "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nhello from {vid}\n"
 
+# yt-dlp's own lines after an extraction that listed no formats, under --ignore-no-formats-error
+NO_FORMATS = "WARNING: No video formats found!\nWARNING: Requested format is not available\n"
+
+# Playability reasons, worded the way the YouTube extractor in yt-dlp 2026.08.19 words them
+COOKIES_HINT = ("Use --cookies-from-browser or --cookies for the authentication. See  "
+                "https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to "
+                "manually pass cookies. Also see  "
+                "https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on "
+                "effectively exporting YouTube cookies")
+BOT_CHECK = f"Sign in to confirm you’re not a bot. {COOKIES_HINT}"
+SESSION_LIMIT = ("Video unavailable. This content isn't available, try again later. The current session has "
+                 "been rate-limited by YouTube for up to an hour. It is recommended to use `-t sleep` to add "
+                 "a delay between video requests to avoid exceeding the rate limit. For more information, "
+                 "refer to  https://github.com/yt-dlp/yt-dlp/wiki/Extractors"
+                 "#this-content-isnt-available-try-again-later")
+PRIVATE = f"Private video. Sign in if you've been granted access to this video. {COOKIES_HINT}"
+REMOVED = "Video unavailable. This video has been removed by the uploader"
+GEO = "Video unavailable. The uploader has not made this video available in your country"
+UPCOMING = "Premieres in 3 hours"
+
 
 def asr(lang: str, tlang: str | None = None) -> list[dict]:
     url = f"https://www.youtube.com/api/timedtext?v=x&kind=asr&lang={lang}&fmt=vtt"
@@ -28,11 +55,12 @@ def asr(lang: str, tlang: str | None = None) -> list[dict]:
 
 
 def video_info(vid: str, *, manual: tuple[str, ...] = (), auto: tuple[str, ...] = ("en-orig",),
-               comments: int = 2) -> dict:
+               comments: int = 2, formats: bool = True) -> dict:
     return {
         "id": vid, "title": f"Title {vid}", "uploader": "Chan", "duration": 60,
         "upload_date": "20260101", "view_count": 5, "webpage_url": f"https://www.youtube.com/watch?v={vid}",
         "comment_count": comments,
+        "formats": [{"format_id": "18", "ext": "mp4", "url": f"https://x/{vid}.mp4"}] if formats else [],
         "subtitles": {lang: [{"ext": "vtt", "url": f"https://x/{lang}"}] for lang in manual},
         "automatic_captions": {lang: asr(lang.removesuffix("-orig")) for lang in auto},
         "_comments": [{"id": f"{vid}-c{i}", "text": f"comment {i} on {vid}", "author": f"user{i}"}
@@ -47,6 +75,8 @@ class FakeYtDlp:
         self.calls: list[list[str]] = []
         self.throttle: dict[str, int] = {}  # step -> remaining 429 answers (-1 means always)
         self.fail: dict[str, str] = {}      # video id -> stderr to fail its extraction with
+        # video id -> (playability reason, answers left; -1 means always)
+        self.unplayable: dict[str, tuple[str, int]] = {}
 
     def _throttled(self, step: str) -> bool:
         left = self.throttle.get(step, 0)
@@ -55,6 +85,14 @@ class FakeYtDlp:
         if left > 0:
             self.throttle[step] = left - 1
         return True
+
+    def _unplayable(self, vid: str) -> str | None:
+        reason, left = self.unplayable.get(vid, ("", 0))
+        if left == 0:
+            return None
+        if left > 0:
+            self.unplayable[vid] = (reason, left - 1)
+        return reason
 
     def __call__(self, argv: list[str], timeout: float) -> CallResult:
         self.calls.append(list(argv))
@@ -79,10 +117,21 @@ class FakeYtDlp:
             return CallResult(1, "", self.fail[vid])
         if self._throttled("metadata"):
             return CallResult(1, "", ERR_429_META)
+        lenient = "--ignore-no-formats-error" in argv
+        reason = self._unplayable(vid)
+        if reason is not None:
+            if not lenient:
+                return CallResult(1, "", WARN + f"ERROR: [youtube] {vid}: {reason}\n")
+            page = {"id": vid, "title": f"Title {vid}", "formats": [], "subtitles": {}, "automatic_captions": {}}
+            return CallResult(0, json.dumps(page), WARN + f"WARNING: [youtube] {reason}\n" + NO_FORMATS)
         info = dict(self.videos[vid])
         comments = info.pop("_comments", [])
         if "--write-comments" in argv:
             info["comments"] = comments
+        if not info.get("formats"):
+            if not lenient:
+                return CallResult(1, "", WARN + f"ERROR: [youtube] {vid}: No video formats found!\n")
+            return CallResult(0, json.dumps(info), WARN + NO_FORMATS)
         return CallResult(0, json.dumps(info), WARN)
 
     def _captions(self, argv: list[str]) -> CallResult:

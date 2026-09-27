@@ -74,9 +74,17 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   `node` that only your working folder holds does not count. `none` turns it off; any
   other value is passed through.
 - **Pacing and backoff.** `--sleep-requests` and `--sleep-subtitles` pass through to
-  yt-dlp. On HTTP 429 or a bot check, Gather retries with exponential backoff and jitter,
-  bounded by `--retries` (attempts, counting the first), `--backoff-cap` (one wait), and
-  `--backoff-budget` (total wait per call). Every retry is logged to stderr and recorded.
+  yt-dlp. On HTTP 429, a bot check or YouTube's session rate limit, Gather retries with
+  exponential backoff and jitter, bounded by `--retries` (attempts, counting the first),
+  `--backoff-cap` (one wait), and `--backoff-budget` (total wait per call). Every retry is
+  logged to stderr and recorded.
+- **Why a video served nothing.** The extraction runs with `--ignore-no-formats-error`, so
+  a video whose formats are missing still gives its metadata and caption tracks. That flag
+  also makes yt-dlp print YouTube's playability reason as a `WARNING` and exit 0. When the
+  extraction lists no formats, Gather reads that line. A bot check or a session rate limit
+  is retried as above. A private, members-only, age-restricted or removed video is
+  recorded as failed with its reason and skipped on the next run. A geo-blocked or upcoming
+  video is recorded as failed and tried again on the next run.
 - **Real failure lines.** A failed call reports its `ERROR` lines, not a leading version
   or runtime warning. A yt-dlp that cannot start is recorded as `tool-missing`, and one
   Gather will not start with these arguments as `tool-refused`. On Windows a `yt-dlp.cmd`

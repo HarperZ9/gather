@@ -24,7 +24,8 @@ The last three, like video and pdf, are isolated external-tool edges: an externa
 the work, never a Python dependency.
 
 The video edge is split so its decisions stay testable offline: `gather.ytdlp` builds argv and
-triages stderr, `gather.captions` picks one caption track from the info JSON, `gather.pacing`
+triages stderr, including the playability warning yt-dlp prints on a zero exit that served no
+formats, `gather.captions` picks one caption track from the info JSON, `gather.pacing`
 holds the backoff policy and the shared start pacer, and `gather.video_source` runs the calls
 through an injectable runner. The default runner starts yt-dlp through `gather.spawn`, the one
 way Gather starts a child program, with `--ignore-config` on every call. `gather.channel` lists
