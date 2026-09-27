@@ -94,8 +94,10 @@ def world(tmp_path, monkeypatch):
     (repo / "yt-dlp.conf").write_text('--exec "echo planted"\n', encoding="utf-8")
     _yt_dlp(bindir, log)
     _program(bindir, "ffmpeg", FFMPEG)
-    system = ([os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32")] if WINDOWS
-              else ["/usr/bin", "/bin"])
+    # POSIX gets no system folder: a distro node in /usr/bin would count as found and break the
+    # JS runtime test. The stand-ins start through an absolute interpreter and a /bin/sh
+    # shebang, and the child's PATH keeps bindir, so nothing here needs one.
+    system = [os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32")] if WINDOWS else []
     monkeypatch.setenv("PATH", os.pathsep.join([".", "", str(repo), str(bindir), *system]))
     for var in ("GATHER_YT_DLP", "GATHER_CHILD_ENV", "NoDefaultCurrentDirectoryInExePath"):
         monkeypatch.delenv(var, raising=False)
