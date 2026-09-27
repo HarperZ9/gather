@@ -30,8 +30,11 @@ surface, `gather caps` to see which optional backends are available, and
 operations to an MCP host. A run or pilot that would start a command, reach the
 network or send a credential needs a grant you set at launch
 (`--allow-exec`, `--allow-network`, `--auth-env NAME@HOST`); without it the call
-returns `GRANT_REQUIRED`. External tools start from an absolute path in a private
-empty folder. [USAGE.md](USAGE.md) has the details.
+returns `GRANT_REQUIRED`. File sources and every MCP path argument refuse Windows
+network and device paths (`\\host\share`, `\\?\`, `CON`) with `NON_LOCAL_PATH`,
+so a tool call cannot make the machine sign in to someone else's share. External
+tools start from an absolute path in a private empty folder.
+[USAGE.md](USAGE.md) has the details.
 
 ## How a pilot run works
 

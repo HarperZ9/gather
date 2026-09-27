@@ -7,6 +7,7 @@ from typing import Any
 from gather import __version__
 from gather.flagship import doctor_payload, status_payload
 from gather.grants import NONE, GrantRequired, Grants, check_pilot_manifest
+from gather.localpath import NonLocalPath, require_local
 from gather.payloads import catalog_digest_payload
 from gather.scope import filter_scope
 
@@ -25,7 +26,7 @@ def _text_result(text: str, *, is_error: bool = False) -> dict:
     return {"content": [{"type": "text", "text": text}], "isError": is_error}
 
 
-def _refusal(exc: GrantRequired) -> dict:
+def _refusal(exc: GrantRequired | NonLocalPath) -> dict:
     body = exc.payload()
     return {"content": [{"type": "text", "text": json.dumps(body)}], "isError": True,
             "structuredContent": body}
@@ -64,7 +65,8 @@ def _tool_defs() -> list[dict]:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "file or directory to read"},
+                    "path": {"type": "string", "description": "local file or directory to read; a network "
+                                                              "or device path returns NON_LOCAL_PATH"},
                     "scope": {
                         "description": (
                             "optional post-fetch content filter: keep items whose title or body "
@@ -125,7 +127,9 @@ def _tool_defs() -> list[dict]:
             "name": "gather.run",
             "description": "Run a multi-source gather config and return the witnessed run record. "
                            "Network sources, synthesizer or provenance commands and api credentials "
-                           "need a launch grant; without one the call returns GRANT_REQUIRED.",
+                           "need a launch grant; without one the call returns GRANT_REQUIRED. A file "
+                           "source target, store or config path that names a network or device path "
+                           "returns NON_LOCAL_PATH.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -213,6 +217,7 @@ def _federation_tool(args: dict) -> str:
         raise ValueError("gather.federation action must be 'validate' or 'plan'")
     registry = args.get("registry")
     if isinstance(registry, str) and registry:
+        require_local(registry, label="registry")
         try:
             rows = load_registry_file(registry)
         except FileNotFoundError as exc:
@@ -240,13 +245,14 @@ def _pilot_tool(args: dict, grants: Grants) -> str:
         raise ValueError(f"gather.pilot action must be run, refresh, verify, or bundle (got {action!r})")
     if not isinstance(output, str) or not output:
         raise ValueError("gather.pilot requires a non-empty output")
+    require_local(output, label="output")
 
     if action == "run":
         manifest = args.get("manifest")
         if isinstance(manifest, dict):
             validated = validate_pilot_manifest(manifest, Path.cwd())
         elif isinstance(manifest, str) and manifest:
-            validated = load_pilot_manifest(manifest)
+            validated = load_pilot_manifest(require_local(manifest, label="manifest"))
         else:
             raise ValueError("gather.pilot run requires a manifest object or path")
         check_pilot_manifest(validated, grants)
@@ -283,6 +289,7 @@ def _pilot_tool(args: dict, grants: Grants) -> str:
         raise ValueError("gather.pilot bundle requires visibility shared or full")
     if not isinstance(bundle_output, str) or not bundle_output:
         raise ValueError("gather.pilot bundle requires a bundle_output path")
+    require_local(bundle_output, label="bundle_output")
     receipt = create_pilot_bundle(
         Path(output),
         Path(bundle_output),
@@ -312,6 +319,7 @@ def call_tool(name: str, args: dict, grants: Grants = NONE) -> str:
         path = args.get("path")
         if not isinstance(path, str) or not path:
             raise ValueError("gather.docs requires a non-empty path")
+        require_local(path, label="path")
         payload = _payload_from_items(DocsSource().fetch(path), _scope_terms(args.get("scope")))
         return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
     if name == "gather.arxiv":
@@ -336,6 +344,7 @@ def call_tool(name: str, args: dict, grants: Grants = NONE) -> str:
         corpus = args.get("corpus")
         if not isinstance(corpus, str) or not corpus:
             raise ValueError("gather.context requires a non-empty corpus")
+        require_local(corpus, label="corpus")
         selections = args.get("select")
         if selections is None:
             payload = inspect_corpus(
@@ -372,6 +381,7 @@ def call_tool(name: str, args: dict, grants: Grants = NONE) -> str:
         if config is None:
             config = args.get("config_path")
         if isinstance(config, str) and config:
+            require_local(config, label="config")
             try:
                 cfg = load_run_config(config)
             except FileNotFoundError as exc:
@@ -384,6 +394,8 @@ def call_tool(name: str, args: dict, grants: Grants = NONE) -> str:
             raise ValueError("gather.run requires config as an inline object or non-empty config path")
         try:
             plan = plan_from_config(cfg, grants=grants)
+        except NonLocalPath:
+            raise
         except (ValueError, KeyError) as exc:
             raise ValueError(f"bad config: {exc}") from exc
         record, _items = run_plan(plan)
@@ -418,7 +430,7 @@ def handle_request(req: dict, grants: Grants | None = None) -> dict | None:
         try:
             text = call_tool(name, params.get("arguments") or {}, NONE if grants is None else grants)
             return _ok(mid, _text_result(text))
-        except GrantRequired as exc:
+        except (GrantRequired, NonLocalPath) as exc:
             return _ok(mid, _refusal(exc))
         except Exception as exc:
             return _ok(mid, _text_result(f"error: {exc}", is_error=True))

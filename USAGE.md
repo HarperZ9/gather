@@ -199,6 +199,46 @@ API run your own config and keep full trust.
 gather mcp --allow-network arxiv --allow-exec llm
 ```
 
+### Local paths only
+
+On Windows, a path such as `\\host\share\notes.md` makes the machine connect to
+`host` and sign in as you, which can send your NTLM credentials to whoever runs
+`host`. Gather refuses network and device paths before it opens anything:
+
+- the `docs`, `pdf`, `ocr` and `transcribe` sources, on every surface, including
+  each entry of a `docs` directory walk;
+- every MCP path argument: `gather.docs` `path`, `gather.run` `config` or
+  `config_path`, `gather.federation` `registry`, `gather.context` `corpus`, and
+  `gather.pilot` `manifest`, `output` and `bundle_output`;
+- a run config's file-source targets, checked before any job runs, and its
+  `store` when the config comes through MCP;
+- a pilot manifest's local targets, fixtures and `allowed_local_roots`.
+
+A path is refused when it starts with two separators of either kind (`\\host`,
+`//host`, `\\?\`, `\\.\`, `\\?\UNC\`, or a mix such as `/\host`), starts with
+`\??\`, or has a component with a reserved device name: `CON`, `PRN`, `AUX`,
+`NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, `CONIN$` or `CONOUT$`, with or
+without an extension, trailing dots or spaces. Windows rules apply on Windows and
+to Windows-style text (a backslash or a drive prefix) on every platform. A pilot
+manifest applies them everywhere, so it means the same on every machine. On
+Windows, Gather also walks the path without following links and refuses a
+symbolic link or junction whose target is a network or device path, and a
+relative path when the working folder is a share.
+
+The MCP call returns `isError: true` with `structuredContent`
+`{"code": "NON_LOCAL_PATH", "retryable": false, "kind": "network", "argument": "path", "detail": "<fixed sentence>"}`,
+where `kind` is `network`, `device` or `link`. The CLI prints the reason and
+exits 1.
+
+Limits:
+
+- A drive letter mapped to a share (`Z:`) looks like any local drive, so no
+  check on the text can see it.
+- A `\\?\C:\...` long path is refused. Give the plain drive path, and turn on
+  Windows long path support if you need paths over 260 characters.
+- The CLI's own `--store`, `--output` and `--state` paths, and the `store` in a
+  config you run with `gather run`, are your choice and are not checked.
+
 ## External tools
 
 The `pdf`, `ocr`, `transcribe`, `video` and `browser` adapters, and a run's

@@ -4,6 +4,7 @@ import os
 import time
 
 from gather.item import Item, make_item
+from gather.localpath import check_entry, require_local
 
 TEXT_EXTENSIONS = (".txt", ".md", ".rst", ".markdown", ".text")
 
@@ -27,6 +28,10 @@ class DocsSource:
     attributed to where it actually lives. Files that cannot be decoded as UTF-8 are read with
     replacement rather than skipped silently: the receipt then faithfully fingerprints text
     that is itself an imperfect reading of a non-text file, so point this at text.
+
+    The target must be a local path: a network (UNC) or device path is refused before anything
+    opens it (see ``gather.localpath``), and so is a walked entry with a reserved device name or,
+    on Windows, a link to a network or device path.
     """
 
     name = "docs"
@@ -41,14 +46,18 @@ class DocsSource:
         self._portable_ref = portable_ref
 
     def fetch(self, target: str) -> list[Item]:
+        target = require_local(target, label="target")
         at = float(self._clock())
         if os.path.isdir(target):
             items: list[Item] = []
             for root, dirs, files in os.walk(target):
                 dirs.sort()
+                for dname in dirs:
+                    check_entry(os.path.join(root, dname), label="target")
                 for fname in sorted(files):
                     if fname.lower().endswith(self._extensions):
                         path = os.path.join(root, fname)
+                        check_entry(path, label="target")
                         rel = os.path.relpath(path, target).replace(os.sep, "/")
                         items.append(self._read(path, name=rel, at=at))
             return items

@@ -89,6 +89,26 @@ untrusted URLs in an environment with reachable internal services. The Chromium 
 by default; `no_sandbox=True` disables it (a deliberate hardening downgrade, sometimes needed to
 run as root in a container).
 
+## The local-path edge (`gather.localpath`)
+
+The file sources (`docs`, `pdf`, `ocr`, `transcribe`) and every path argument on the MCP surface
+pass through `require_local` before anything opens the path. On Windows a UNC path makes the SMB
+client connect to the named host and authenticate as the user, so an attacker-named share can
+collect the user's NTLM response; `\\.\`, `\\?\`, `\??\` and reserved names such as `CON` open
+devices or skip path normalization. The check is lexical, so a refused path never reaches the
+filesystem: two leading separators of either kind, the `\??\` prefix, or a component whose base
+name is a reserved device name. Windows rules apply on Windows and to Windows-style text on every
+platform; pilot manifests apply them everywhere through `require_portable`.
+
+On Windows the same call then walks the path one component at a time with `lstat` and
+`readlink`, never following a link, and refuses a symbolic link or junction whose target is a
+network or device path before anything opens through it. A `docs` directory walk checks each
+entry it finds the same way. Two residuals are documented rather than hidden: a drive letter
+mapped to a share looks local to any lexical check, and a link swapped between the check and the
+open (which needs local write access) is not defended. The CLI's own output and store paths are
+the operator's choice and are not checked; a run config's `store` is checked when the config
+arrives through MCP.
+
 ## Credentials (`gather.credentials`)
 
 Secrets enter in one place: `require_secret(name)` reads from the environment, never from source,

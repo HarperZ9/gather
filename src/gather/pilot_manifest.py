@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
+from gather.localpath import check_links, require_portable
 from gather.schema_extract import Field
 
 ADAPTERS = (
@@ -192,9 +193,11 @@ def _inside(path: Path, roots: tuple[Path, ...]) -> bool:
 
 
 def _relative_path(value: str, label: str, base_dir: Path, roots: tuple[Path, ...]) -> tuple[str, Path]:
+    require_portable(value, label=label)
     path = Path(value)
     if path.is_absolute() or ".." in path.parts:
         raise ValueError(f"{label} must be a relative path inside an allowed local root")
+    check_links(str(base_dir / path), label=label)  # before resolve() follows a link
     try:
         resolved = (base_dir / path).resolve(strict=True)
     except FileNotFoundError as error:
@@ -273,9 +276,11 @@ def _policy(data: Mapping[str, object], base_dir: Path) -> tuple[PilotPolicy, tu
     for item in _items(data, "allowed_local_roots", "policy"):
         if not isinstance(item, str) or not item:
             raise ValueError("policy.allowed_local_roots must contain non-empty strings")
+        require_portable(item, label="policy.allowed_local_roots")
         path = Path(item)
         if path.is_absolute() or ".." in path.parts:
             raise ValueError("policy.allowed_local_roots must contain relative paths")
+        check_links(str(base_dir / path), label="policy.allowed_local_roots")
         try:
             resolved = (base_dir / path).resolve(strict=True)
         except FileNotFoundError as error:
