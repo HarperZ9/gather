@@ -199,6 +199,47 @@ API run your own config and keep full trust.
 gather mcp --allow-network arxiv --allow-exec llm
 ```
 
+### Local paths only
+
+On Windows, a path such as `\\host\share\notes.md` makes the machine connect to
+`host` and sign in as you, which can send your NTLM credentials to whoever runs
+`host`. Gather refuses network and device paths before it opens anything:
+
+- the `docs`, `pdf`, `ocr` and `transcribe` sources, on every surface, including
+  each entry of a `docs` directory walk;
+- every MCP path argument: `gather.docs` `path`, `gather.run` `config` or
+  `config_path`, `gather.federation` `registry`, `gather.context` `corpus`, and
+  `gather.pilot` `manifest`, `output` and `bundle_output`;
+- a run config's file-source targets, checked before any job runs, and its
+  `store` when the config comes through MCP;
+- a pilot manifest's local targets, fixtures and `allowed_local_roots`.
+
+A path is refused when it starts with two separators of either kind (`\\host`,
+`//host`, `\\?\`, `\\.\`, `\\?\UNC\`, or a mix such as `/\host`), starts with
+`\??\`, or has a component with a reserved device name: `CON`, `PRN`, `AUX`,
+`NUL`, `CONIN$`, `CONOUT$`, `COM1` to `COM9` or `LPT1` to `LPT9` (including
+the superscript 1, 2 and 3 forms), with or without an extension, trailing dots
+or spaces. `COM0` and `LPT0` are ordinary file names on Windows and still read.
+Windows rules apply on Windows and to Windows-style text (a backslash or a drive
+prefix) on every platform. A pilot manifest applies them everywhere, so it means
+the same on every machine. On Windows, Gather also walks the path without
+following links and refuses a symbolic link or junction whose target is a
+network or device path, and a relative path when the working folder is a share.
+
+The MCP call returns `isError: true` with `structuredContent`
+`{"code": "NON_LOCAL_PATH", "retryable": false, "kind": "network", "argument": "path", "detail": "<fixed sentence>"}`,
+where `kind` is `network`, `device` or `link`. The CLI prints the reason and
+exits 1.
+
+Limits:
+
+- A drive letter mapped to a share (`Z:`) looks like any local drive, so no
+  check on the text can see it.
+- A `\\?\C:\...` long path is refused. Give the plain drive path, and turn on
+  Windows long path support if you need paths over 260 characters.
+- The CLI's own `--store`, `--output` and `--state` paths, and the `store` in a
+  config you run with `gather run`, are your choice and are not checked.
+
 ## External tools
 
 The `pdf`, `ocr`, `transcribe`, `video` and `browser` adapters, and a run's
@@ -208,16 +249,43 @@ each one the same way:
 - It resolves the program to an absolute path. `GATHER_PDFTOTEXT`,
   `GATHER_TESSERACT`, `GATHER_WHISPER`, `GATHER_YT_DLP` and `GATHER_CHROMIUM`
   take an absolute path and win over PATH. The PATH lookup skips `.` and every
-  other relative entry, so a file named like the tool in your working folder
-  never runs. A command given as a relative path (`./tools/synth`) is refused;
-  give a bare name on PATH or an absolute path.
+  other relative entry. It also skips every entry that reaches your working
+  folder: the folder itself, a folder below it, a junction or symlink to either,
+  and other spellings such as a trailing separator, `..` or quotes. So a file
+  named like the tool in your working folder does not run, except in the two
+  cases below. A command given as a relative path (`./tools/synth`) is refused,
+  and so is a Windows drive-relative name (`C:synth`); give a bare name on PATH
+  or an absolute path.
+- The guard narrows in two cases. When Gather runs from a filesystem root, or
+  from your home folder or a folder above it, only an entry naming that folder
+  itself leaves. Folders below it stay, because installed tools live there.
+  When the working folder is the folder of the Python that runs Gather, or on
+  Windows the Windows, `System32` or `SysWOW64` folder, no entry leaves for it,
+  because Gather already runs code from that folder.
+- To run a tool that lives inside your working folder, such as one in a
+  project's `node_modules/.bin`, give its absolute path: in its `GATHER_<TOOL>`
+  variable, or as the command itself for a `synthesizer` or `provenance`
+  command. The folder of the Python that runs Gather always stays on PATH, so
+  when Gather runs from a venv inside your project, that venv keeps its tools.
+- On Windows, a conda environment created inside the working folder keeps only
+  its root folder, where its `python.exe` lives. Its `Scripts` and
+  `Library\bin` folders, where conda puts command-line tools, leave. Set
+  `GATHER_PDFTOTEXT`, `GATHER_TESSERACT`, `GATHER_YT_DLP` or `GATHER_WHISPER`
+  to the tool's full path, or create the environment outside the project.
+- On Windows, PATH is read as cmd.exe reads it. An entry with an unmatched
+  double quote hides every entry after it, as it does in cmd.exe, so a tool in a
+  later folder is reported as not found. Remove the stray quote, or set the
+  tool's `GATHER_<TOOL>` variable.
 - It starts the program in a new private empty folder, so the program reads no
   configuration from your working folder. `yt-dlp` also gets `--ignore-config`,
   so no `yt-dlp.conf` changes what it runs, including your user config.
 - It passes a short environment allowlist (`PATH`, the system and home
   variables, and for `yt-dlp` and the browser the proxy and CA variables).
   Name anything else a program needs, such as a synthesizer's API key, in
-  `GATHER_CHILD_ENV=NAME1,NAME2`.
+  `GATHER_CHILD_ENV=NAME1,NAME2`. The program's `PATH` holds only the entries
+  the lookup kept, each as its real folder, so a program that starts its own
+  helper by name, as `yt-dlp` starts `ffmpeg`, cannot reach your working
+  folder either.
 - A Python command gets `-P`, so it cannot import a module planted beside it.
   Install the module a `python -m` provenance command runs.
 

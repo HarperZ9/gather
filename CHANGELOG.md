@@ -5,6 +5,104 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.9.1 (2026-09-27)
+
+### Security: file sources and MCP path arguments refuse network and device paths
+
+- On Windows, opening a path such as `\\host\share\doc.md` makes the SMB client connect to
+  `host` and sign in as the user, which can send the user's NTLM response to whoever runs `host`.
+  The `docs`, `pdf`, `ocr` and `transcribe` sources opened any path they were given, and so did
+  every path argument on the MCP surface. None of these needed a launch grant. A model connected
+  to `gather mcp`, or text it was asked to read, could name a share in `gather.docs`, in a
+  `gather.run` job target, config path or `store`, or in the `gather.context`,
+  `gather.federation` and `gather.pilot` path arguments. A `store` on a share also writes the
+  gathered text there. Affected: 1.6.0 through 1.9.0, when `gather mcp` runs on Windows.
+- `gather.localpath` checks the path text before anything opens it. It refuses text that starts
+  with two separators of either kind (UNC, `\\?\`, `\\.\`, `\\?\UNC\`, and mixes such as
+  `/\host`), text that starts with `\??\`, and any component with a reserved device name (`CON`,
+  `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM1` to `COM9` and `LPT1` to `LPT9`, including
+  the superscript 1, 2 and 3 forms), with or without an extension, trailing dots or spaces.
+  `COM0` and `LPT0` are ordinary file names on Windows and still read. Windows rules apply on
+  Windows and to Windows-style text on every platform. On Windows it then walks the path without
+  following links and refuses a symbolic link or junction whose target is a network or device
+  path, before anything opens through it. A relative path is refused when the working folder is
+  a share.
+- Where it applies: the four file sources on every surface, including each entry of a `docs`
+  directory walk; a run config's file-source targets, before any job runs; every MCP path
+  argument; a run config's `store` when the config comes through MCP; and a pilot manifest's
+  local targets, fixtures and `allowed_local_roots`, where Windows rules apply on every platform
+  so a manifest means the same on every machine.
+- The MCP call returns `isError: true` with `structuredContent` `{"code": "NON_LOCAL_PATH",
+  "retryable": false, "kind": "network" | "device" | "link", "argument": "<name>", "detail":
+  "<fixed sentence>"}`. The CLI prints the reason and exits 1. The `gather.docs` `path` and the
+  `gather.run` descriptions now say so.
+- Changes you may notice: a `\\?\C:\...` long path is refused, so give the plain drive path. A
+  share is refused as a source from the CLI too; copy the files to a local folder. A drive letter
+  mapped to a share looks local to any check on the text, so Gather cannot see it. The CLI's own
+  `--store`, `--output` and `--state` paths, and the `store` in a config run with `gather run`,
+  are unchanged.
+- `tests/test_nonlocal_paths.py` replaces the filesystem and child-process layer with a spy and
+  hands each source and MCP tool one path of each class. On 1.9.0, 81 of its 82 tests failed on
+  Windows and 76 on Linux, where POSIX-style names such as `CON` stay ordinary file names by
+  design. `tests/test_localpath.py` covers the classifier, the working-folder case and the link
+  walk against a fake tree on every platform, and real junctions and symlinks on Windows.
+  `tests/test_device_names.py` asks Windows which bare names it opens as devices, so the
+  reserved-name list cannot drift from the host. It also checks that `COM0.md` and `LPT0.md`
+  read through the `docs` source, the MCP `gather.docs` tool and a pilot manifest.
+
+### Security: a PATH entry that reaches the working folder no longer starts a program there
+
+- 1.9.0 skipped `.` and every other relative PATH entry when it looked up a child program. An
+  absolute entry could still reach the working folder: one naming it or a folder below it (a
+  project's `node_modules/.bin`, a venv other than the one running Gather), another spelling of
+  it (a trailing separator, `..`, letter case), the same folder in quotes, or a junction or
+  symlink to it. A program planted there under a tool's name (`pdftotext`, `yt-dlp`,
+  `tesseract`, `whisper`, the browser, or a `synthesizer` or `provenance` command) then ran in
+  place of the real one. The child also got those entries on its PATH, so a tool that starts
+  its own helper by name, as `yt-dlp` starts `ffmpeg`, could start a copy planted there. On
+  Windows a drive-relative command such as `C:llm` named a file in the working folder too.
+  Affected: every release before 1.9.1. Releases before 1.9.0 started tools by bare name
+  through the operating system's own search, which follows these entries as well; on Linux,
+  1.8.3 ran the plant through each absolute-entry, link and child-lookup route. 1.9.0 closed the
+  current-folder search and `.` entries (see 1.9.0) and left these routes open.
+- Gather now vendors safe spawn 1.0.1 (`SAFE_SPAWN_VERSION` 1.0.1, hash-pinned in
+  `VENDORED.sha256`). A PATH entry that reaches the working folder, by name or by file identity
+  after links are resolved, leaves the lookup and the child's PATH. Each kept entry is searched,
+  and handed to the child, as its real folder, so a link repointed after the check cannot change
+  what starts. On Windows PATH is read as cmd.exe reads it, an entry whose folder name holds `;`
+  leaves, and a bare command name holding `:` is refused. On POSIX an entry written with quotes
+  or a leading space counts as relative, and a child PATH the filter empties becomes
+  `/bin:/usr/bin`, since an empty PATH means the current folder there. The folder of the Python
+  that runs Gather and, on Windows, the Windows, `System32` and `SysWOW64` folders always stay.
+- Where the guard narrows: when Gather runs from a filesystem root, or from the home folder or
+  a folder above it, only an entry naming that folder itself leaves, because installed tools
+  live below it. A working folder that is the folder of the Python that runs Gather, or on
+  Windows the Windows, `System32` or `SysWOW64` folder, is not guarded, because Gather already
+  runs code from there.
+- Changes you may notice: a tool found only inside the working folder is no longer found by
+  bare name. Give its absolute path in its `GATHER_<TOOL>` variable, or as the command itself
+  for a `synthesizer` or `provenance` command. On Windows, a conda environment created inside
+  the working folder keeps only its root folder: its `Scripts` and `Library\bin` folders leave,
+  so set `GATHER_PDFTOTEXT`, `GATHER_TESSERACT`, `GATHER_YT_DLP` or `GATHER_WHISPER` to the
+  tool's full path, or create the environment outside the project. On Windows, a PATH entry
+  with an unmatched double quote hides every entry after it, as it does in cmd.exe; remove the
+  stray quote or set the `GATHER_<TOOL>` variable. A drive-relative command is refused as not
+  found.
+  The child's PATH names real folders, so a version manager's `current` link reaches it
+  resolved. Each tool start now reads every PATH entry and the folders above it. That took
+  about 20 to 60 ms per start on Windows, and a median of about 1.4 s under WSL, where PATH
+  inherits the Windows folders.
+- `tests/test_spawn_working_folder.py` plants decoys in the working folder and a folder below
+  it, puts the real tool later on PATH, and reaches the working folder by each route above. On
+  1.9.0, 13 of its 16 tests failed on Windows and 9 on Linux, each because the planted program
+  ran. On 1.8.3 on Linux, 7 route tests failed the same way. Its three controls keep a sibling
+  folder whose name starts with the working folder's, a folder holding the working folder, and
+  an override inside the working folder; they pass on 1.9.0 and 1.9.1. `tests/test_vendored.py`
+  now names a 1.0.0 copy as superseded.
+- CI now runs the child-spawn tests on Windows too, where the junction, letter-case and
+  drive-relative routes live. Under CI, a Windows run that cannot build a real `.exe` decoy
+  fails these tests instead of skipping them.
+
 ## 1.9.0 (2026-09-26)
 
 ### Security: launch-only grants on the MCP surface

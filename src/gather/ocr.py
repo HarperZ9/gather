@@ -4,6 +4,7 @@ import os
 import time
 
 from gather.item import Item, make_item
+from gather.localpath import require_local
 from gather.spawn import run_tool
 
 
@@ -37,6 +38,7 @@ class OcrSource:
         self._timeout = timeout
 
     def fetch(self, target: str) -> list[Item]:
+        target = require_local(target, label="target")  # no network or device path reaches the tool
         if not os.path.isfile(target):
             raise FileNotFoundError(f"no such image file: {target}")
         path = os.path.abspath(target)  # absolute path cannot be parsed as a flag by tesseract

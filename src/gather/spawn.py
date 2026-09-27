@@ -2,10 +2,16 @@
 
 Every external tool (``pdftotext``, ``yt-dlp``, ``tesseract``, ``whisper``, a Chromium-family
 browser) and every operator-configured command (a synthesizer or provenance edge) starts here.
-The helper resolves the program to an absolute path (a relative or empty PATH entry never
-counts, so a file planted in the caller's folder never runs), starts it in a new private empty
-folder, and hands it an environment allowlist instead of Gather's whole environment. Output
-stays bytes, exactly as the tool wrote it, so receipts hash the same text they always did.
+The helper resolves the program to an absolute path, starts it in a new private empty folder,
+and hands it an environment allowlist instead of Gather's whole environment. The PATH lookup
+skips relative and empty entries and every entry that reaches the caller's folder (the folder
+itself, a folder below it, a link to either, or another spelling). The child's PATH keeps only
+what the lookup keeps, so the child's own lookups skip the same entries. Two cases narrow the
+guard. At a filesystem root, or at or above the home folder, only an entry naming that folder
+itself leaves, because installed tools live below it. A caller's folder that is the
+interpreter's folder or, on Windows, the Windows, System32 or SysWOW64 folder guards nothing,
+because Gather already runs code from there. Output stays bytes, exactly as the tool wrote it,
+so receipts hash the same text they always did.
 
 Launch configuration the operator controls:
 

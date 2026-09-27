@@ -107,12 +107,26 @@ def _launcher_stub():
     return None
 
 
+NO_STUB = "no pip launcher stub to build a real .exe decoy"
+
+
+def no_stub_under_ci() -> None:
+    """Fail, under CI, a Windows run that cannot build a real .exe decoy.
+
+    Without pip's launcher stub the decoy is only a .cmd, and CreateProcess never picks a .cmd
+    for a bare name, so the decoy tests would pass on code that runs a planted NAME.exe.
+    """
+    if os.environ.get("CI", "").strip().lower() not in ("", "0", "false"):
+        pytest.fail(f"{NO_STUB}; CI must run the Windows decoy tests with pip installed")
+
+
 def decoy(folder: Path, name: str, marker: Path) -> None:
     """Files named like the child that write ``marker`` if they ever run."""
     code = f"open({str(marker)!r}, 'a').write('ran')\nprint('PLANTED')\n"
     if WINDOWS:
         _write(folder / f"{name}.cmd", f'@echo off\r\necho x>> "{marker}"\r\necho PLANTED\r\n', newline="")
-        _launcher(folder / f"{name}.exe", code)
+        if _launcher(folder / f"{name}.exe", code) is None:
+            no_stub_under_ci()
     else:
         _executable(_write(folder / name, f'#!/bin/sh\necho x >> "{marker}"\necho PLANTED\n'))
 

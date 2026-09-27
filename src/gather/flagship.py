@@ -60,6 +60,8 @@ def status_payload() -> dict:
                 "gather.pilot",
             ],
             "current_status": (
+                "1.9.1 network and device path refusal on file sources and MCP path arguments "
+                "and child-program lookups that skip PATH entries reaching the working folder, "
                 "1.9.0 launch-only MCP grants and safe child spawning, "
                 "1.8.3 catalog line-break fix for readable context, "
                 "1.8.2 MCP scope clarity, 1.8.1 descriptor handoff for Python context selection, 1.7.1 newline-integrity patch, readable context selection, "

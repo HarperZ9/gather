@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from gather.grants import OPERATOR, Grants, check_run_config
+from gather.localpath import check_run_paths
 
 if TYPE_CHECKING:
     from gather.derive import Synthesizer
@@ -71,13 +72,16 @@ def build_source(name: str, opts: dict):
 def plan_from_config(cfg: dict, *, grants: Grants = OPERATOR) -> RunPlan:
     """Build a run plan. ``grants`` defaults to the operator's full trust (the CLI and the Python
     API run the operator's own config); the MCP surface passes its launch grants, and a config
-    that needs a grant they lack raises ``GrantRequired`` before any source or command is built."""
+    that needs a grant they lack raises ``GrantRequired`` before any source or command is built.
+    A file-source target that names a network or device path raises ``NonLocalPath`` on every
+    surface, and so does such a ``store`` in a config that did not come from the operator."""
     from gather.derive import NullSynthesizer
     from gather.store import Corpus
 
     if not isinstance(cfg, dict):
         raise ValueError("config must be a JSON object")
     check_run_config(cfg, grants)
+    check_run_paths(cfg, operator=grants.operator)
     job_specs = cfg.get("jobs", [])
     if not isinstance(job_specs, list) or not job_specs:
         raise ValueError("config needs a non-empty 'jobs' list")
