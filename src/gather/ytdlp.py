@@ -145,12 +145,8 @@ class CallResult:
 Runner = Callable[[list[str], float], CallResult]
 
 
-def _text(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
+def _text(value: bytes | None) -> str:
+    return (value or b"").decode("utf-8", errors="replace")
 
 
 def subprocess_runner(argv: list[str], timeout: float) -> CallResult:

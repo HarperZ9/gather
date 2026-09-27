@@ -78,7 +78,10 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   bounded by `--retries` (attempts, counting the first), `--backoff-cap` (one wait), and
   `--backoff-budget` (total wait per call). Every retry is logged to stderr and recorded.
 - **Real failure lines.** A failed call reports its `ERROR` lines, not a leading version
-  or runtime warning.
+  or runtime warning. A yt-dlp that cannot start is recorded as `tool-missing`, and one
+  Gather will not start with these arguments as `tool-refused`. On Windows a `yt-dlp.cmd`
+  or `.bat` shim gets `tool-refused` on the caption call, because the output template
+  holds `%`, which cmd.exe would expand. Point `GATHER_YT_DLP` at `yt-dlp.exe` instead.
 - **Channel runs.** `gather channel` lists the `videos`, `shorts`, and `streams` tabs
   (`--tabs`) with `--flat-playlist`, gathers each entry with `--concurrency` workers
   (default 2), and spaces entry starts by `--interval` plus up to `--jitter` seconds. It

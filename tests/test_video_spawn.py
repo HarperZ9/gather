@@ -12,6 +12,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -71,8 +72,6 @@ def _program(folder: Path, name: str, code: str) -> Path:
         exe = _launcher(folder / f"{name}.exe", code)
         assert exe is not None, NO_STUB
         return exe
-    import sys
-
     body = _write(folder / f"{name}-body.py", code)
     return _executable(_write(folder / name, f'#!/bin/sh\nexec "{sys.executable}" "{body}" "$@"\n'))
 
@@ -179,6 +178,20 @@ def test_auto_js_runtime_ignores_a_node_only_the_working_folder_holds(world, mon
         _executable(_write(tools / "node", "#!/bin/sh\n"))
     monkeypatch.setenv("PATH", os.pathsep.join([str(world["repo"]), str(tools), os.environ["PATH"]]))
     assert VideoSource(js_runtime="auto").base_argv[2:4] == ["--js-runtimes", "node"]
+    assert not world["marker"].exists()
+
+
+@pytest.mark.skipif(not WINDOWS, reason="only Windows starts a .cmd through cmd.exe")
+def test_a_batch_file_yt_dlp_is_refused_the_caption_call_and_says_why(world, monkeypatch):
+    # yt-dlp's -o template holds "%", which cmd.exe would expand, so a .cmd shim never gets it
+    shim = world["tmp"] / "shim"
+    body = _write(shim / "yt-dlp-body.py", f"LOG = {str(world['log'])!r}\n" + YT_DLP)
+    cmd = _write(shim / "yt-dlp.cmd", f'@echo off\r\n"{sys.executable}" "{body}" %*\r\n', newline="")
+    monkeypatch.setenv("GATHER_YT_DLP", str(cmd))
+    out = VideoSource(js_runtime="none").gather(URL)
+    assert out.ok and out.caption == "missing" and out.caption_reason == "tool-refused"
+    assert "UNSAFE_ARGUMENT" in out.caption_detail
+    assert [_shape(c) for c in _log(world["log"])] == ["metadata"]  # the caption call never started
     assert not world["marker"].exists()
 
 

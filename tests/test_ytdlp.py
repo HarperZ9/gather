@@ -2,6 +2,8 @@ import sys
 
 import pytest
 
+import gather.ytdlp as ytdlp_mod
+from gather.spawn import ToolRefused
 from gather.ytdlp import (
     CallResult,
     YtDlpConfig,
@@ -110,3 +112,24 @@ def test_runner_reports_a_timeout_as_a_failed_call():
 def test_runner_decodes_output_as_utf8():
     res = subprocess_runner([sys.executable, "-c", "import sys; sys.stdout.buffer.write('Rosić'.encode())"], 10)
     assert res.ok and res.stdout == "Rosić"
+
+
+def test_runner_reports_a_refused_start_as_a_failed_call_that_is_not_retried(monkeypatch):
+    seen = []
+
+    def refuse(name, args, **kw):
+        seen.append((name, list(args), kw))
+        raise ToolRefused("UNSAFE_ARGUMENT", "a batch-file target was refused")
+
+    monkeypatch.setattr(ytdlp_mod, "run_tool", refuse)
+    res = subprocess_runner(["yt-dlp", "--ignore-config", "-o", "%(id)s.%(ext)s"], 5)
+    assert seen == [("yt-dlp", ["--ignore-config", "-o", "%(id)s.%(ext)s"], {"timeout": 5, "network": True})]
+    assert not res.ok and res.returncode == 126 and res.code() == "tool-refused"
+    assert res.reason().startswith("ERROR: refused to run yt-dlp (UNSAFE_ARGUMENT)")
+    assert throttle_reason(res) is None   # a refusal will not change on a retry
+
+
+def test_runner_names_the_program_as_given_never_a_resolved_path(tmp_path):
+    missing = str(tmp_path / "tools" / "yt-dlp")
+    res = subprocess_runner([missing], 5)
+    assert res.code() == "tool-missing" and str(tmp_path) not in res.reason()
