@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import os
 import re
 import subprocess
@@ -80,13 +81,24 @@ def resolve_js_runtime(setting: str | None, which: Callable[[str], str | None] =
 
 @dataclass(frozen=True, slots=True)
 class YtDlpConfig:
-    """How to invoke yt-dlp: the binary, a JS runtime setting, and yt-dlp's own pacing flags."""
+    """How to invoke yt-dlp: the binary, a JS runtime setting, and yt-dlp's own pacing flags.
+
+    ``timeout`` must be a finite number above 0: at 0 or below, every call would start yt-dlp
+    and stop it at once. A sleep must be finite and not negative; 0 or None passes no flag."""
 
     binary: str = "yt-dlp"
     js_runtime: str | None = "auto"
     sleep_requests: float | None = None
     sleep_subtitles: float | None = None
     timeout: float = DEFAULT_TIMEOUT
+
+    def __post_init__(self) -> None:
+        if not (math.isfinite(self.timeout) and self.timeout > 0):
+            raise ValueError(f"timeout must be a number of seconds above 0, got {self.timeout!r}")
+        for name in ("sleep_requests", "sleep_subtitles"):
+            value = getattr(self, name)
+            if value is not None and not (math.isfinite(value) and value >= 0):
+                raise ValueError(f"{name} must be a number of seconds, 0 or more, got {value!r}")
 
 
 def _num(value: float) -> str:

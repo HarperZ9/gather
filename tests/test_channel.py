@@ -140,7 +140,10 @@ def test_channel_command_lists_tabs_gathers_and_resumes(tmp_path, monkeypatch, c
     assert summary["run"]["comments"]["total"] == 3
     assert summary["run"]["failures_by_reason"] == {"unavailable": 1}
     assert summary["run"]["captions"]["skipped"] == 3     # a no-captions pass skips even the failed entry
-    assert os.path.exists(summary["files"]["summary"]) and os.path.exists(summary["files"]["ledger"])
+    # the summary names its files relative to the store, and each one is there
+    assert not os.path.isabs(summary["files"]["summary"]) and not os.path.isabs(summary["files"]["ledger"])
+    assert os.path.exists(os.path.join(store, summary["files"]["summary"]))
+    assert os.path.exists(os.path.join(store, summary["files"]["ledger"]))
     assert not any("--load-info-json" in c for c in fake.calls)   # the comment pass never asks for captions
     before = len(fake.calls)
 
@@ -167,6 +170,18 @@ def test_channel_command_captions_pass_stops_and_exits_nonzero(tmp_path, monkeyp
 def test_channel_command_rejects_bad_options(tmp_path, capsys):
     assert main(["channel", CHAN, "--store", str(tmp_path), "--tabs", "community"]) == 2
     assert main(["channel", CHAN, "--store", str(tmp_path), "--concurrency", "0"]) == 2
+
+
+@pytest.mark.parametrize("flag,value", [("--timeout", "0"), ("--timeout", "-5"), ("--timeout", "nan"),
+                                        ("--sleep-requests", "-1"), ("--sleep-subtitles", "-1")])
+def test_a_timeout_or_sleep_that_cannot_work_is_a_bad_option(tmp_path, monkeypatch, capsys, flag, value):
+    fake = FakeYtDlp({"a": video_info("a")}, tabs={"videos": ["a"]})
+    monkeypatch.setattr(video_source_mod, "subprocess_runner", fake)
+    store = str(tmp_path / "corpus")
+    assert main(["channel", CHAN, "--store", store, "--tabs", "videos", flag, value]) == 2
+    assert main(["video", "https://www.youtube.com/watch?v=a", flag, value]) == 2
+    assert fake.calls == [] and not os.path.exists(store)
+    assert "must be" in capsys.readouterr().err
 
 
 # --- playability warnings: yt-dlp exits 0 on these under --ignore-no-formats-error ----------------
@@ -229,3 +244,26 @@ def test_channel_command_settles_a_private_video_warning_as_a_failure(tmp_path, 
     assert main(argv) == 0
     assert json.loads(capsys.readouterr().out)["resume"] == {"settled_before_run": 2, "gathered_this_run": 0}
     assert len(fake.calls) - before == 1                         # only the tab listing
+
+
+def test_the_summary_names_no_local_path(tmp_path, monkeypatch, capsys):
+    fake = FakeYtDlp({"a": video_info("a")}, tabs={"videos": ["a"]})
+    monkeypatch.setattr(video_source_mod, "subprocess_runner", fake)
+    store, report = tmp_path / "corpus", tmp_path / "reports" / "pass.json"
+    tool = tmp_path / "tools" / ("yt-dlp.exe" if os.name == "nt" else "yt-dlp")
+    code = main(["channel", CHAN, "--store", str(store), "--tabs", "videos", "--interval", "0", "--jitter", "0",
+                 "--yt-dlp", str(tool), "--js-runtime", f"node:{tmp_path / 'node'}", "--json"])
+    printed = capsys.readouterr().out
+    assert code == 0 and fake.calls[0][0] == str(tool)            # the configured binary still runs
+    summary = json.loads(printed)
+    assert summary["settings"]["yt_dlp_argv_prefix"] == [tool.name, "--ignore-config", "--js-runtimes", "node"]
+    assert summary["files"] == {"ledger": "intake/ledger-full.jsonl", "listing": "intake/listing.json",
+                                "summary": "intake/summary-full.json"}
+    written = (store / "intake" / "summary-full.json").read_text(encoding="utf-8")
+    for text in (printed, written):
+        assert str(tmp_path) not in text and json.dumps(str(tmp_path))[1:-1] not in text
+
+    assert main(["channel", CHAN, "--store", str(store), "--tabs", "videos", "--summary", str(report),
+                 "--interval", "0", "--jitter", "0", "--json"]) == 0
+    capsys.readouterr()
+    assert json.loads(report.read_text(encoding="utf-8"))["files"]["summary"] == "pass.json"

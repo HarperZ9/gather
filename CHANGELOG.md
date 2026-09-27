@@ -17,6 +17,15 @@ built behind a feature branch and reviewed before merge.
   the line number and exit status 1.
 - Separate passes: `--no-captions` gathers metadata and comments without touching the
   caption endpoint; `--captions-only` stores only the transcript item.
+- A `gather run` config or an MCP `gather.run` video job takes
+  `"captions": "with" | "skip" | "only"` (default `with`). Any other value is a config error,
+  raised before any job runs. On MCP the job still needs the `video` network grant,
+  whichever pass it asks for.
+- The run summary names its files relative to `--store` (a `--summary` outside the store by
+  file name) and records the yt-dlp program by file name and a JS runtime without its
+  path, so a summary you pass on carries no local path.
+- `--timeout` must be above 0, and `--sleep-requests` and `--sleep-subtitles` must be 0 or
+  more. Any other value exits 2 before yt-dlp starts.
 - Caption intake downloads exactly one track per video, chosen from the info JSON: manual
   first, then the original-language auto-caption (`en-orig`). The old `en.*` pattern fetched
   every English variant and could pick a machine translation; a translation-only video is

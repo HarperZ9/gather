@@ -218,3 +218,18 @@ def test_a_replacement_character_for_the_curly_apostrophe_still_reads_as_a_bot_c
     # undecodable byte; the runner decodes it as U+FFFD
     garbled = _warned(BOT_CHECK.replace("’", "�"))
     assert check_playability(CallResult(0, _page(), garbled)).code() == "bot-check"
+
+
+@pytest.mark.parametrize("field,value", [
+    ("timeout", 0), ("timeout", -5), ("timeout", float("nan")), ("timeout", float("inf")),
+    ("sleep_requests", -1), ("sleep_subtitles", -0.5), ("sleep_requests", float("nan")),
+    ("sleep_subtitles", float("inf")),
+])
+def test_config_rejects_a_timeout_or_sleep_that_cannot_work(field, value):
+    with pytest.raises(ValueError, match=field):
+        YtDlpConfig(**{field: value})
+
+
+def test_config_accepts_zero_sleep_and_a_positive_timeout():
+    cfg = YtDlpConfig(timeout=0.5, sleep_requests=0, sleep_subtitles=0)
+    assert base_argv(cfg, not_on_path) == ["yt-dlp", "--ignore-config"]

@@ -9,7 +9,10 @@ the throttle-prone caption endpoint never blocks metadata and comments:
 
 Exit status: 0 when every pending entry was attempted; 1 when the pass ledger cannot be read,
 listing failed, or the pass stopped because an entry spent its whole backoff budget still
-throttled; 2 on bad options.
+throttled; 2 on bad options, including a ``--timeout`` of 0 or less and a negative sleep.
+
+The summary names its files relative to the store and records the yt-dlp program by file
+name, so it carries no local path when it is passed on.
 """
 
 from __future__ import annotations
@@ -58,10 +61,11 @@ def add_ytdlp_options(p, *, timeout: float = DEFAULT_TIMEOUT) -> None:
                    help="yt-dlp --js-runtimes: auto (node when yt-dlp can start it), none, or "
                         "RUNTIME[:PATH]")
     p.add_argument("--sleep-requests", type=float, default=None, metavar="S",
-                   help="yt-dlp: seconds to sleep between requests during extraction")
+                   help="yt-dlp: seconds (0 or more) to sleep between requests during extraction")
     p.add_argument("--sleep-subtitles", type=float, default=None, metavar="S",
-                   help="yt-dlp: seconds to sleep before each subtitle download")
-    p.add_argument("--timeout", type=float, default=timeout, metavar="S", help="seconds per yt-dlp call")
+                   help="yt-dlp: seconds (0 or more) to sleep before each subtitle download")
+    p.add_argument("--timeout", type=float, default=timeout, metavar="S",
+                   help="seconds per yt-dlp call (above 0)")
     p.add_argument("--retries", type=int, default=None, metavar="N",
                    help="attempts per yt-dlp call while throttled (HTTP 429, a bot check, a session "
                         "rate limit), counting the first")
@@ -150,13 +154,34 @@ def _pending(entries: list[dict], store: str, pass_: str, ledger: str) -> tuple[
     return pending, len(entries) - len(pending)
 
 
+def _argv_label(argv: list[str]) -> list[str]:
+    """The argv prefix as the summary records it: the program by file name and a JS runtime
+    without its ``:PATH``, so a summary that is passed on names no local path."""
+    label = [os.path.basename(argv[0]), *argv[1:]]
+    for i in range(1, len(label) - 1):
+        if label[i] == "--js-runtimes":
+            label[i + 1] = label[i + 1].split(":", 1)[0]
+    return label
+
+
+def _store_relative(path: str, store: str) -> str:
+    """``path`` relative to the store, with ``/`` separators; a path outside it by file name."""
+    try:
+        rel = os.path.relpath(path, store)
+    except ValueError:  # another drive
+        return os.path.basename(path)
+    if rel == os.pardir or rel.startswith(os.pardir + os.sep) or os.path.isabs(rel):
+        return os.path.basename(path)
+    return rel.replace(os.sep, "/")
+
+
 def _settings(args, source: VideoSource, backoff: BackoffPolicy) -> dict:
     return {"tabs": _split(args.tabs), "captions": captions_mode(args), "comments": args.comments,
             "caption_langs": _split(args.caption_langs), "concurrency": args.concurrency,
             "interval_s": args.interval, "jitter_s": args.jitter, "timeout_s": args.timeout,
             "sleep_requests_s": args.sleep_requests, "sleep_subtitles_s": args.sleep_subtitles,
             "max_throttled": args.max_throttled, "limit": args.limit, "backoff": backoff.to_dict(),
-            "yt_dlp_argv_prefix": source.base_argv}
+            "yt_dlp_argv_prefix": _argv_label(source.base_argv)}
 
 
 def cmd_channel(args) -> int:
@@ -194,6 +219,7 @@ def cmd_channel(args) -> int:
     totals = summarize(latest[i] for i in ids if i in latest)
     totals["without_ledger_row"] = sum(1 for i in ids if i not in latest)
     summary_path = args.summary or os.path.join(intake_dir(args.store), f"summary-{run_pass}.json")
+    listing_path = os.path.join(intake_dir(args.store), "listing.json")
     summary = {
         "schema": SUMMARY_SCHEMA, "target": args.url, "pass": run_pass,
         "started_at": round(started, 3), "finished_at": round(time.time(), 3),
@@ -203,16 +229,16 @@ def cmd_channel(args) -> int:
         "resume": {"settled_before_run": settled, "gathered_this_run": len(pending)},
         "stopped": run.stop_reason, "stored_this_run": run.stored,
         "run": summarize(rows), "pass_totals": totals,
-        "files": {"ledger": run.ledger, "summary": summary_path,
-                  "listing": os.path.join(intake_dir(args.store), "listing.json")},
+        "files": {name: _store_relative(path, args.store) for name, path in
+                  (("ledger", run.ledger), ("summary", summary_path), ("listing", listing_path))},
         "does_not_prove": list(DOES_NOT_PROVE),
     }
     write_json(summary_path, summary)
-    print(json.dumps(summary, indent=2, ensure_ascii=False) if args.json else _human(summary))
+    print(json.dumps(summary, indent=2, ensure_ascii=False) if args.json else _human(summary, summary_path))
     return 1 if run.stop_reason else 0
 
 
-def _human(s: dict) -> str:
+def _human(s: dict, summary_path: str) -> str:
     tabs = ", ".join(f"{t} {i['listed']}" + (f" ({i.get('code')})" if i.get("error") else "")
                      for t, i in s["listing"]["tabs"].items())
     lines = [f"channel {s['target']} pass={s['pass']}",
@@ -225,5 +251,5 @@ def _human(s: dict) -> str:
     if s["stopped"]:
         lines.append(f"STOPPED: {s['stopped']}")
     lines.append(f"stored: {s['stored_this_run']['added']} added, {s['stored_this_run']['deduped']} deduped")
-    lines.append(f"summary: {s['files']['summary']}")
+    lines.append(f"summary: {summary_path}")  # your own terminal gets the path you can open
     return "\n".join(lines)

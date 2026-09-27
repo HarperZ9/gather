@@ -60,7 +60,7 @@ gather video URL --comments --store DIR           # metadata, one caption track,
 gather video URL --no-captions --comments         # metadata and comments only
 gather video URL --captions-only --store DIR      # the transcript item only
 gather channel https://www.youtube.com/@name --store DIR --no-captions --comments
-gather channel https://www.youtube.com/@name --store DIR --captions-only     --concurrency 1 --interval 15 --jitter 5 --sleep-subtitles 5
+gather channel https://www.youtube.com/@name --store DIR --captions-only --concurrency 1 --interval 15 --jitter 5 --sleep-subtitles 5
 gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-captions
 ```
 
@@ -74,10 +74,10 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   `node` that only your working folder holds does not count. `none` turns it off; any
   other value is passed through.
 - **Pacing and backoff.** `--sleep-requests` and `--sleep-subtitles` pass through to
-  yt-dlp. On HTTP 429, a bot check or YouTube's session rate limit, Gather retries with
-  exponential backoff and jitter, bounded by `--retries` (attempts, counting the first),
-  `--backoff-cap` (one wait), and `--backoff-budget` (total wait per call). Every retry is
-  logged to stderr and recorded.
+  yt-dlp and take 0 or more seconds. `--timeout` takes more than 0. On HTTP 429, a bot
+  check or YouTube's session rate limit, Gather retries with exponential backoff and jitter,
+  bounded by `--retries` (attempts, counting the first), `--backoff-cap` (one wait), and
+  `--backoff-budget` (total wait per call). Every retry is logged to stderr and recorded.
 - **Why a video served nothing.** The extraction runs with `--ignore-no-formats-error`, so
   a video whose formats are missing still gives its metadata and caption tracks. That flag
   also makes yt-dlp print YouTube's playability reason as a `WARNING` and exit 0. When the
@@ -102,11 +102,15 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
 - **Run summary.** `DIR/intake/summary-<pass>.json` counts entries listed per tab,
   outcomes, captions (manual, auto, missing by reason), comments, failures by reason, and
   retries, for this run and for the whole pass. The ledger and summary carry counts only,
-  never comment text or commenter names.
+  never comment text or commenter names. The summary names its files relative to `DIR`
+  and the yt-dlp program by file name, so you can pass it on as it is.
+- **Run configs and MCP.** A `video` job in a `gather run` config or an MCP `gather.run`
+  call takes `"captions": "with"`, `"skip"` or `"only"`, next to `"comments": true`. On
+  MCP the job needs the `video` network grant (see [Launch grants](#launch-grants)).
 
 Exit codes for `gather channel`: `0` when every pending entry was attempted; `1` when
 the pass ledger cannot be read, listing failed, or the pass stopped on throttling; `2` on
-bad options.
+bad options, including a `--timeout` of 0 or less and a negative sleep.
 
 ## Web-data engine
 
