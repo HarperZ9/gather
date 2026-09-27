@@ -85,13 +85,17 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   appends one row per entry to `DIR/intake/ledger-<pass>.jsonl` and skips settled entries
   on the next run, so a stopped run resumes. When an entry spends its whole backoff budget
   still throttled, the run stops starting new entries and records the rest as `stopped`.
+  If a run was killed mid-write, the next run drops the unfinished last row and gathers
+  that entry again. Any other unreadable row stops the run before it calls yt-dlp and
+  names the line.
 - **Run summary.** `DIR/intake/summary-<pass>.json` counts entries listed per tab,
   outcomes, captions (manual, auto, missing by reason), comments, failures by reason, and
   retries, for this run and for the whole pass. The ledger and summary carry counts only,
   never comment text or commenter names.
 
 Exit codes for `gather channel`: `0` when every pending entry was attempted; `1` when
-listing failed or the pass stopped on throttling; `2` on bad options.
+the pass ledger cannot be read, listing failed, or the pass stopped on throttling; `2` on
+bad options.
 
 ## Web-data engine
 

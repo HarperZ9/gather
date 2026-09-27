@@ -12,6 +12,9 @@ built behind a feature branch and reviewed before merge.
   bounded concurrency (default 2) and paced entry starts. A per-pass ledger under
   `DIR/intake/` makes the run resumable, and `summary-<pass>.json` counts entries per tab,
   captions (manual, auto, missing by reason), comments, failures by reason, and retries.
+  A run killed mid-write leaves an unfinished last row; the next run drops it and gathers
+  that entry again. Any other unreadable row stops the run, before it calls yt-dlp, with
+  the line number and exit status 1.
 - Separate passes: `--no-captions` gathers metadata and comments without touching the
   caption endpoint; `--captions-only` stores only the transcript item.
 - Caption intake downloads exactly one track per video, chosen from the info JSON: manual

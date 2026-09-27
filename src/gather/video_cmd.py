@@ -7,8 +7,9 @@ the throttle-prone caption endpoint never blocks metadata and comments:
     gather channel URL --store corpus --no-captions --comments      # pass 1
     gather channel URL --store corpus --captions-only --concurrency 1 --interval 15 --jitter 5
 
-Exit status: 0 when every pending entry was attempted; 1 when listing failed or the pass
-stopped because an entry spent its whole backoff budget still throttled; 2 on bad options.
+Exit status: 0 when every pending entry was attempted; 1 when the pass ledger cannot be read,
+listing failed, or the pass stopped because an entry spent its whole backoff budget still
+throttled; 2 on bad options.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from gather.channel import TABS, ChannelRun, list_channel, tab_urls
 from gather.channel_ledger import (
     DOES_NOT_PROVE,
     SUMMARY_SCHEMA,
+    drop_torn_tail,
     intake_dir,
     is_settled,
     latest_rows,
@@ -121,6 +123,22 @@ def _err(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
+def _ledger_ready(ledger: str) -> bool:
+    """Make the pass ledger safe to resume from, before any yt-dlp call. A final row cut short
+    by an interrupted write is dropped and its entry gathered again; any other unreadable row
+    stops the run with its line number, so nothing is re-gathered on a guess."""
+    try:
+        dropped = drop_torn_tail(ledger)
+        latest_rows(ledger)
+    except (OSError, ValueError) as exc:
+        _err(f"channel failed: {exc}")
+        return False
+    if dropped:
+        _err(f"gather: the intake ledger ended in a row cut short by an interrupted write; "
+             f"dropped its {dropped} bytes, and that entry will be gathered again")
+    return True
+
+
 def _pending(entries: list[dict], store: str, pass_: str, ledger: str) -> tuple[list[dict], int]:
     from gather.store import Corpus
     latest = latest_rows(ledger)
@@ -154,6 +172,8 @@ def cmd_channel(args) -> int:
     except ValueError as exc:
         _err(f"channel failed: {exc}")
         return 2
+    if not _ledger_ready(run.ledger):
+        return 1
     started = time.time()
     listing = list_channel(source, args.url, tabs)
     write_json(os.path.join(intake_dir(args.store), "listing.json"),

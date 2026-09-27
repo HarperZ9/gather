@@ -60,6 +60,28 @@ def append_row(path: str, row: dict) -> None:
         os.fsync(f.fileno())
 
 
+def drop_torn_tail(path: str) -> int:
+    """Cut an unterminated final row and return how many bytes went.
+
+    ``append_row`` writes each row and its newline in one call, so a row without its newline is
+    a write the process did not finish (a kill or a power loss). Its entry has no settled row
+    and is gathered again. A malformed row that does end in a newline is left for
+    ``latest_rows`` to report, since nothing about it says the write was cut short."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except FileNotFoundError:
+        return 0
+    if not data or data.endswith(b"\n"):
+        return 0
+    keep = data.rfind(b"\n") + 1
+    with open(path, "r+b") as f:
+        f.truncate(keep)
+        f.flush()
+        os.fsync(f.fileno())
+    return len(data) - keep
+
+
 def latest_rows(path: str) -> dict[str, dict]:
     """The latest ledger row per entry id. A malformed line raises a located ValueError."""
     latest: dict[str, dict] = {}
