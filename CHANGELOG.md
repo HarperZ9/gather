@@ -50,6 +50,39 @@ built behind a feature branch and reviewed before merge.
   reserved-name list cannot drift from the host. It also checks that `COM0.md` and `LPT0.md`
   read through the `docs` source, the MCP `gather.docs` tool and a pilot manifest.
 
+### Security: a PATH entry that reaches the working folder no longer starts a program there
+
+- 1.9.0 skipped `.` and every other relative PATH entry when it looked up a child program. An
+  absolute entry could still reach the working folder: one naming it or a folder below it (a
+  project's `node_modules/.bin`, a venv other than the one running Gather), another spelling of
+  it (a trailing separator, `..`, letter case), the same folder in quotes, or a junction or
+  symlink to it. A program planted there under a tool's name (`pdftotext`, `yt-dlp`,
+  `tesseract`, `whisper`, the browser, or a `synthesizer` or `provenance` command) then ran in
+  place of the real one. The child also got those entries on its PATH, so a tool that starts
+  its own helper by name, as `yt-dlp` starts `ffmpeg`, could start a copy planted there. On
+  Windows a drive-relative command such as `C:llm` named a file in the working folder too.
+  Affected: 1.9.0. Releases before it searched the working folder directly (see 1.9.0).
+- Gather now vendors safe spawn 1.0.1 (`SAFE_SPAWN_VERSION` 1.0.1, hash-pinned in
+  `VENDORED.sha256`). A PATH entry that reaches the working folder, by name or by file identity
+  after links are resolved, leaves the lookup and the child's PATH. Each kept entry is searched,
+  and handed to the child, as its real folder, so a link repointed after the check cannot change
+  what starts. On Windows PATH is read as cmd.exe reads it, an entry whose folder name holds `;`
+  leaves, and a bare command name holding `:` is refused. On POSIX an entry written with quotes
+  or a leading space counts as relative, and a child PATH the filter empties becomes
+  `/bin:/usr/bin`, since an empty PATH means the current folder there. The folder of the Python
+  that runs Gather and, on Windows, the Windows, `System32` and `SysWOW64` folders always stay.
+- Changes you may notice: a tool found only inside the working folder is no longer found by
+  bare name. Give its absolute path in its `GATHER_<TOOL>` variable, or as the command itself
+  for a `synthesizer` or `provenance` command. A drive-relative command is refused as not found.
+  The child's PATH names real folders, so a version manager's `current` link reaches it
+  resolved.
+- `tests/test_spawn_working_folder.py` plants decoys in the working folder and a folder below
+  it, puts the real tool later on PATH, and reaches the working folder by each route above. On
+  1.9.0, 13 of its 16 tests failed on Windows and 9 on Linux, each because the planted program
+  ran. Its three controls keep a sibling folder whose name starts with the working folder's, a
+  folder holding the working folder, and an override inside the working folder; they pass on
+  both versions. `tests/test_vendored.py` now names a 1.0.0 copy as superseded.
+
 ## 1.9.0 (2026-09-26)
 
 ### Security: launch-only grants on the MCP surface

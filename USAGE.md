@@ -249,16 +249,27 @@ each one the same way:
 - It resolves the program to an absolute path. `GATHER_PDFTOTEXT`,
   `GATHER_TESSERACT`, `GATHER_WHISPER`, `GATHER_YT_DLP` and `GATHER_CHROMIUM`
   take an absolute path and win over PATH. The PATH lookup skips `.` and every
-  other relative entry, so a file named like the tool in your working folder
-  never runs. A command given as a relative path (`./tools/synth`) is refused;
-  give a bare name on PATH or an absolute path.
+  other relative entry. It also skips every entry that reaches your working
+  folder: the folder itself, a folder below it, a junction or symlink to either,
+  and other spellings such as a trailing separator, `..` or quotes. So a file
+  named like the tool in your working folder never runs. A command given as a
+  relative path (`./tools/synth`) is refused, and so is a Windows drive-relative
+  name (`C:synth`); give a bare name on PATH or an absolute path.
+- To run a tool that lives inside your working folder, such as one in a
+  project's `node_modules/.bin`, give its absolute path: in its `GATHER_<TOOL>`
+  variable, or as the command itself for a `synthesizer` or `provenance`
+  command. The folder of the Python that runs Gather always stays on PATH, so
+  when Gather runs from a venv inside your project, that venv keeps its tools.
 - It starts the program in a new private empty folder, so the program reads no
   configuration from your working folder. `yt-dlp` also gets `--ignore-config`,
   so no `yt-dlp.conf` changes what it runs, including your user config.
 - It passes a short environment allowlist (`PATH`, the system and home
   variables, and for `yt-dlp` and the browser the proxy and CA variables).
   Name anything else a program needs, such as a synthesizer's API key, in
-  `GATHER_CHILD_ENV=NAME1,NAME2`.
+  `GATHER_CHILD_ENV=NAME1,NAME2`. The program's `PATH` holds only the entries
+  the lookup kept, each as its real folder, so a program that starts its own
+  helper by name, as `yt-dlp` starts `ffmpeg`, cannot reach your working
+  folder either.
 - A Python command gets `-P`, so it cannot import a module planted beside it.
   Install the module a `python -m` provenance command runs.
 
