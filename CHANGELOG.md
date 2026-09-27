@@ -84,9 +84,10 @@ built behind a feature branch and reviewed before merge.
   for a `synthesizer` or `provenance` command. On Windows, a conda environment created inside
   the working folder keeps only its root folder: its `Scripts` and `Library\bin` folders leave,
   so set `GATHER_PDFTOTEXT`, `GATHER_TESSERACT`, `GATHER_YT_DLP` or `GATHER_WHISPER` to the
-  tool's full path, or create the environment outside the project. A PATH entry with an
-  unmatched double quote hides every entry after it, as it does in cmd.exe; remove the stray
-  quote or set the `GATHER_<TOOL>` variable. A drive-relative command is refused as not found.
+  tool's full path, or create the environment outside the project. On Windows, a PATH entry
+  with an unmatched double quote hides every entry after it, as it does in cmd.exe; remove the
+  stray quote or set the `GATHER_<TOOL>` variable. A drive-relative command is refused as not
+  found.
   The child's PATH names real folders, so a version manager's `current` link reaches it
   resolved. Each tool start now reads every PATH entry and the folders above it. That took
   about 20 to 60 ms per start on Windows, and a median of about 1.4 s under WSL, where PATH
