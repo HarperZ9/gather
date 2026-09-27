@@ -5,6 +5,33 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+### Video intake pacing and channel runs
+
+- `gather channel URL --store DIR` lists a channel's `videos`, `shorts`, and `streams`
+  tabs (or one playlist) with `--flat-playlist` and gathers each entry into the corpus with
+  bounded concurrency (default 2) and paced entry starts. A per-pass ledger under
+  `DIR/intake/` makes the run resumable, and `summary-<pass>.json` counts entries per tab,
+  captions (manual, auto, missing by reason), comments, failures by reason, and retries.
+- Separate passes: `--no-captions` gathers metadata and comments without touching the
+  caption endpoint; `--captions-only` stores only the transcript item.
+- Caption intake downloads exactly one track per video, chosen from the info JSON: manual
+  first, then the original-language auto-caption (`en-orig`). The old `en.*` pattern fetched
+  every English variant and could pick a machine translation; a translation-only video is
+  now recorded as missing with the reason `translation-only`.
+- HTTP 429 and bot checks are retried with exponential backoff and jitter, bounded by
+  attempts and by total wait. Every retry and final failure is logged and recorded. A
+  channel run stops starting new entries once an entry spends its whole budget still
+  throttled, and records the rest as stopped.
+- yt-dlp runs with `--js-runtimes node` when `node` is on PATH (`--js-runtime` overrides),
+  and `--sleep-requests` / `--sleep-subtitles` pass through.
+- Failure messages report yt-dlp's `ERROR` lines instead of the first 160 characters of
+  stderr, which was often a version warning.
+- A timeout, a missing yt-dlp binary, or a refused start is recorded as a failed call
+  (`timeout`, `tool-missing`, `tool-refused`), not an exception.
+- Every yt-dlp call (tab listing, extraction, caption download) starts the way every
+  other tool does, from an absolute path in a private empty folder with an environment
+  allowlist, and carries `--ignore-config`, so no `yt-dlp.conf` changes what it runs.
+
 ## 1.9.1 (2026-09-27)
 
 ### Security: file sources and MCP path arguments refuse network and device paths
