@@ -31,9 +31,11 @@ _SEPS = "\\/"
 _SPLIT = re.compile(r"[\\/]+")
 _DRIVE = re.compile(r"^[A-Za-z]:")
 _VOLUME = re.compile(r"^\\\\\?\\Volume\{[0-9A-Fa-f-]+\}\\?")
+# Windows maps COM1-COM9 and LPT1-LPT9, and the superscript forms of 1, 2 and 3, to devices.
+# COM0 and LPT0 stay ordinary file names, so refusing them would block legitimate files.
 _RESERVED = frozenset(
     {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
-    | {f"{port}{n}" for port in ("COM", "LPT") for n in "0123456789\u00b9\u00b2\u00b3"}
+    | {f"{port}{n}" for port in ("COM", "LPT") for n in "123456789\u00b9\u00b2\u00b3"}
 )
 _LINK_TAGS = frozenset({getattr(stat, "IO_REPARSE_TAG_SYMLINK", 0xA000000C),
                         getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)})

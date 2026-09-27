@@ -20,11 +20,13 @@ built behind a feature branch and reviewed before merge.
 - `gather.localpath` checks the path text before anything opens it. It refuses text that starts
   with two separators of either kind (UNC, `\\?\`, `\\.\`, `\\?\UNC\`, and mixes such as
   `/\host`), text that starts with `\??\`, and any component with a reserved device name (`CON`,
-  `PRN`, `AUX`, `NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, `CONIN$`, `CONOUT$`), with or without
-  an extension, trailing dots or spaces. Windows rules apply on Windows and to Windows-style text
-  on every platform. On Windows it then walks the path without following links and refuses a
-  symbolic link or junction whose target is a network or device path, before anything opens
-  through it. A relative path is refused when the working folder is a share.
+  `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM1` to `COM9` and `LPT1` to `LPT9`, including
+  the superscript 1, 2 and 3 forms), with or without an extension, trailing dots or spaces.
+  `COM0` and `LPT0` are ordinary file names on Windows and still read. Windows rules apply on
+  Windows and to Windows-style text on every platform. On Windows it then walks the path without
+  following links and refuses a symbolic link or junction whose target is a network or device
+  path, before anything opens through it. A relative path is refused when the working folder is
+  a share.
 - Where it applies: the four file sources on every surface, including each entry of a `docs`
   directory walk; a run config's file-source targets, before any job runs; every MCP path
   argument; a run config's `store` when the config comes through MCP; and a pilot manifest's
@@ -44,6 +46,9 @@ built behind a feature branch and reviewed before merge.
   Windows and 76 on Linux, where POSIX-style names such as `CON` stay ordinary file names by
   design. `tests/test_localpath.py` covers the classifier, the working-folder case and the link
   walk against a fake tree on every platform, and real junctions and symlinks on Windows.
+  `tests/test_device_names.py` asks Windows which bare names it opens as devices, so the
+  reserved-name list cannot drift from the host. It also checks that `COM0.md` and `LPT0.md`
+  read through the `docs` source, the MCP `gather.docs` tool and a pilot manifest.
 
 ## 1.9.0 (2026-09-26)
 

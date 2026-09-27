@@ -217,13 +217,14 @@ On Windows, a path such as `\\host\share\notes.md` makes the machine connect to
 A path is refused when it starts with two separators of either kind (`\\host`,
 `//host`, `\\?\`, `\\.\`, `\\?\UNC\`, or a mix such as `/\host`), starts with
 `\??\`, or has a component with a reserved device name: `CON`, `PRN`, `AUX`,
-`NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, `CONIN$` or `CONOUT$`, with or
-without an extension, trailing dots or spaces. Windows rules apply on Windows and
-to Windows-style text (a backslash or a drive prefix) on every platform. A pilot
-manifest applies them everywhere, so it means the same on every machine. On
-Windows, Gather also walks the path without following links and refuses a
-symbolic link or junction whose target is a network or device path, and a
-relative path when the working folder is a share.
+`NUL`, `CONIN$`, `CONOUT$`, `COM1` to `COM9` or `LPT1` to `LPT9` (including
+the superscript 1, 2 and 3 forms), with or without an extension, trailing dots
+or spaces. `COM0` and `LPT0` are ordinary file names on Windows and still read.
+Windows rules apply on Windows and to Windows-style text (a backslash or a drive
+prefix) on every platform. A pilot manifest applies them everywhere, so it means
+the same on every machine. On Windows, Gather also walks the path without
+following links and refuses a symbolic link or junction whose target is a
+network or device path, and a relative path when the working folder is a share.
 
 The MCP call returns `isError: true` with `structuredContent`
 `{"code": "NON_LOCAL_PATH", "retryable": false, "kind": "network", "argument": "path", "detail": "<fixed sentence>"}`,
