@@ -48,6 +48,70 @@ the private artifact root) requires `--include-private-evidence`. See
 private/shared evidence split.
 
 
+## Video and channel intake
+
+`gather video` and `gather channel` run `yt-dlp`: the one on PATH, the absolute path in
+`GATHER_YT_DLP`, or the bare name or absolute path given with `--yt-dlp`. Every call
+(tab listing, extraction, caption download) starts the way every other tool does (see
+[External tools](#external-tools)) and carries `--ignore-config`.
+
+```bash
+gather video URL --comments --store DIR           # metadata, one caption track, comments
+gather video URL --no-captions --comments         # metadata and comments only
+gather video URL --captions-only --store DIR      # the transcript item only
+gather channel https://www.youtube.com/@name --store DIR --no-captions --comments
+gather channel https://www.youtube.com/@name --store DIR --captions-only --concurrency 1 --interval 15 --jitter 5 --sleep-subtitles 5
+gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-captions
+```
+
+- **One caption track per video.** Gather reads the track list from the info JSON and
+  downloads exactly one track: a manual track first, then the original-language
+  auto-caption (`en-orig`). A machine-translated track is recorded as missing with the
+  reason `translation-only`, never stored as a transcript. `--caption-langs en,sr` sets
+  the language order.
+- **JavaScript runtime.** `--js-runtime auto` (the default) passes `--js-runtimes node`
+  when yt-dlp can start `node`: Gather looks it up the way it looks up its own tools, so a
+  `node` that only your working folder holds does not count. `none` turns it off; any
+  other value is passed through.
+- **Pacing and backoff.** `--sleep-requests` and `--sleep-subtitles` pass through to
+  yt-dlp and take 0 or more seconds. `--timeout` takes more than 0. On HTTP 429, a bot
+  check or YouTube's session rate limit, Gather retries with exponential backoff and jitter,
+  bounded by `--retries` (attempts, counting the first), `--backoff-cap` (one wait), and
+  `--backoff-budget` (total wait per call). Every retry is logged to stderr and recorded.
+- **Why a video served nothing.** The extraction runs with `--ignore-no-formats-error`, so
+  a video whose formats are missing still gives its metadata and caption tracks. That flag
+  also makes yt-dlp print YouTube's playability reason as a `WARNING` and exit 0. When the
+  extraction lists no formats, Gather reads that line. A bot check or a session rate limit
+  is retried as above. A private, members-only, age-restricted or removed video is
+  recorded as failed with its reason and skipped on the next run. A geo-blocked or upcoming
+  video is recorded as failed and tried again on the next run.
+- **Real failure lines.** A failed call reports its `ERROR` lines, not a leading version
+  or runtime warning. A yt-dlp that cannot start is recorded as `tool-missing`, and one
+  Gather will not start with these arguments as `tool-refused`. On Windows a `yt-dlp.cmd`
+  or `.bat` shim gets `tool-refused` on the caption call, because the output template
+  holds `%`, which cmd.exe would expand. Point `GATHER_YT_DLP` at `yt-dlp.exe` instead.
+- **Channel runs.** `gather channel` lists the `videos`, `shorts`, and `streams` tabs
+  (`--tabs`) with `--flat-playlist`, gathers each entry with `--concurrency` workers
+  (default 2), and spaces entry starts by `--interval` plus up to `--jitter` seconds. It
+  appends one row per entry to `DIR/intake/ledger-<pass>.jsonl` and skips settled entries
+  on the next run, so a stopped run resumes. When an entry spends its whole backoff budget
+  still throttled, the run stops starting new entries and records the rest as `stopped`.
+  If a run was killed mid-write, the next run drops the unfinished last row and gathers
+  that entry again. Any other unreadable row stops the run before it calls yt-dlp and
+  names the line.
+- **Run summary.** `DIR/intake/summary-<pass>.json` counts entries listed per tab,
+  outcomes, captions (manual, auto, missing by reason), comments, failures by reason, and
+  retries, for this run and for the whole pass. The ledger and summary carry counts only,
+  never comment text or commenter names. The summary names its files relative to `DIR`
+  and the yt-dlp program by file name, so you can pass it on as it is.
+- **Run configs and MCP.** A `video` job in a `gather run` config or an MCP `gather.run`
+  call takes `"captions": "with"`, `"skip"` or `"only"`, next to `"comments": true`. On
+  MCP the job needs the `video` network grant (see [Launch grants](#launch-grants)).
+
+Exit codes for `gather channel`: `0` when every pending entry was attempted; `1` when
+the pass ledger cannot be read, listing failed, or the pass stopped on throttling; `2` on
+bad options, including a `--timeout` of 0 or less and a negative sleep.
+
 ## Web-data engine
 
 Each command prints a receipt as JSON.
