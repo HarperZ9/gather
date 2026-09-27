@@ -5,6 +5,46 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 1.9.1 (2026-09-27)
+
+### Security: file sources and MCP path arguments refuse network and device paths
+
+- On Windows, opening a path such as `\\host\share\doc.md` makes the SMB client connect to
+  `host` and sign in as the user, which can send the user's NTLM response to whoever runs `host`.
+  The `docs`, `pdf`, `ocr` and `transcribe` sources opened any path they were given, and so did
+  every path argument on the MCP surface. None of these needed a launch grant. A model connected
+  to `gather mcp`, or text it was asked to read, could name a share in `gather.docs`, in a
+  `gather.run` job target, config path or `store`, or in the `gather.context`,
+  `gather.federation` and `gather.pilot` path arguments. A `store` on a share also writes the
+  gathered text there. Affected: 1.6.0 through 1.9.0, when `gather mcp` runs on Windows.
+- `gather.localpath` checks the path text before anything opens it. It refuses text that starts
+  with two separators of either kind (UNC, `\\?\`, `\\.\`, `\\?\UNC\`, and mixes such as
+  `/\host`), text that starts with `\??\`, and any component with a reserved device name (`CON`,
+  `PRN`, `AUX`, `NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, `CONIN$`, `CONOUT$`), with or without
+  an extension, trailing dots or spaces. Windows rules apply on Windows and to Windows-style text
+  on every platform. On Windows it then walks the path without following links and refuses a
+  symbolic link or junction whose target is a network or device path, before anything opens
+  through it. A relative path is refused when the working folder is a share.
+- Where it applies: the four file sources on every surface, including each entry of a `docs`
+  directory walk; a run config's file-source targets, before any job runs; every MCP path
+  argument; a run config's `store` when the config comes through MCP; and a pilot manifest's
+  local targets, fixtures and `allowed_local_roots`, where Windows rules apply on every platform
+  so a manifest means the same on every machine.
+- The MCP call returns `isError: true` with `structuredContent` `{"code": "NON_LOCAL_PATH",
+  "retryable": false, "kind": "network" | "device" | "link", "argument": "<name>", "detail":
+  "<fixed sentence>"}`. The CLI prints the reason and exits 1. The `gather.docs` `path` and the
+  `gather.run` descriptions now say so.
+- Changes you may notice: a `\\?\C:\...` long path is refused, so give the plain drive path. A
+  share is refused as a source from the CLI too; copy the files to a local folder. A drive letter
+  mapped to a share looks local to any check on the text, so Gather cannot see it. The CLI's own
+  `--store`, `--output` and `--state` paths, and the `store` in a config run with `gather run`,
+  are unchanged.
+- `tests/test_nonlocal_paths.py` replaces the filesystem and child-process layer with a spy and
+  hands each source and MCP tool one path of each class. On 1.9.0, 81 of its 82 tests failed on
+  Windows and 76 on Linux, where POSIX-style names such as `CON` stay ordinary file names by
+  design. `tests/test_localpath.py` covers the classifier, the working-folder case and the link
+  walk against a fake tree on every platform, and real junctions and symlinks on Windows.
+
 ## 1.9.0 (2026-09-26)
 
 ### Security: launch-only grants on the MCP surface
