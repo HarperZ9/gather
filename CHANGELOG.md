@@ -22,8 +22,10 @@ built behind a feature branch and reviewed before merge.
   attempts and by total wait. Every retry and final failure is logged and recorded. A
   channel run stops starting new entries once an entry spends its whole budget still
   throttled, and records the rest as stopped.
-- yt-dlp runs with `--js-runtimes node` when `node` is on PATH (`--js-runtime` overrides),
-  and `--sleep-requests` / `--sleep-subtitles` pass through.
+- yt-dlp runs with `--js-runtimes node` when it can start `node` (`--js-runtime` overrides),
+  and `--sleep-requests` / `--sleep-subtitles` pass through. The check uses the same PATH
+  lookup as every child Gather starts, so a `node` only the working folder holds does not
+  count.
 - Failure messages report yt-dlp's `ERROR` lines instead of the first 160 characters of
   stderr, which was often a version warning.
 - A timeout, a missing yt-dlp binary, or a refused start is recorded as a failed call

@@ -19,7 +19,6 @@ import json
 import os
 import random
 import re
-import shutil
 import sys
 import tempfile
 import time
@@ -29,6 +28,7 @@ from dataclasses import dataclass, field
 from gather.captions import CaptionChoice, select_caption_track
 from gather.item import Item
 from gather.pacing import BackoffPolicy, Pacer, run_with_backoff
+from gather.spawn import find_tool
 from gather.ytdlp import (
     DEFAULT_TIMEOUT,
     CallResult,
@@ -92,7 +92,7 @@ class VideoSource:
                  runner: Runner | None = None, sleep: Callable[[float], None] = time.sleep,
                  rand: Callable[[], float] = random.random, pacer: Pacer | None = None,
                  log: Callable[[str], None] | None = None,
-                 which: Callable[[str], str | None] = shutil.which) -> None:
+                 which: Callable[[str], str | None] = find_tool) -> None:
         if captions not in CAPTION_MODES:
             raise ValueError(f"captions must be one of {CAPTION_MODES}, got {captions!r}")
         self._clock = clock

@@ -53,7 +53,8 @@ def add_ytdlp_options(p, *, timeout: float = DEFAULT_TIMEOUT) -> None:
                         help="gather captions only: store the transcript item, no metadata or comments")
     p.add_argument("--caption-langs", default="en", help="caption languages in preference order (comma-sep)")
     p.add_argument("--js-runtime", default="auto",
-                   help="yt-dlp --js-runtimes: auto (node when on PATH), none, or RUNTIME[:PATH]")
+                   help="yt-dlp --js-runtimes: auto (node when yt-dlp can start it), none, or "
+                        "RUNTIME[:PATH]")
     p.add_argument("--sleep-requests", type=float, default=None, metavar="S",
                    help="yt-dlp: seconds to sleep between requests during extraction")
     p.add_argument("--sleep-subtitles", type=float, default=None, metavar="S",
@@ -65,7 +66,9 @@ def add_ytdlp_options(p, *, timeout: float = DEFAULT_TIMEOUT) -> None:
     p.add_argument("--backoff-cap", type=float, default=None, metavar="S", help="ceiling on one backoff wait")
     p.add_argument("--backoff-budget", type=float, default=None, metavar="S",
                    help="ceiling on the total backoff wait for one call")
-    p.add_argument("--yt-dlp", dest="yt_dlp", default="yt-dlp", help="the yt-dlp executable")
+    p.add_argument("--yt-dlp", dest="yt_dlp", default="yt-dlp",
+                   help="the yt-dlp executable: a bare name on PATH or an absolute path "
+                        "(GATHER_YT_DLP overrides the default name)")
 
 
 def captions_mode(args) -> str:

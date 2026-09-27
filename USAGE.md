@@ -70,7 +70,9 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   reason `translation-only`, never stored as a transcript. `--caption-langs en,sr` sets
   the language order.
 - **JavaScript runtime.** `--js-runtime auto` (the default) passes `--js-runtimes node`
-  when `node` is on PATH. `none` turns it off; any other value is passed through.
+  when yt-dlp can start `node`: Gather looks it up the way it looks up its own tools, so a
+  `node` that only your working folder holds does not count. `none` turns it off; any
+  other value is passed through.
 - **Pacing and backoff.** `--sleep-requests` and `--sleep-subtitles` pass through to
   yt-dlp. On HTTP 429 or a bot check, Gather retries with exponential backoff and jitter,
   bounded by `--retries` (attempts, counting the first), `--backoff-cap` (one wait), and

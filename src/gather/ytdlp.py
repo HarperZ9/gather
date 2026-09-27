@@ -10,12 +10,11 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from gather.spawn import ToolRefused, ToolUnavailable, run_tool
+from gather.spawn import ToolRefused, ToolUnavailable, find_tool, run_tool
 
 DEFAULT_TIMEOUT = 120.0
 
@@ -50,11 +49,13 @@ _CLASSIFIERS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
-def resolve_js_runtime(setting: str | None, which: Callable[[str], str | None] = shutil.which) -> str | None:
+def resolve_js_runtime(setting: str | None, which: Callable[[str], str | None] = find_tool) -> str | None:
     """The ``--js-runtimes`` value to pass, or None to pass nothing.
 
-    ``auto`` uses ``node`` when it is on PATH; ``none`` (or empty) disables the flag; any other
-    value (``deno``, ``node:/opt/node/bin``) is passed through as given."""
+    ``auto`` uses ``node`` when yt-dlp could start it: ``which`` defaults to the guarded
+    lookup that also builds the child's PATH, so a ``node`` found only in the working folder
+    does not count. ``none`` (or empty) disables the flag; any other value (``deno``,
+    ``node:/opt/node/bin``) is passed through as given."""
     if setting is None:
         return None
     value = setting.strip()
@@ -80,7 +81,7 @@ def _num(value: float) -> str:
     return f"{value:g}"
 
 
-def base_argv(cfg: YtDlpConfig, which: Callable[[str], str | None] = shutil.which) -> list[str]:
+def base_argv(cfg: YtDlpConfig, which: Callable[[str], str | None] = find_tool) -> list[str]:
     """The argv prefix every yt-dlp call shares: binary, ``--ignore-config``, JS runtime, and
     pacing flags."""
     argv = [cfg.binary, *NO_CONFIG]

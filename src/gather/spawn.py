@@ -95,3 +95,17 @@ def run_tool(name: str, args: Sequence[str], *, timeout: float, input: bytes | N
         if exc.code in _UNAVAILABLE:
             raise ToolUnavailable(2, str(exc), os.path.basename(name)) from None
         raise ToolRefused(exc.code, str(exc)) from None
+
+
+def find_tool(name: str) -> str | None:
+    """The absolute path ``run_tool(name, ...)`` would start, or None when it finds none.
+
+    The same guarded lookup: the ``GATHER_<TOOL>`` override first, then the absolute PATH
+    entries that do not reach the working folder. A child's own lookup of ``name`` walks that
+    same PATH, so this also answers whether a child could start ``name`` itself (yt-dlp and its
+    JavaScript runtime, say). A copy in the working folder never counts as found.
+    """
+    try:
+        return safe_spawn.resolve(name, OVERRIDES.get(name))
+    except safe_spawn.SpawnRefused:
+        return None
