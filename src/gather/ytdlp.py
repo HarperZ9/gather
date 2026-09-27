@@ -1,19 +1,27 @@
-"""The yt-dlp edge: argv building, stderr triage, and one subprocess runner.
+"""The yt-dlp edge: argv building, stderr triage, and one runner.
 
 Pure helpers (``resolve_js_runtime``, ``base_argv``, ``failure_reason``, ``classify``) carry
 the decisions and are tested without the tool or network. ``subprocess_runner`` is the one
-impure call, and callers take a ``Runner`` so tests can hand in a fake.
+impure call: it starts yt-dlp through ``gather.spawn``, like every other child Gather starts,
+and callers take a ``Runner`` so tests can hand in a fake.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from gather.spawn import ToolRefused, ToolUnavailable, run_tool
+
 DEFAULT_TIMEOUT = 120.0
+
+# yt-dlp reads yt-dlp.conf from its working folder, the user's config and a file beside its
+# executable, and a config can carry --exec. Gather passes its own flags only.
+NO_CONFIG = ("--ignore-config",)
 
 # Signals that the far side is throttling this client. Backoff treats both as retryable; the
 # bot check is YouTube asking the client to slow down, and waiting is the only answer Gather gives.
@@ -36,7 +44,9 @@ _CLASSIFIERS: tuple[tuple[str, re.Pattern[str]], ...] = (
                                re.I)),
     ("no-such-tab", re.compile(r"does not have an? \w+ tab", re.I)),
     ("forbidden", re.compile(r"HTTP Error 403", re.I)),
-    ("tool-missing", re.compile(r"No such file or directory|cannot find the file|not recognized", re.I)),
+    ("tool-refused", re.compile(r"refused to run", re.I)),
+    ("tool-missing", re.compile(r"could not run|No such file or directory|cannot find the file|"
+                                r"not recognized", re.I)),
 )
 
 
@@ -71,8 +81,9 @@ def _num(value: float) -> str:
 
 
 def base_argv(cfg: YtDlpConfig, which: Callable[[str], str | None] = shutil.which) -> list[str]:
-    """The argv prefix every yt-dlp call shares: binary, JS runtime, and pacing flags."""
-    argv = [cfg.binary]
+    """The argv prefix every yt-dlp call shares: binary, ``--ignore-config``, JS runtime, and
+    pacing flags."""
+    argv = [cfg.binary, *NO_CONFIG]
     runtime = resolve_js_runtime(cfg.js_runtime, which)
     if runtime:
         argv += ["--js-runtimes", runtime]
@@ -142,16 +153,24 @@ def _text(value: object) -> str:
 
 
 def subprocess_runner(argv: list[str], timeout: float) -> CallResult:
-    """Run yt-dlp. A timeout or a missing binary becomes a failed CallResult, not an exception,
-    so a long channel run records it and moves on."""
+    """Run yt-dlp through ``gather.spawn``: an absolute executable (``GATHER_YT_DLP``, or the
+    guarded PATH lookup), a new private empty working folder, and an environment allowlist
+    that keeps the proxy and CA settings a network tool needs. ``argv[0]`` is a bare name or an
+    absolute path; a relative path is refused.
+
+    A timeout (after the whole process tree is stopped), a missing binary, or a refused start
+    becomes a failed CallResult, not an exception, so a long channel run records it and moves
+    on. Messages name the program as given, never a resolved path."""
+    label = os.path.basename(argv[0])
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        return CallResult(-1, _text(exc.stdout), _text(exc.stderr), timed_out=True, timeout=timeout)
-    except OSError as exc:
-        return CallResult(127, "", f"ERROR: could not run {argv[0]!r}: {exc}")
-    return CallResult(proc.returncode, proc.stdout or "", proc.stderr or "")
+        proc = run_tool(argv[0], argv[1:], timeout=timeout, network=True)
+    except subprocess.TimeoutExpired:
+        return CallResult(-1, "", "", timed_out=True, timeout=timeout)
+    except ToolUnavailable as exc:
+        return CallResult(127, "", f"ERROR: could not run {label}: {exc.strerror or exc}")
+    except ToolRefused as exc:
+        return CallResult(126, "", f"ERROR: refused to run {label} ({exc.code}): {exc}")
+    return CallResult(proc.returncode, _text(proc.stdout), _text(proc.stderr))
 
 
 def throttle_reason(result: CallResult) -> str | None:

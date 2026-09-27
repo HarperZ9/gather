@@ -148,3 +148,16 @@ def test_explicit_transcript_method_overrides_the_default():
 def test_parse_video_rejects_malformed_json():
     with pytest.raises(ValueError):
         parse_video("{not valid json", None, fetched_at=1.0)
+
+
+def test_caption_lang_is_kept_in_the_transcript_meta_only():
+    items = parse_video(INFO, VTT, fetched_at=1.0, auto_captions=True, caption_lang="en-orig")
+    tr = next(i for i in items if i.kind == "transcript")
+    assert tr.meta["caption_lang"] == "en-orig" and tr.provenance.method == "auto-caption"
+    meta = next(i for i in items if i.kind == "metadata")
+    assert "caption_lang" not in meta.meta
+
+
+def test_parse_video_rejects_a_non_object_top_level():
+    with pytest.raises(ValueError):
+        parse_video("[1, 2]", None, fetched_at=1.0)

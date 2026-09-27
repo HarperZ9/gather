@@ -65,8 +65,13 @@ def cmd_parse(args) -> int:
 
 
 def cmd_video(args) -> int:
-    from gather.video import VideoSource
-    return _fetch_and_emit(lambda: VideoSource(with_comments=args.comments).fetch(args.url), args)
+    from gather.video_cmd import video_source_from_args
+    try:
+        src = video_source_from_args(args, with_comments=args.comments)
+    except ValueError as exc:
+        print(f"fetch failed: {exc}", file=sys.stderr)
+        return 2
+    return _fetch_and_emit(lambda: src.fetch(args.url), args)
 
 
 def cmd_web(args) -> int:

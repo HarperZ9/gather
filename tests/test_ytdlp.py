@@ -39,9 +39,9 @@ def test_explicit_runtime_passes_through():
 
 def test_base_argv_carries_runtime_and_pacing_flags():
     cfg = YtDlpConfig(binary="yt-dlp", js_runtime="auto", sleep_requests=1.5, sleep_subtitles=20)
-    assert base_argv(cfg, on_path) == ["yt-dlp", "--js-runtimes", "node", "--sleep-requests", "1.5",
-                                       "--sleep-subtitles", "20"]
-    assert base_argv(YtDlpConfig(js_runtime="auto"), not_on_path) == ["yt-dlp"]
+    assert base_argv(cfg, on_path) == ["yt-dlp", "--ignore-config", "--js-runtimes", "node",
+                                       "--sleep-requests", "1.5", "--sleep-subtitles", "20"]
+    assert base_argv(YtDlpConfig(js_runtime="auto"), not_on_path) == ["yt-dlp", "--ignore-config"]
 
 
 STDERR_429 = (
