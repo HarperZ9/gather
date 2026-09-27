@@ -25,7 +25,8 @@ class PdfSource:
     reorder columns. The receipt's "pdftotext" method records that this is a tool's reading of
     the file, not the authoritative document, so a thin extraction is never mistaken for the
     full content. fetch() needs pdftotext on PATH (or ``GATHER_PDFTOTEXT``); it starts through
-    gather.spawn, so a same-named file in the caller's folder never runs.
+    gather.spawn, whose PATH lookup skips entries that reach the caller's folder (see
+    gather.spawn for where that guard narrows).
     """
 
     name = "pdf"

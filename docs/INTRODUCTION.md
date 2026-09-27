@@ -108,8 +108,10 @@ That is the core loop: fetch, store, inspect, re-check. The harder adapters
 needs only its own external tool on PATH (`pdftotext`, `chromium`, `tesseract`,
 `whisper`, `yt-dlp`), or at the absolute path in `GATHER_PDFTOTEXT`,
 `GATHER_CHROMIUM`, `GATHER_TESSERACT`, `GATHER_WHISPER` or `GATHER_YT_DLP`. Each tool
-starts in a private empty folder with a short environment allowlist, so a file
-named like the tool in your working folder never runs in its place.
+starts in a private empty folder with a short environment allowlist, and the
+PATH lookup skips entries that reach your working folder, so a file named like
+the tool there does not run in its place. The "External tools" section of
+USAGE says where that guard narrows.
 
 ## The web-data engine
 

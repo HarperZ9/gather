@@ -61,7 +61,10 @@ built behind a feature branch and reviewed before merge.
   place of the real one. The child also got those entries on its PATH, so a tool that starts
   its own helper by name, as `yt-dlp` starts `ffmpeg`, could start a copy planted there. On
   Windows a drive-relative command such as `C:llm` named a file in the working folder too.
-  Affected: 1.9.0. Releases before it searched the working folder directly (see 1.9.0).
+  Affected: every release before 1.9.1. Releases before 1.9.0 started tools by bare name
+  through the operating system's own search, which follows these entries as well; on Linux,
+  1.8.3 ran the plant through each absolute-entry, link and child-lookup route. 1.9.0 closed the
+  current-folder search and `.` entries (see 1.9.0) and left these routes open.
 - Gather now vendors safe spawn 1.0.1 (`SAFE_SPAWN_VERSION` 1.0.1, hash-pinned in
   `VENDORED.sha256`). A PATH entry that reaches the working folder, by name or by file identity
   after links are resolved, leaves the lookup and the child's PATH. Each kept entry is searched,
@@ -71,17 +74,33 @@ built behind a feature branch and reviewed before merge.
   or a leading space counts as relative, and a child PATH the filter empties becomes
   `/bin:/usr/bin`, since an empty PATH means the current folder there. The folder of the Python
   that runs Gather and, on Windows, the Windows, `System32` and `SysWOW64` folders always stay.
+- Where the guard narrows: when Gather runs from a filesystem root, or from the home folder or
+  a folder above it, only an entry naming that folder itself leaves, because installed tools
+  live below it. A working folder that is the folder of the Python that runs Gather, or on
+  Windows the Windows, `System32` or `SysWOW64` folder, is not guarded, because Gather already
+  runs code from there.
 - Changes you may notice: a tool found only inside the working folder is no longer found by
   bare name. Give its absolute path in its `GATHER_<TOOL>` variable, or as the command itself
-  for a `synthesizer` or `provenance` command. A drive-relative command is refused as not found.
+  for a `synthesizer` or `provenance` command. On Windows, a conda environment created inside
+  the working folder keeps only its root folder: its `Scripts` and `Library\bin` folders leave,
+  so set `GATHER_PDFTOTEXT`, `GATHER_TESSERACT`, `GATHER_YT_DLP` or `GATHER_WHISPER` to the
+  tool's full path, or create the environment outside the project. A PATH entry with an
+  unmatched double quote hides every entry after it, as it does in cmd.exe; remove the stray
+  quote or set the `GATHER_<TOOL>` variable. A drive-relative command is refused as not found.
   The child's PATH names real folders, so a version manager's `current` link reaches it
-  resolved.
+  resolved. Each tool start now reads every PATH entry and the folders above it. That took
+  about 20 to 60 ms per start on Windows, and a median of about 1.4 s under WSL, where PATH
+  inherits the Windows folders.
 - `tests/test_spawn_working_folder.py` plants decoys in the working folder and a folder below
   it, puts the real tool later on PATH, and reaches the working folder by each route above. On
   1.9.0, 13 of its 16 tests failed on Windows and 9 on Linux, each because the planted program
-  ran. Its three controls keep a sibling folder whose name starts with the working folder's, a
-  folder holding the working folder, and an override inside the working folder; they pass on
-  both versions. `tests/test_vendored.py` now names a 1.0.0 copy as superseded.
+  ran. On 1.8.3 on Linux, 7 route tests failed the same way. Its three controls keep a sibling
+  folder whose name starts with the working folder's, a folder holding the working folder, and
+  an override inside the working folder; they pass on 1.9.0 and 1.9.1. `tests/test_vendored.py`
+  now names a 1.0.0 copy as superseded.
+- CI now runs the child-spawn tests on Windows too, where the junction, letter-case and
+  drive-relative routes live. Under CI, a Windows run that cannot build a real `.exe` decoy
+  fails these tests instead of skipping them.
 
 ## 1.9.0 (2026-09-26)
 

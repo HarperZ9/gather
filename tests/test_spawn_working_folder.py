@@ -16,6 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 from test_spawn_children import (
+    NO_STUB,
     WINDOWS,
     _executable,
     _launcher,
@@ -23,6 +24,7 @@ from test_spawn_children import (
     _log,
     _write,
     decoy,
+    no_stub_under_ci,
     stand_in,
 )
 
@@ -33,9 +35,21 @@ from gather.pdf import PdfSource
 SYSTEM = ([os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32")] if WINDOWS
           else ["/usr/bin", "/bin"])
 windows_only = pytest.mark.skipif(not WINDOWS, reason="a Windows path form")
-# CreateProcess finds a bare name only as NAME.exe, so these tests need a real .exe decoy.
-needs_exe = pytest.mark.skipif(WINDOWS and _launcher_stub() is None,
-                               reason="no pip launcher stub to build a real .exe decoy")
+
+
+@pytest.fixture
+def exe_decoys():
+    """CreateProcess finds a bare name only as NAME.exe, so these tests need a real .exe decoy.
+
+    Without pip's launcher stub they skip, except under CI, where they fail: a runner without
+    the stub would otherwise report the working-folder routes as covered when nothing ran.
+    """
+    if WINDOWS and _launcher_stub() is None:
+        no_stub_under_ci()
+        pytest.skip(NO_STUB)
+
+
+needs_exe = pytest.mark.usefixtures("exe_decoys")
 
 # A tool that starts its own helper by bare name, the way whisper and yt-dlp start ffmpeg.
 CHAIN = (

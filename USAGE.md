@@ -252,14 +252,30 @@ each one the same way:
   other relative entry. It also skips every entry that reaches your working
   folder: the folder itself, a folder below it, a junction or symlink to either,
   and other spellings such as a trailing separator, `..` or quotes. So a file
-  named like the tool in your working folder never runs. A command given as a
-  relative path (`./tools/synth`) is refused, and so is a Windows drive-relative
-  name (`C:synth`); give a bare name on PATH or an absolute path.
+  named like the tool in your working folder does not run, except in the two
+  cases below. A command given as a relative path (`./tools/synth`) is refused,
+  and so is a Windows drive-relative name (`C:synth`); give a bare name on PATH
+  or an absolute path.
+- The guard narrows in two cases. When Gather runs from a filesystem root, or
+  from your home folder or a folder above it, only an entry naming that folder
+  itself leaves. Folders below it stay, because installed tools live there.
+  When the working folder is the folder of the Python that runs Gather, or on
+  Windows the Windows, `System32` or `SysWOW64` folder, no entry leaves for it,
+  because Gather already runs code from that folder.
 - To run a tool that lives inside your working folder, such as one in a
   project's `node_modules/.bin`, give its absolute path: in its `GATHER_<TOOL>`
   variable, or as the command itself for a `synthesizer` or `provenance`
   command. The folder of the Python that runs Gather always stays on PATH, so
   when Gather runs from a venv inside your project, that venv keeps its tools.
+- On Windows, a conda environment created inside the working folder keeps only
+  its root folder, where its `python.exe` lives. Its `Scripts` and
+  `Library\bin` folders, where conda puts command-line tools, leave. Set
+  `GATHER_PDFTOTEXT`, `GATHER_TESSERACT`, `GATHER_YT_DLP` or `GATHER_WHISPER`
+  to the tool's full path, or create the environment outside the project.
+- On Windows, PATH is read as cmd.exe reads it. An entry with an unmatched
+  double quote hides every entry after it, as it does in cmd.exe, so a tool in a
+  later folder is reported as not found. Remove the stray quote, or set the
+  tool's `GATHER_<TOOL>` variable.
 - It starts the program in a new private empty folder, so the program reads no
   configuration from your working folder. `yt-dlp` also gets `--ignore-config`,
   so no `yt-dlp.conf` changes what it runs, including your user config.
