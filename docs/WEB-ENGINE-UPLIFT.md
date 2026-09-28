@@ -12,6 +12,15 @@ users pick it for, gather must do that thing at least as well (zero-dep where it
 can, via an optional capability backend where it must) and additionally witness
 it. "Honest but less capable" is a losing position and is out of scope.
 
+One exception is settled: gather ships no bot-detection evasion. It does
+not impersonate a browser's TLS or header fingerprint, rotate identities or
+proxies, or solve a CAPTCHA or bot-check page. Where gather retries a throttled
+call (video intake), it waits with bounded backoff under the same identity, and
+a channel run stops starting new entries once an entry spends that budget. Scrapling's impersonating fetch and
+crawlee's fingerprint and session rotation are ground gather does not contest.
+The optional stealth backend that impersonated a browser's TLS fingerprint was
+removed in 1.10.0.
+
 ## The competitors and the gap (verified 2026-07-02)
 
 | Tool | Core strength | What it cannot prove |
@@ -104,9 +113,9 @@ and an honest benchmark table is published. Then, and only then, stop.
     transport is a seam, so retry/conditional/receipt logic is tested offline.
   - Tests: `tests/test_fetch.py` (7; full suite 312 passed), including retry,
     exhaustion, tamper, and routing-header-guard negatives.
-  - Honest limitation vs Scrapling: default UA identifies gather (no browser
-    impersonation) and zero-dep cannot forge a TLS fingerprint; a caller may
-    supply their own headers, on the record.
+  - Scope vs Scrapling: the default User-Agent identifies gather, and gather
+    does not impersonate a browser at the header or TLS layer (see the
+    exception under the goal above).
 - Wedge 3: DONE on the same branch.
   - `src/gather/crawl.py`: a competitive crawler (concurrent wave fetching,
     BFS/DFS frontier, URL canonicalization + dedup, robots.txt via stdlib
