@@ -5,6 +5,17 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+### Removed: the browser-impersonation transport
+
+- `gather.backends_stealth` and the `stealth` extra are gone. The transport used
+  curl_cffi to imitate a browser's TLS fingerprint and get past bot walls, which is
+  detection evasion. `CAP_STEALTH` is gone from `gather.backends`, `default_registry`
+  never reports a `stealth` capability, and a request that requires it comes back
+  UNVERIFIABLE with the reason `no backend for capability 'stealth'`. The `all` extra
+  no longer pulls curl_cffi. Releases 1.6.0 through 1.9.1 carried the transport.
+  `tests/test_no_stealth_transport.py` holds the removal, including a negative
+  control that pretends curl_cffi is installed.
+
 ### Video intake pacing and channel runs
 
 - `gather channel URL --store DIR` lists a channel's `videos`, `shorts`, and `streams`

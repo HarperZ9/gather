@@ -80,6 +80,6 @@ def test_default_registry_reports_honest_capabilities() -> None:
     assert "fetch" in reg.capabilities()  # always present
     # Capabilities are reported iff their optional backend is actually installed.
     assert reg.has("js-render") == (find_spec("playwright") is not None)
-    assert reg.has("stealth") == (find_spec("curl_cffi") is not None)
+    assert not reg.has("stealth")         # no impersonation backend exists at all
     assert reg.has("fast-parse") == (
         find_spec("lxml") is not None or find_spec("selectolax") is not None)

@@ -101,8 +101,8 @@ def _refused(rows) -> list[str]:
                   if field["value"] == REFUSED)
 
 
-def test_the_rows_drawn_as_refused_are_the_two_that_need_a_heavy_backend():
-    assert _refused(ROWS) == sorted([B.CAP_JS, B.CAP_STEALTH])
+def test_the_row_drawn_as_refused_is_the_one_that_needs_a_heavy_backend():
+    assert _refused(ROWS) == [B.CAP_JS]
 
 
 def test_that_a_drifted_row_would_be_caught():
@@ -110,10 +110,12 @@ def test_that_a_drifted_row_would_be_caught():
     value moved off the refusal no longer belongs to the refused set."""
     drifted = {**ROWS,
                B.CAP_JS: {**ROWS[B.CAP_JS], "value": "the static shell"}}
-    assert _refused(drifted) != sorted([B.CAP_JS, B.CAP_STEALTH])
+    assert _refused(drifted) != [B.CAP_JS]
 
 
-@pytest.mark.parametrize("capability", [B.CAP_JS, B.CAP_STEALTH])
+# "stealth" stays as a plain string: the capability no longer exists, and a
+# request for it must still come back refused with a reason, never served.
+@pytest.mark.parametrize("capability", [B.CAP_JS, "stealth"])
 def test_an_unmet_capability_comes_back_refused_with_a_reason(capability):
     registry = _bare()
     assert not registry.has(capability), "the driver is not in the absent case"

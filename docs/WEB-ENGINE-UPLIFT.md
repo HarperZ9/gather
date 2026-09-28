@@ -66,9 +66,8 @@ version bump + PR-ready; EVERY wedge ALSO emits its receipt):
      a stdlib fallback or an honest UNVERIFIABLE when absent, never a fake):
        a. BROWSER: JS render, click/fill/scroll, screenshot. Match browser-use +
           Scrapling Dynamic.
-       b. STEALTH: TLS/browser impersonation transport, proxy rotation, session +
-          fingerprint persistence, Cloudflare handling. Match Scrapling stealth +
-          crawlee sessions.
+       b. STEALTH: dropped. Browser impersonation and bot-wall evasion are out of
+          scope; the transport built for this was removed (see the note below).
        c. FAST PARSE: optional lxml/selectolax backend to win raw parse speed;
           stdlib stays the default and the fallback.
      [receipt: which backend + capability level produced each artifact]
@@ -131,7 +130,7 @@ and an honest benchmark table is published. Then, and only then, stop.
     tamper detection and a hallucinated-field rejection negative.
 - Wedge 5-core: DONE on the same branch (the accountable half).
   - `src/gather/backends.py`: a capability registry + gating: backends declare
-    capabilities (js-render, stealth, fast-parse); `render()` resolves the best
+    capabilities (js-render, fast-parse); `render()` resolves the best
     available and, when a required capability has no backend, returns
     UNVERIFIABLE with a reason and never a faked render. Every result records
     which backend served it. `best_parser`/`detect_fast_parse` select a native
@@ -145,13 +144,12 @@ and an honest benchmark table is published. Then, and only then, stop.
   - `src/gather/backends_browser.py`: Playwright js-render backend. Verified: it
     really launches headless Chromium and executes JavaScript here. Missing
     browser binary degrades to honest UNVERIFIABLE, never a fake.
-  - `src/gather/backends_stealth.py`: curl_cffi TLS-impersonation transport for
-    the accountable fetch path (same FetchReceipt), with the SSRF guard re-applied
-    per redirect hop and cross-origin credential stripping.
-  - `pyproject.toml` extras: `fast` / `browser` / `stealth` / `all`.
-  - Tests: `tests/test_fastparse.py`, `tests/test_backends_browser.py`,
-    `tests/test_backends_stealth.py`, plus the render-failure-degrade negative
-    (18 across the group; full suite 356 passed).
+  - A curl_cffi TLS-impersonation transport shipped here in 1.6.0 through 1.9.1.
+    It was removed afterwards: impersonating a browser to get past a bot wall is
+    detection evasion. `tests/test_no_stealth_transport.py` holds the removal.
+  - `pyproject.toml` extras: `fast` / `browser` / `all`.
+  - Tests: `tests/test_fastparse.py`, `tests/test_backends_browser.py`, plus the
+    render-failure-degrade negative.
 - Wedge 6: DONE (`src/gather/search.py`). Pluggable search-provider seam ->
   SearchReceipt of SOURCE_LEADs; honest UNVERIFIABLE with no provider;
   search_and_fetch chains leads into the accountable fetch path; searx_provider
