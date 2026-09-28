@@ -10,13 +10,26 @@ built behind a feature branch and reviewed before merge.
 - The `stealth` extra, its `curl_cffi` dependency, and the `stealth` capability backend
   (`gather.backends_stealth`) are removed. That backend impersonated a browser's TLS
   fingerprint to get past bot detection. Gather no longer ships bot-detection evasion of any
-  kind, and nothing replaces it. HTTP fetches go out with Gather's own User-Agent.
+  kind, and nothing replaces it. Gather's own HTTP requests go out with Gather's own
+  User-Agent.
 - `pip install 'gather-engine[stealth]'` still installs Gather. pip warns
   `gather-engine 1.10.0 does not provide the extra 'stealth'` and installs the core
   without it. Drop `[stealth]` from requirement files and install commands.
 - `gather-engine[all]` now installs `lxml` and `playwright` only. An upgrade leaves an
-  installed `curl_cffi` in place; Gather no longer uses it, and
-  `pip uninstall curl_cffi` removes it if nothing else needs it.
+  installed `curl_cffi` in place. Gather's own code no longer uses it, but a yt-dlp in
+  the same environment can (see below), so run `pip uninstall curl_cffi` if nothing else
+  needs it.
+- Caption downloads no longer pose as a browser. yt-dlp marks every YouTube caption track
+  for impersonation and keeps the mark in the info JSON Gather saves and hands back for the
+  caption download. Where yt-dlp could import `curl_cffi`, the track went out with a
+  browser's TLS fingerprint and headers. Gather now removes the mark first. A test on the
+  saved info runs everywhere, and a test against real yt-dlp, run where yt-dlp is
+  installed, checks that the caption request carries yt-dlp's own headers.
+- What yt-dlp still decides: it sends its own default headers, including a desktop Chrome
+  User-Agent whose version it picks each run, and for some sites other than YouTube its
+  extractors ask for impersonation while they extract. Gather passes no flag that asks for
+  either, and yt-dlp has no flag that turns off an extractor's request. That request takes
+  effect only where yt-dlp can import `curl_cffi`.
 - `gather caps` no longer lists `stealth`, including on a machine where `curl_cffi` is
   installed.
 - Code that imports `gather.backends_stealth` or `gather.backends.CAP_STEALTH` now raises

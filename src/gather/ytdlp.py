@@ -16,6 +16,7 @@ import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from gather.spawn import ToolRefused, ToolUnavailable, find_tool, run_tool
 
@@ -117,6 +118,20 @@ def base_argv(cfg: YtDlpConfig, which: Callable[[str], str | None] = find_tool) 
     if cfg.sleep_subtitles:
         argv += ["--sleep-subtitles", _num(cfg.sleep_subtitles)]
     return argv
+
+
+def without_impersonation(value: Any) -> Any:
+    """A copy of an info JSON value with every ``impersonate`` key removed, at any depth.
+
+    yt-dlp's YouTube extractor marks each caption track ``"impersonate": true``, and ``-J`` keeps
+    the mark. Loaded back with ``--load-info-json``, it makes yt-dlp fetch the track with a
+    browser's TLS fingerprint and headers whenever curl_cffi is importable where yt-dlp runs.
+    Gather hands yt-dlp the info without it. Pure; the input is left as it is."""
+    if isinstance(value, dict):
+        return {k: without_impersonation(v) for k, v in value.items() if k != "impersonate"}
+    if isinstance(value, list):
+        return [without_impersonation(v) for v in value]
+    return value
 
 
 def failure_reason(stderr: str, *, limit: int = 400) -> str:

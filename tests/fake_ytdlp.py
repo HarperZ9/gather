@@ -10,6 +10,9 @@ yt-dlp 2026.08.19 gives. With ``--ignore-no-formats-error`` it prints the reason
 caption tracks, and exits 0. Without the flag it prints an ``ERROR`` and exits 1. A video that
 lists no formats and gives no reason gets only the two no-formats warnings. ``fail`` answers
 with a non-zero exit whatever the argv holds, for an error yt-dlp raises outright.
+
+Every caption track carries ``"impersonate": true``, as the YouTube extractor in yt-dlp 2026.08.19
+marks each one, and ``caption_infos`` keeps the info JSON each caption download was handed.
 """
 
 from __future__ import annotations
@@ -51,7 +54,7 @@ def asr(lang: str, tlang: str | None = None) -> list[dict]:
     url = f"https://www.youtube.com/api/timedtext?v=x&kind=asr&lang={lang}&fmt=vtt"
     if tlang:
         url += f"&tlang={tlang}"
-    return [{"ext": "vtt", "url": url}]
+    return [{"ext": "vtt", "url": url, "impersonate": True}]
 
 
 def video_info(vid: str, *, manual: tuple[str, ...] = (), auto: tuple[str, ...] = ("en-orig",),
@@ -61,7 +64,7 @@ def video_info(vid: str, *, manual: tuple[str, ...] = (), auto: tuple[str, ...] 
         "upload_date": "20260101", "view_count": 5, "webpage_url": f"https://www.youtube.com/watch?v={vid}",
         "comment_count": comments,
         "formats": [{"format_id": "18", "ext": "mp4", "url": f"https://x/{vid}.mp4"}] if formats else [],
-        "subtitles": {lang: [{"ext": "vtt", "url": f"https://x/{lang}"}] for lang in manual},
+        "subtitles": {lang: [{"ext": "vtt", "url": f"https://x/{lang}", "impersonate": True}] for lang in manual},
         "automatic_captions": {lang: asr(lang.removesuffix("-orig")) for lang in auto},
         "_comments": [{"id": f"{vid}-c{i}", "text": f"comment {i} on {vid}", "author": f"user{i}"}
                       for i in range(comments)],
@@ -77,6 +80,7 @@ class FakeYtDlp:
         self.fail: dict[str, str] = {}      # video id -> stderr to fail its extraction with
         # video id -> (playability reason, answers left; -1 means always)
         self.unplayable: dict[str, tuple[str, int]] = {}
+        self.caption_infos: list[dict] = []  # the info JSON each caption download was handed
 
     def _throttled(self, step: str) -> bool:
         left = self.throttle.get(step, 0)
@@ -139,6 +143,7 @@ class FakeYtDlp:
             return CallResult(1, "", ERR_429)
         with open(argv[argv.index("--load-info-json") + 1], encoding="utf-8") as f:
             info = json.load(f)
+        self.caption_infos.append(info)
         assert "comments" not in info, "the caption call must not carry comments"
         lang = re.sub(r"\\(.)", r"\1", argv[argv.index("--sub-langs") + 1])
         out_dir = os.path.dirname(argv[argv.index("-o") + 1])

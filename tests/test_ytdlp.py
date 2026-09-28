@@ -26,6 +26,7 @@ from gather.ytdlp import (
     resolve_js_runtime,
     subprocess_runner,
     throttle_reason,
+    without_impersonation,
 )
 
 
@@ -233,3 +234,13 @@ def test_config_rejects_a_timeout_or_sleep_that_cannot_work(field, value):
 def test_config_accepts_zero_sleep_and_a_positive_timeout():
     cfg = YtDlpConfig(timeout=0.5, sleep_requests=0, sleep_subtitles=0)
     assert base_argv(cfg, not_on_path) == ["yt-dlp", "--ignore-config"]
+
+
+def test_without_impersonation_drops_the_mark_at_any_depth_and_leaves_the_input_alone():
+    info = {"id": "a", "title": "impersonate", "impersonate": True,
+            "subtitles": {"en": [{"ext": "vtt", "url": "u", "impersonate": True}]},
+            "formats": [{"format_id": "18", "impersonate": "chrome"}]}
+    assert without_impersonation(info) == {"id": "a", "title": "impersonate",
+                                           "subtitles": {"en": [{"ext": "vtt", "url": "u"}]},
+                                           "formats": [{"format_id": "18"}]}
+    assert info["subtitles"]["en"][0]["impersonate"] is True and info["impersonate"] is True

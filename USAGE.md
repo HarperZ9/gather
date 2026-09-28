@@ -73,6 +73,14 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   when yt-dlp can start `node`: Gather looks it up the way it looks up its own tools, so a
   `node` that only your working folder holds does not count. `none` turns it off; any
   other value is passed through.
+- **What yt-dlp sends.** Gather passes no flag that sets a User-Agent, a cookie, a proxy
+  or an impersonation target. yt-dlp marks each YouTube caption track for browser
+  impersonation, and Gather removes that mark before the caption download, so the track
+  is fetched as yt-dlp itself. yt-dlp still sends its own default headers, including a
+  desktop Chrome User-Agent whose version it picks each run. For some sites other than
+  YouTube, its extractors ask for impersonation while they extract, and yt-dlp has no
+  flag that turns this off. It happens only where yt-dlp can import `curl_cffi`;
+  `yt-dlp --list-impersonate-targets` marks every target unavailable when it cannot.
 - **Pacing and backoff.** `--sleep-requests` and `--sleep-subtitles` pass through to
   yt-dlp and take 0 or more seconds. `--timeout` takes more than 0. On HTTP 429, a bot
   check or YouTube's session rate limit, Gather retries with exponential backoff and jitter,

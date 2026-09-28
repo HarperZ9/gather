@@ -77,6 +77,30 @@ def test_manual_track_is_fetched_with_write_subs_and_stamped_yt_dlp():
     assert next(i for i in out.items if i.kind == "transcript").provenance.method == "yt-dlp"
 
 
+def _keys(value):
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            yield key
+            yield from _keys(inner)
+    elif isinstance(value, list):
+        for inner in value:
+            yield from _keys(inner)
+
+
+def test_the_caption_download_does_not_ask_yt_dlp_to_pose_as_a_browser():
+    # yt-dlp marks every YouTube caption track "impersonate": true and keeps the mark in -J.
+    # Handed back through --load-info-json, the mark makes yt-dlp download the track with a
+    # browser's TLS fingerprint and headers whenever curl_cffi is importable where it runs.
+    info = video_info("abc", manual=("en",))
+    assert info["subtitles"]["en"][0]["impersonate"] is True
+    fake = FakeYtDlp({"abc": info})
+    src, _, _ = make(fake)
+    out = src.gather(URL)
+    assert out.caption == "manual" and len(fake.caption_infos) == 1
+    assert "impersonate" not in set(_keys(fake.caption_infos[0]))
+    assert fake.caption_infos[0]["subtitles"]["en"][0]["url"] == "https://x/en"   # the track itself is kept
+
+
 def test_no_captions_pass_never_touches_the_caption_endpoint():
     fake = FakeYtDlp({"abc": video_info("abc")})
     src, _, _ = make(fake, captions="skip", comments=True)

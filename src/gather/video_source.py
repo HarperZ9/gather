@@ -42,6 +42,7 @@ from gather.ytdlp import (
     check_playability,
     subprocess_runner,
     throttle_reason,
+    without_impersonation,
 )
 
 CAPTION_MODES = ("with", "skip", "only")
@@ -231,9 +232,11 @@ class VideoSource:
 
     def _download_track(self, info: dict, choice: CaptionChoice,
                         out: VideoOutcome) -> tuple[str | None, CallResult]:
-        """Download exactly one track from the saved info JSON (no re-extraction)."""
+        """Download exactly one track from the saved info JSON (no re-extraction). The saved info
+        drops the comments and yt-dlp's ``impersonate`` marks, so the track is fetched as yt-dlp
+        itself, never with a browser's TLS fingerprint."""
         flag = "--write-auto-subs" if choice.auto else "--write-subs"
-        slim = {k: v for k, v in info.items() if k != "comments"}
+        slim = without_impersonation({k: v for k, v in info.items() if k != "comments"})
         with tempfile.TemporaryDirectory() as d:
             info_path = os.path.join(d, "info.json")
             with open(info_path, "w", encoding="utf-8") as f:
