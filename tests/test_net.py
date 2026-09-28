@@ -1,6 +1,7 @@
 import pytest
 
-from gather.net import _host_is_private, decode_body, http_get
+from gather.fetch import _RecordingSafeRedirect
+from gather.net import _host_is_private, _SafeRedirect, decode_body, http_get
 
 
 def test_decode_body_uses_charset_from_content_type():
@@ -73,3 +74,23 @@ def test_redirect_keeps_credentials_on_same_host(monkeypatch):
     new = handler.redirect_request(req, None, 302, "Found", {}, "https://api.example/v2/data")
     assert new is not None
     assert any(k.lower() == "authorization" for k in new.headers)  # same origin: header preserved
+
+
+@pytest.mark.parametrize("handler_cls", [_SafeRedirect, _RecordingSafeRedirect], ids=["http_get", "fetch"])
+def test_redirect_strips_credentials_on_https_to_http_downgrade(monkeypatch, handler_cls):
+    """Same host, https to http: a credential on that hop would cross the wire in clear text.
+    Both redirect handlers, the one http_get uses and the recording one the accountable fetch
+    uses, drop every sensitive header on the downgrade and keep the rest."""
+    import urllib.request
+
+    import gather.net as net
+
+    monkeypatch.setattr(net, "_host_is_private", lambda h: False)  # isolate the strip logic from DNS
+    req = urllib.request.Request("https://api.example/data", headers={
+        "Authorization": "Bearer secret", "Cookie": "session=1",
+        "Proxy-Authorization": "Basic cHJveHk=", "User-Agent": "gather-test"})
+    new = handler_cls().redirect_request(req, None, 302, "Found", {}, "http://api.example/data")
+    assert new is not None
+    sent = {k.lower() for k in new.headers}
+    assert sent.isdisjoint({"authorization", "cookie", "proxy-authorization"}), sent
+    assert "user-agent" in sent  # only the credentials go; the rest of the request is unchanged
