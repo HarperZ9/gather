@@ -3,13 +3,30 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
-## Unreleased
+## 1.10.0 (2026-09-28)
 
-### Removed
+### Removed: the `stealth` extra and its backend
 
-- Removed the `stealth` capability backend (`backends_stealth.py`) and the
-  `curl_cffi` optional dependency. TLS fingerprint impersonation to bypass bot
-  detection is out of scope; the default transport identifies itself honestly.
+- The `stealth` extra, its `curl_cffi` dependency, and the `stealth` capability backend
+  (`gather.backends_stealth`) are removed. That backend impersonated a browser's TLS
+  fingerprint to get past bot detection. Gather no longer ships bot-detection evasion of any
+  kind, and nothing replaces it. HTTP fetches go out with Gather's own User-Agent.
+- `pip install 'gather-engine[stealth]'` still installs Gather. pip warns
+  `gather-engine 1.10.0 does not provide the extra 'stealth'` and installs the core
+  without it. Drop `[stealth]` from requirement files and install commands.
+- `gather-engine[all]` now installs `lxml` and `playwright` only. An upgrade leaves an
+  installed `curl_cffi` in place; Gather no longer uses it, and
+  `pip uninstall curl_cffi` removes it if nothing else needs it.
+- `gather caps` no longer lists `stealth`, including on a machine where `curl_cffi` is
+  installed.
+- Code that imports `gather.backends_stealth` or `gather.backends.CAP_STEALTH` now raises
+  `ImportError`. Remove those imports.
+- A test fails if any dependency or extra names a known fingerprint-impersonation,
+  patched-browser, or challenge-solving package, and another checks that an installed
+  `curl_cffi` registers no capability.
+- The credential strip on a same-host redirect from https to http has its own test for both
+  redirect handlers, the one `http_get` uses and the one the accountable `fetch` uses. The
+  removed stealth tests were the only ones that covered that branch.
 
 ### Video intake pacing and channel runs
 
