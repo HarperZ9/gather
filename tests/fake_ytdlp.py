@@ -10,6 +10,8 @@ yt-dlp 2026.08.19 gives. With ``--ignore-no-formats-error`` it prints the reason
 caption tracks, and exits 0. Without the flag it prints an ``ERROR`` and exits 1. A video that
 lists no formats and gives no reason gets only the two no-formats warnings. ``fail`` answers
 with a non-zero exit whatever the argv holds, for an error yt-dlp raises outright.
+``caption_fail`` does the same for every caption download, and ``listing_fail`` for the listing
+of a named tab.
 
 Every caption track carries ``"impersonate": true``, as the YouTube extractor in yt-dlp 2026.08.19
 marks each one, and ``caption_infos`` keeps the info JSON each caption download was handed.
@@ -81,6 +83,8 @@ class FakeYtDlp:
         # video id -> (playability reason, answers left; -1 means always)
         self.unplayable: dict[str, tuple[str, int]] = {}
         self.caption_infos: list[dict] = []  # the info JSON each caption download was handed
+        self.caption_fail: str | None = None  # stderr to fail every caption download with
+        self.listing_fail: dict[str, str] = {}  # tab -> stderr to fail its listing with
 
     def _throttled(self, step: str) -> bool:
         left = self.throttle.get(step, 0)
@@ -108,6 +112,8 @@ class FakeYtDlp:
 
     def _listing(self, url: str) -> CallResult:
         tab = url.rstrip("/").rsplit("/", 1)[-1]
+        if tab in self.listing_fail:
+            return CallResult(1, "", self.listing_fail[tab])
         if tab not in self.tabs:
             return CallResult(1, "", WARN + f"ERROR: [youtube:tab] chan: This channel does not have a {tab} tab\n")
         entries = [{"_type": "url", "ie_key": "Youtube", "id": vid,
@@ -141,6 +147,8 @@ class FakeYtDlp:
     def _captions(self, argv: list[str]) -> CallResult:
         if self._throttled("captions"):
             return CallResult(1, "", ERR_429)
+        if self.caption_fail is not None:
+            return CallResult(1, "", self.caption_fail)
         with open(argv[argv.index("--load-info-json") + 1], encoding="utf-8") as f:
             info = json.load(f)
         self.caption_infos.append(info)

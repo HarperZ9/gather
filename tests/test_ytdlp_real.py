@@ -141,16 +141,23 @@ def _row(out):
     return outcome_row(out, {"id": "x", "tab": "videos"}, "captions", {"added": 0, "deduped": 0}, 0.0)
 
 
-@pytest.mark.parametrize("vid,code", [("botcheck", "bot-check"), ("ratelimit", "rate-limited")])
-def test_a_real_throttle_warning_is_retried_and_left_pending(gather_standin, vid, code):
-    out, calls = gather_standin(vid)
+def test_a_real_session_rate_limit_is_retried_and_left_pending(gather_standin):
+    out, calls = gather_standin("ratelimit")
     assert "--ignore-no-formats-error" in calls[0][0] and calls[0][1].returncode == 0
-    assert out.error_code == code and out.throttled and len(calls) == 2
+    assert out.error_code == "rate-limited" and out.throttled and len(calls) == 2
     assert not is_settled(_row(out), "captions")
 
 
+def test_a_real_bot_check_ends_the_entry_and_says_so(gather_standin):
+    out, calls = gather_standin("botcheck")
+    assert "--ignore-no-formats-error" in calls[0][0] and calls[0][1].returncode == 0
+    assert out.error_code == "bot-check" and out.bot_check == "metadata" and len(calls) == 1
+    assert out.error.startswith("YouTube asked for a bot check, and gather stopped. ")
+    assert "confirm you" in out.error                             # yt-dlp's own line stays on the record
+
+
 @pytest.mark.parametrize("vid,code,settled", [("private", "private", True), ("removed", "unavailable", True),
-                                              ("geo", "geo-blocked", False)])
+                                              ("geo", "geo-blocked", False), ("botcheck", "bot-check", True)])
 def test_a_real_playability_warning_fails_the_entry_without_a_retry(gather_standin, vid, code, settled):
     out, calls = gather_standin(vid)
     assert calls[0][1].returncode == 0

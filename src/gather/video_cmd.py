@@ -8,8 +8,9 @@ the throttle-prone caption endpoint never blocks metadata and comments:
     gather channel URL --store corpus --captions-only --concurrency 1 --interval 15 --jitter 5
 
 Exit status: 0 when every pending entry was attempted; 1 when the pass ledger cannot be read,
-listing failed, or the pass stopped because an entry spent its whole backoff budget still
-throttled; 2 on bad options, including a ``--timeout`` of 0 or less and a negative sleep.
+listing failed, YouTube asked for a bot check, or the pass stopped because an entry spent its
+whole backoff budget still throttled; 2 on bad options, including a ``--timeout`` of 0 or less
+and a negative sleep.
 
 The summary names its files relative to the store and records the yt-dlp program by file
 name, so it carries no local path when it is passed on.
@@ -67,8 +68,8 @@ def add_ytdlp_options(p, *, timeout: float = DEFAULT_TIMEOUT) -> None:
     p.add_argument("--timeout", type=float, default=timeout, metavar="S",
                    help="seconds per yt-dlp call (above 0)")
     p.add_argument("--retries", type=int, default=None, metavar="N",
-                   help="attempts per yt-dlp call while throttled (HTTP 429, a bot check, a session "
-                        "rate limit), counting the first")
+                   help="attempts per yt-dlp call while throttled (HTTP 429, a session rate limit), "
+                        "counting the first; a bot check is never retried")
     p.add_argument("--backoff-base", type=float, default=None, metavar="S", help="first backoff wait")
     p.add_argument("--backoff-cap", type=float, default=None, metavar="S", help="ceiling on one backoff wait")
     p.add_argument("--backoff-budget", type=float, default=None, metavar="S",
@@ -115,7 +116,8 @@ def add_channel_parser(sub) -> None:
     ch.add_argument("--interval", type=float, default=2.0, metavar="S", help="minimum seconds between entry starts")
     ch.add_argument("--jitter", type=float, default=2.0, metavar="S", help="up to S random extra seconds per start")
     ch.add_argument("--max-throttled", type=int, default=1, metavar="N",
-                    help="stop the pass after N entries spend their backoff budget still throttled")
+                    help="stop the pass after N entries spend their backoff budget still throttled "
+                         "(a bot check stops it at once)")
     ch.add_argument("--limit", type=int, default=None, metavar="N", help="gather at most N pending entries")
     ch.add_argument("--summary", default=None, metavar="PATH",
                     help="summary JSON path (default <store>/intake/summary-<pass>.json)")
@@ -175,6 +177,16 @@ def _store_relative(path: str, store: str) -> str:
     return rel.replace(os.sep, "/")
 
 
+def _listing_failure(listing: dict, tabs_report: dict) -> str | None:
+    """Why the pass cannot start from this listing, or None. A bot check while listing stops the
+    run before any entry is gathered; so does a listing that found nothing because tabs failed."""
+    if listing["stopped"]:
+        return f"{listing['stopped']}; nothing was gathered: {json.dumps(tabs_report)}"
+    if not listing["entries"] and any("error" in info for info in listing["tabs"].values()):
+        return f"nothing listed: {json.dumps(tabs_report)}"
+    return None
+
+
 def _settings(args, source: VideoSource, backoff: BackoffPolicy) -> dict:
     return {"tabs": _split(args.tabs), "captions": captions_mode(args), "comments": args.comments,
             "caption_langs": _split(args.caption_langs), "concurrency": args.concurrency,
@@ -205,8 +217,9 @@ def cmd_channel(args) -> int:
     write_json(os.path.join(intake_dir(args.store), "listing.json"),
                {"target": args.url, "listed_at": started, **listing})
     tabs_report = {t: {k: v for k, v in info.items() if k != "url"} for t, info in listing["tabs"].items()}
-    if not listing["entries"] and any("error" in info for info in listing["tabs"].values()):
-        _err(f"channel failed: nothing listed: {json.dumps(tabs_report)}")
+    failure = _listing_failure(listing, tabs_report)
+    if failure:
+        _err(f"channel failed: {failure}")
         return 1
     pending, settled = _pending(listing["entries"], args.store, run_pass, run.ledger)
     if args.limit is not None:

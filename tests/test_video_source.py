@@ -6,6 +6,7 @@ from fake_ytdlp import (
     REMOVED,
     SESSION_LIMIT,
     UPCOMING,
+    WARN,
     FakeYtDlp,
     asr,
     video_info,
@@ -164,30 +165,72 @@ def _metadata_calls(fake):
     return [c for c in fake.calls if "--load-info-json" not in c]
 
 
-@pytest.mark.parametrize("reason,code", [(BOT_CHECK, "bot-check"), (SESSION_LIMIT, "rate-limited")],
-                         ids=["bot-check", "session-limit"])
-def test_a_throttle_warning_on_a_zero_exit_is_retried_then_marked_throttled(reason, code):
+def test_a_session_rate_limit_on_a_zero_exit_is_retried_then_marked_throttled():
     fake = FakeYtDlp({"abc": video_info("abc")})
-    fake.unplayable["abc"] = (reason, -1)
+    fake.unplayable["abc"] = (SESSION_LIMIT, -1)
     src, logs, slept = make(fake)
     out = src.gather(URL)
-    assert not out.ok and out.error_code == code and out.throttled
+    assert not out.ok and out.error_code == "rate-limited" and out.throttled and out.bot_check is None
     assert out.error.startswith("yt-dlp failed: served no formats: WARNING: [youtube] ")
     assert len(_metadata_calls(fake)) == 3 and slept == [1, 2]     # two retries, then the budget is spent
     assert out.attempts[-1]["final"] is True and out.attempts[-1]["step"] == "metadata"
-    assert out.items == [] and out.caption == "missing" and out.caption_reason == code
+    assert out.items == [] and out.caption == "missing" and out.caption_reason == "rate-limited"
     assert not any("--load-info-json" in c for c in fake.calls)    # never asks for a track it was not shown
     assert any("backoff budget spent" in m for m in logs)
 
 
-def test_a_bot_check_that_clears_is_gathered_on_the_retry():
+STOPPED = "YouTube asked for a bot check, and gather stopped. "
+
+
+def test_a_bot_check_on_a_zero_exit_ends_the_video_with_no_second_attempt():
+    fake = FakeYtDlp({"abc": video_info("abc")})
+    fake.unplayable["abc"] = (BOT_CHECK, -1)
+    src, logs, slept = make(fake)
+    with pytest.raises(RuntimeError, match="^YouTube asked for a bot check, and gather stopped"):
+        src.fetch(URL)
+    out = src.gather(URL)
+    assert not out.ok and out.error_code == "bot-check" and out.bot_check == "metadata"
+    assert not out.throttled and out.attempts == [] and slept == []
+    assert len(_metadata_calls(fake)) == 2                          # one call per gather, never a second
+    assert out.error.startswith(STOPPED) and "served no formats: WARNING: [youtube] Sign in to confirm" in out.error
+    assert out.items == [] and out.caption == "missing" and out.caption_reason == "bot-check"
+    assert out.caption_detail.startswith("not attempted: " + STOPPED)
+    assert not any("--load-info-json" in c for c in fake.calls)
+    assert any("YouTube asked for a bot check" in m and "metadata" in m for m in logs)
+    assert not any("throttled" in m for m in logs)
+
+
+def test_a_bot_check_that_would_clear_on_a_second_ask_is_still_not_asked_again():
     fake = FakeYtDlp({"abc": video_info("abc")})
     fake.unplayable["abc"] = (BOT_CHECK, 1)
     src, _, slept = make(fake)
     out = src.gather(URL)
-    assert out.ok and not out.throttled and slept == [1]
-    assert out.caption == "auto" and {i.kind for i in out.items} == {"metadata", "transcript"}
-    assert out.attempts[0]["reason"].startswith("bot-check: served no formats")
+    assert not out.ok and out.error_code == "bot-check" and slept == []
+    assert len(fake.calls) == 1 and fake.unplayable["abc"] == (BOT_CHECK, 0)   # a second ask would have passed
+
+
+def test_a_bot_check_after_a_rate_limit_retry_ends_the_retries():
+    fake = FakeYtDlp({"abc": video_info("abc")})
+    fake.throttle["metadata"] = 1
+    fake.unplayable["abc"] = (BOT_CHECK, -1)
+    src, _, slept = make(fake)
+    out = src.gather(URL)
+    assert out.error_code == "bot-check" and out.bot_check == "metadata" and not out.throttled
+    assert slept == [1] and len(fake.calls) == 2                    # the 429 was retried, the bot check was not
+    assert [a["reason"].split(":")[0] for a in out.attempts] == ["rate-limited"]
+
+
+def test_a_bot_check_on_the_caption_download_ends_it_and_keeps_the_metadata():
+    fake = FakeYtDlp({"abc": video_info("abc")})
+    fake.caption_fail = WARN + f"ERROR: [youtube] abc: {BOT_CHECK}\n"
+    src, logs, slept = make(fake)
+    out = src.gather(URL)
+    assert out.ok and out.bot_check == "captions" and not out.throttled and slept == []
+    assert [i.kind for i in out.items] == ["metadata"]
+    assert out.caption == "missing" and out.caption_reason == "bot-check"
+    assert out.caption_detail.startswith(STOPPED) and "ERROR: [youtube] abc: Sign in to confirm" in out.caption_detail
+    assert len([c for c in fake.calls if "--load-info-json" in c]) == 1
+    assert any("YouTube asked for a bot check" in m and "captions" in m for m in logs)
 
 
 @pytest.mark.parametrize("reason,code", [(PRIVATE, "private"), (REMOVED, "unavailable"),

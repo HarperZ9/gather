@@ -7,7 +7,8 @@ built behind a feature branch and reviewed before merge.
 
 ### Breaking changes
 
-This release removes public names, so it is a major version. What changed, and what to do:
+This release removes public names, so it is a major version. It also changes what video
+intake does when YouTube asks for a bot check. What changed, and what to do:
 
 - The `stealth` extra is gone. `pip install 'gather-engine[stealth]'` still installs Gather;
   pip warns that the extra does not exist and installs the core. Drop `[stealth]` from
@@ -18,6 +19,16 @@ This release removes public names, so it is a major version. What changed, and w
 - The constant `gather.backends.CAP_STEALTH` is gone, and importing it raises `ImportError`.
   `gather caps` no longer lists `stealth`, even where `curl_cffi` is installed. Remove any
   reference to it.
+- A YouTube bot check ("confirm you're not a bot") is never retried. Builds from main after
+  1.9.1 retried it with backoff like HTTP 429; 1.9.1 did not retry it either. Gather records
+  the failure with the code `bot-check`, and the record starts "YouTube asked for a bot
+  check, and gather stopped", then gives yt-dlp's own line. `gather channel` stops the pass
+  at the first bot check, whatever `--max-throttled` says, and exits 1. It settles the entry
+  that met the check, so a resumed run does not ask for it again. A bot check while listing
+  a tab stops the run before any entry is gathered. What to do: when you choose to try a
+  video again, ask for it by name with `gather video URL --store DIR` and the pass's flags.
+  `--retries` and the backoff flags now cover HTTP 429 and YouTube's session rate limit
+  only. `gather.ytdlp.THROTTLE_CODES` no longer holds `bot-check`; `TERMINAL_CODES` does.
 
 ### Removed: the `stealth` extra and its backend
 
@@ -81,17 +92,19 @@ This release removes public names, so it is a major version. What changed, and w
   first, then the original-language auto-caption (`en-orig`). The old `en.*` pattern fetched
   every English variant and could pick a machine translation; a translation-only video is
   now recorded as missing with the reason `translation-only`.
-- HTTP 429, bot checks and YouTube's session rate limit are retried with exponential
-  backoff and jitter, bounded by attempts and by total wait. Every retry and final failure
-  is logged and recorded. A channel run stops starting new entries once an entry spends its
-  whole budget still throttled, and records the rest as stopped.
+- HTTP 429 and YouTube's session rate limit are retried with exponential backoff and
+  jitter, bounded by attempts and by total wait. Every retry and final failure is logged and
+  recorded. A channel run stops starting new entries once an entry spends its whole budget
+  still throttled, and records the rest as stopped. A bot check is never retried and stops
+  the run at once (see Breaking changes).
 - The extraction runs with `--ignore-no-formats-error`, so a video whose formats are missing
   still yields its metadata and caption tracks. With that flag yt-dlp reports YouTube's
   playability reason as a warning and exits 0. When the extraction lists no formats, Gather
-  reads that warning: a bot check or a session rate limit is retried like an HTTP 429, and
-  a private, members-only, age-restricted or removed video is recorded as failed with that
-  reason and settled. A geo-blocked or upcoming video is recorded as failed and tried again
-  on the next run. None of them stores a metadata item or a "no captions offered" outcome.
+  reads that warning: a session rate limit is retried like an HTTP 429, a bot check ends
+  the entry without a retry, and a private, members-only, age-restricted or removed video is
+  recorded as failed with that reason and settled. A geo-blocked or upcoming video is
+  recorded as failed and tried again on the next run. None of them stores a metadata item
+  or a "no captions offered" outcome.
 - yt-dlp runs with `--js-runtimes node` when it can start `node` (`--js-runtime` overrides),
   and `--sleep-requests` / `--sleep-subtitles` pass through. The check uses the same PATH
   lookup as every child Gather starts, so a `node` only the working folder holds does not
