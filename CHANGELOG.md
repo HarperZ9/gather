@@ -21,9 +21,10 @@ built behind a feature branch and reviewed before merge.
   installed.
 - Code that imports `gather.backends_stealth` or `gather.backends.CAP_STEALTH` now raises
   `ImportError`. Remove those imports.
-- A test fails if any dependency or extra names a known fingerprint-impersonation,
-  patched-browser, or challenge-solving package, and another checks that an installed
-  `curl_cffi` registers no capability.
+- Tests fail if a dependency or extra names a known fingerprint-impersonation,
+  patched-browser, or challenge-solving package, if a source file imports or looks one up
+  or passes yt-dlp `--impersonate`, or if an installed `curl_cffi` registers a capability.
+  The package list matches by name, so a new tool under another name still needs review.
 - The credential strip on a same-host redirect from https to http has its own test for both
   redirect handlers, the one `http_get` uses and the one the accountable `fetch` uses. The
   removed stealth tests were the only ones that covered that branch.
