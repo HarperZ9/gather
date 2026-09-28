@@ -60,7 +60,7 @@ def status_payload() -> dict:
                 "gather.pilot",
             ],
             "current_status": (
-                "1.10.0 video intake with one caption track per video, separate caption and "
+                "2.0.0 video intake with one caption track per video, separate caption and "
                 "metadata passes, bounded throttle backoff and resumable channel runs, and the "
                 "stealth backend removed, "
                 "1.9.1 network and device path refusal on file sources and MCP path arguments "

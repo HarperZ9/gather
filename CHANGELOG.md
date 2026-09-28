@@ -3,7 +3,21 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
-## 1.10.0 (2026-09-28)
+## 2.0.0 (2026-09-28)
+
+### Breaking changes
+
+This release removes public names, so it is a major version. What changed, and what to do:
+
+- The `stealth` extra is gone. `pip install 'gather-engine[stealth]'` still installs Gather;
+  pip warns that the extra does not exist and installs the core. Drop `[stealth]` from
+  requirement files and install commands. `gather-engine[all]` now installs `lxml` and
+  `playwright` only.
+- The module `gather.backends_stealth` is gone, and importing it raises `ImportError`.
+  Remove the import. Nothing replaces it.
+- The constant `gather.backends.CAP_STEALTH` is gone, and importing it raises `ImportError`.
+  `gather caps` no longer lists `stealth`, even where `curl_cffi` is installed. Remove any
+  reference to it.
 
 ### Removed: the `stealth` extra and its backend
 
@@ -13,7 +27,7 @@ built behind a feature branch and reviewed before merge.
   kind, and nothing replaces it. Gather's own HTTP requests go out with Gather's own
   User-Agent.
 - `pip install 'gather-engine[stealth]'` still installs Gather. pip warns
-  `gather-engine 1.10.0 does not provide the extra 'stealth'` and installs the core
+  `gather-engine 2.0.0 does not provide the extra 'stealth'` and installs the core
   without it. Drop `[stealth]` from requirement files and install commands.
 - `gather-engine[all]` now installs `lxml` and `playwright` only. An upgrade leaves an
   installed `curl_cffi` in place. Gather's own code no longer uses it, but a yt-dlp in
