@@ -117,7 +117,7 @@ bad options, including a `--timeout` of 0 or less and a negative sleep.
 Each command prints a receipt as JSON.
 
 ```bash
-gather caps                      # what this install can do (fast / browser / stealth)
+gather caps                      # what this install can do (fast / browser)
 gather extract <url|file.html>   # Markdown + a per-block provenance receipt
 gather markdown <url|file.html>  # structured Markdown only
 gather crawl <url> --depth 2 --max-pages 50   # a witnessed, hash-chained crawl ledger
@@ -129,7 +129,6 @@ UNVERIFIABLE, never a fake):
 ```bash
 pip install 'gather-engine[fast]'      # lxml, about 2x parse speed
 pip install 'gather-engine[browser]'   # Playwright JS render (then: playwright install chromium)
-pip install 'gather-engine[stealth]'   # curl_cffi TLS/browser impersonation
 ```
 
 ## Federation

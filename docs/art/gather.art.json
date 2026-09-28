@@ -85,7 +85,7 @@
       "kicker": "install a backend, or be told you did not",
       "title": "What serves each capability, and what happens when nothing does",
       "source": "python -c \"import gather.backends as b; print(b.default_registry().capabilities())\"",
-      "alt": "A card of the four capabilities gather can be asked for. fetch is always served by the stdlib. fast-parse falls back to the stdlib parser, which returns the same answer more slowly. js-render and stealth are refused with a reason when no backend is installed, and the js-render row is marked because it is the one where a plausible fake exists.",
+      "alt": "A card of the three capabilities gather can be asked for. fetch is always served by the stdlib. fast-parse falls back to the stdlib parser, which returns the same answer more slowly. js-render is refused with a reason when no backend is installed, and is marked because it is the one where a plausible fake exists.",
       "heads": [
         "capability",
         "with no backend",
@@ -109,12 +109,6 @@
           "value": "refused, with a reason",
           "tone": "verified",
           "note": "Marked because this is the row where a plausible fake exists: the static shell. It is never returned dressed as a render."
-        },
-        {
-          "key": "stealth",
-          "value": "refused, with a reason",
-          "tone": "none",
-          "note": "Refused the same way. A request that needed browser impersonation is reported unmet, not answered plainly."
         }
       ],
       "footnote": "The refusal is a result object, not an exception: status UNVERIFIABLE, the capability asked for, and a reason reading no backend for capability js-render. It carries no html and no content hash, so nothing downstream mistakes it for a page that was fetched. Which backends are installed differs by machine, so this draws the absent case, which is the same everywhere. Refusing honestly says nothing about how well an installed backend renders."

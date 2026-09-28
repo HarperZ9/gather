@@ -1,8 +1,8 @@
 """Capability backends: the parity layer, gated and witnessed.
 
 To match the browser-based tools without making gather depend on them, capability
-is pluggable. A backend declares what it can do (execute JavaScript, impersonate
-a browser at the TLS layer, parse at native speed); the registry resolves the
+is pluggable. A backend declares what it can do (execute JavaScript, parse at
+native speed); the registry resolves the
 best available backend for a requested capability. Two rules make this honest:
 
   1. Missing capability -> UNVERIFIABLE, never a fake. If JavaScript rendering is
@@ -12,8 +12,8 @@ best available backend for a requested capability. Two rules make this honest:
      artifact carries its own provenance: "rendered via <backend>" or
      "UNVERIFIABLE: no js-render backend".
 
-This module is pure and stdlib-only. The heavy backends (a Playwright browser, a
-TLS-impersonation transport, an lxml/selectolax fast parser) register themselves
+This module is pure and stdlib-only. The heavy backends (a Playwright browser,
+an lxml/selectolax fast parser) register themselves
 when installed; absent, the capability is simply unmet and reported as such.
 """
 from __future__ import annotations
@@ -26,7 +26,6 @@ from gather.item import content_hash
 
 CAP_FETCH = "fetch"            # basic HTTP; always available (stdlib)
 CAP_JS = "js-render"          # execute JavaScript; needs a browser backend
-CAP_STEALTH = "stealth"       # TLS/browser impersonation; needs a stealth transport
 CAP_FAST_PARSE = "fast-parse"  # native-speed parsing; needs lxml/selectolax
 
 
@@ -134,7 +133,7 @@ def best_parser(registry: Registry | None = None) -> str:
 
 def default_registry(fetch_handler: Callable[[str], str] | None = None) -> Registry:
     """A registry with the stdlib fetch + parse capabilities always present, and
-    the heavy capabilities (js-render, stealth, fast-parse) registered only if
+    the heavy capabilities (js-render, fast-parse) registered only if
     their optional backend is installed. Absent, those capabilities stay unmet
     and any request for them degrades to UNVERIFIABLE."""
     reg = Registry()
@@ -150,8 +149,4 @@ def default_registry(fetch_handler: Callable[[str], str] | None = None) -> Regis
         _register_browser(reg)
     except Exception:  # pragma: no cover - optional import
         pass
-    if find_spec("curl_cffi") is not None:
-        # stealth is a fetch transport, not a render handler; the marker lets
-        # capabilities() report it as available.
-        reg.register(Backend("curl_cffi", frozenset({CAP_STEALTH})))
     return reg

@@ -16,10 +16,9 @@ receipt) is tested offline with a fake transport; only ``urllib_transport``
 touches the network.
 
 Deliberate honesty note: the default User-Agent identifies gather rather than
-impersonating a browser, and zero-dep cannot forge a TLS fingerprint. A caller
-may pass their own headers to impersonate; that is their choice, on the record,
-not a silent default. That is the accountability trade against Scrapling's
-default stealth.
+impersonating a browser, and gather ships no transport that forges a TLS
+fingerprint. ``headers`` is for what a request needs, such as an Authorization
+token. The receipt records the response headers only.
 """
 from __future__ import annotations
 

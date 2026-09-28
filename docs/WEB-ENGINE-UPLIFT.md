@@ -12,6 +12,15 @@ users pick it for, gather must do that thing at least as well (zero-dep where it
 can, via an optional capability backend where it must) and additionally witness
 it. "Honest but less capable" is a losing position and is out of scope.
 
+One exception is settled: gather ships no bot-detection evasion. It does
+not impersonate a browser's TLS or header fingerprint, rotate identities or
+proxies, or solve a CAPTCHA or bot-check page. Where gather retries a throttled
+call (video intake), it waits with bounded backoff under the same identity, and
+a channel run stops starting new entries once an entry spends that budget. Scrapling's impersonating fetch and
+crawlee's fingerprint and session rotation are ground gather does not contest.
+The optional stealth backend that impersonated a browser's TLS fingerprint was
+removed in 1.10.0.
+
 ## The competitors and the gap (verified 2026-07-02)
 
 | Tool | Core strength | What it cannot prove |
@@ -66,10 +75,7 @@ version bump + PR-ready; EVERY wedge ALSO emits its receipt):
      a stdlib fallback or an honest UNVERIFIABLE when absent, never a fake):
        a. BROWSER: JS render, click/fill/scroll, screenshot. Match browser-use +
           Scrapling Dynamic.
-       b. STEALTH: TLS/browser impersonation transport, proxy rotation, session +
-          fingerprint persistence, Cloudflare handling. Match Scrapling stealth +
-          crawlee sessions.
-       c. FAST PARSE: optional lxml/selectolax backend to win raw parse speed;
+       b. FAST PARSE: optional lxml/selectolax backend to win raw parse speed;
           stdlib stays the default and the fallback.
      [receipt: which backend + capability level produced each artifact]
   6. SEARCH + AGENT INTAKE: web-search-to-content and a URL-less gather agent
@@ -107,9 +113,9 @@ and an honest benchmark table is published. Then, and only then, stop.
     transport is a seam, so retry/conditional/receipt logic is tested offline.
   - Tests: `tests/test_fetch.py` (7; full suite 312 passed), including retry,
     exhaustion, tamper, and routing-header-guard negatives.
-  - Honest limitation vs Scrapling: default UA identifies gather (no browser
-    impersonation) and zero-dep cannot forge a TLS fingerprint; a caller may
-    supply their own headers, on the record.
+  - Scope vs Scrapling: the default User-Agent identifies gather, and gather
+    does not impersonate a browser at the header or TLS layer (see the
+    exception under the goal above).
 - Wedge 3: DONE on the same branch.
   - `src/gather/crawl.py`: a competitive crawler (concurrent wave fetching,
     BFS/DFS frontier, URL canonicalization + dedup, robots.txt via stdlib
@@ -131,7 +137,7 @@ and an honest benchmark table is published. Then, and only then, stop.
     tamper detection and a hallucinated-field rejection negative.
 - Wedge 5-core: DONE on the same branch (the accountable half).
   - `src/gather/backends.py`: a capability registry + gating: backends declare
-    capabilities (js-render, stealth, fast-parse); `render()` resolves the best
+    capabilities (js-render, fast-parse); `render()` resolves the best
     available and, when a required capability has no backend, returns
     UNVERIFIABLE with a reason and never a faked render. Every result records
     which backend served it. `best_parser`/`detect_fast_parse` select a native
@@ -145,13 +151,9 @@ and an honest benchmark table is published. Then, and only then, stop.
   - `src/gather/backends_browser.py`: Playwright js-render backend. Verified: it
     really launches headless Chromium and executes JavaScript here. Missing
     browser binary degrades to honest UNVERIFIABLE, never a fake.
-  - `src/gather/backends_stealth.py`: curl_cffi TLS-impersonation transport for
-    the accountable fetch path (same FetchReceipt), with the SSRF guard re-applied
-    per redirect hop and cross-origin credential stripping.
-  - `pyproject.toml` extras: `fast` / `browser` / `stealth` / `all`.
+  - `pyproject.toml` extras: `fast` / `browser` / `all`.
   - Tests: `tests/test_fastparse.py`, `tests/test_backends_browser.py`,
-    `tests/test_backends_stealth.py`, plus the render-failure-degrade negative
-    (18 across the group; full suite 356 passed).
+    plus the render-failure-degrade negative.
 - Wedge 6: DONE (`src/gather/search.py`). Pluggable search-provider seam ->
   SearchReceipt of SOURCE_LEADs; honest UNVERIFIABLE with no provider;
   search_and_fetch chains leads into the accountable fetch path; searx_provider

@@ -80,6 +80,19 @@ def test_default_registry_reports_honest_capabilities() -> None:
     assert "fetch" in reg.capabilities()  # always present
     # Capabilities are reported iff their optional backend is actually installed.
     assert reg.has("js-render") == (find_spec("playwright") is not None)
-    assert reg.has("stealth") == (find_spec("curl_cffi") is not None)
     assert reg.has("fast-parse") == (
         find_spec("lxml") is not None or find_spec("selectolax") is not None)
+
+
+def test_curl_cffi_on_the_machine_does_not_bring_back_a_stealth_capability(monkeypatch) -> None:
+    """gather ships no bot-detection evasion. A curl_cffi that some other package installed
+    must not register a browser-impersonation capability. find_spec is made to report
+    curl_cffi present, so the check holds on a machine that does not have it."""
+    import gather.backends as B
+
+    real = B.find_spec
+    monkeypatch.setattr(B, "find_spec",
+                        lambda name, *a: object() if name == "curl_cffi" else real(name, *a))
+    caps = default_registry().capabilities()
+    assert "stealth" not in caps
+    assert not any("curl_cffi" in backends for backends in caps.values())

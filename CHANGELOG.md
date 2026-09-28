@@ -5,6 +5,12 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+### Removed
+
+- Removed the `stealth` capability backend (`backends_stealth.py`) and the
+  `curl_cffi` optional dependency. TLS fingerprint impersonation to bypass bot
+  detection is out of scope; the default transport identifies itself honestly.
+
 ### Video intake pacing and channel runs
 
 - `gather channel URL --store DIR` lists a channel's `videos`, `shorts`, and `streams`
