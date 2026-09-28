@@ -5,6 +5,9 @@ caption kind or the reason it is missing, every throttle retry, the real failure
 channel run can count outcomes instead of guessing. ``fetch`` keeps the adapter contract: a
 list of Items, RuntimeError when the metadata call fails.
 
+A YouTube bot check ends the step it met: no retry, and the record says in plain words that
+YouTube asked for a bot check and Gather stopped. Rate limits are retried with bounded backoff.
+
 Caption intake runs as two yt-dlp calls: one extraction (``-J``) that lists the tracks, then one
 download of exactly the chosen track from the saved info JSON (``--load-info-json``), so the
 caption endpoint sees one request per video and a throttle retry never re-extracts the page.
@@ -34,14 +37,17 @@ from gather.item import Item
 from gather.pacing import BackoffPolicy, Pacer, run_with_backoff
 from gather.spawn import find_tool
 from gather.ytdlp import (
+    BOT_CHECK,
     DEFAULT_TIMEOUT,
     CallResult,
     Runner,
     YtDlpConfig,
     base_argv,
     check_playability,
+    failure_text,
     subprocess_runner,
     throttle_reason,
+    without_impersonation,
 )
 
 CAPTION_MODES = ("with", "skip", "only")
@@ -55,7 +61,8 @@ class VideoOutcome:
     """What one video's intake produced and why. ``error`` is set when the metadata call failed
     (the video yields no items). ``caption`` is ``manual``, ``auto``, ``missing`` (see
     ``caption_reason``), or ``skipped``. ``throttled`` is True when a step ran out of backoff
-    budget while still throttled."""
+    budget while still throttled. ``bot_check`` names the step (``metadata``, ``captions``,
+    ``listing``) where YouTube asked for a bot check; Gather stopped there without a retry."""
 
     target: str
     items: list[Item] = field(default_factory=list)
@@ -71,6 +78,7 @@ class VideoOutcome:
     comment_count_reported: int | None = None
     attempts: list[dict] = field(default_factory=list)
     throttled: bool = False
+    bot_check: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -120,7 +128,8 @@ class VideoSource:
 
     def fetch(self, target: str) -> list[Item]:
         """Fetch one video's items. Raises RuntimeError with the real yt-dlp ERROR line when the
-        metadata call fails. Caption failures are logged to stderr, not treated as absent."""
+        metadata call fails, led by a plain sentence when the failure was a bot check. Caption
+        failures are logged to stderr, not treated as absent."""
         out = self.gather(target)
         if out.error is not None:
             raise RuntimeError(out.error)
@@ -160,14 +169,15 @@ class VideoSource:
         argv = self._base + ["--flat-playlist", "--dump-single-json", "--", url]
         res = self._call(argv, "listing", out, timeout=max(timeout, self._cfg.timeout))
         if not res.ok:
-            out.error, out.error_code = f"yt-dlp failed: {res.reason()}", res.code()
+            out.error, out.error_code = failure_text(res), res.code()
         return res, out
 
     def _call(self, argv: list[str], step: str, out: VideoOutcome, *, timeout: float | None = None,
               check: Callable[[CallResult], CallResult] | None = None) -> CallResult:
         """Run yt-dlp with bounded backoff on throttle signals; record every retry and the
         final failure on ``out`` and in the log. ``check`` reads each result before the retry
-        decision, so a throttle it finds is retried like any other."""
+        decision, so a throttle it finds is retried like any other. A bot check is not a
+        throttle: the call ends there, and ``out.bot_check`` names the step."""
         limit = self._cfg.timeout if timeout is None else timeout
 
         def once() -> CallResult:
@@ -188,6 +198,10 @@ class VideoSource:
                                  "reason": result.retry_reason, "wait_s": 0.0, "final": True})
             self._log(f"gather: yt-dlp {step} still throttled after {len(result.attempts) + 1} "
                       f"attempt(s); backoff budget spent")
+        if not result.value.ok and result.value.code() == BOT_CHECK:
+            out.bot_check = step
+            self._log(f"gather: YouTube asked for a bot check on the yt-dlp {step} call; gather "
+                      f"stopped there and will not ask again")
         return result.value
 
     def _extract(self, target: str, out: VideoOutcome) -> dict | None:
@@ -200,7 +214,7 @@ class VideoSource:
         argv += ["--", target]  # end-of-options: a target starting with - cannot be read as a flag
         res = self._call(argv, "metadata", out, check=check_playability)
         if not res.ok:
-            out.error, out.error_code = f"yt-dlp failed: {res.reason()}", res.code()
+            out.error, out.error_code = failure_text(res), res.code()
             return None
         try:
             info = json.loads(res.stdout)
@@ -222,7 +236,7 @@ class VideoSource:
         if vtt is None:
             out.caption = "missing"
             out.caption_reason = "no-vtt" if res.ok else res.code()
-            out.caption_detail = "yt-dlp wrote no .vtt file" if res.ok else res.reason()
+            out.caption_detail = "yt-dlp wrote no .vtt file" if res.ok else failure_text(res, prefix="")
             kind = "auto" if pick.choice.auto else "manual"
             self._log(f"gather: yt-dlp {kind} captions ({pick.choice.lang}) failed: {out.caption_detail[:200]}")
             return None
@@ -231,9 +245,11 @@ class VideoSource:
 
     def _download_track(self, info: dict, choice: CaptionChoice,
                         out: VideoOutcome) -> tuple[str | None, CallResult]:
-        """Download exactly one track from the saved info JSON (no re-extraction)."""
+        """Download exactly one track from the saved info JSON (no re-extraction). The saved info
+        drops the comments and yt-dlp's ``impersonate`` marks, so the track is fetched as yt-dlp
+        itself, never with a browser's TLS fingerprint."""
         flag = "--write-auto-subs" if choice.auto else "--write-subs"
-        slim = {k: v for k, v in info.items() if k != "comments"}
+        slim = without_impersonation({k: v for k, v in info.items() if k != "comments"})
         with tempfile.TemporaryDirectory() as d:
             info_path = os.path.join(d, "info.json")
             with open(info_path, "w", encoding="utf-8") as f:

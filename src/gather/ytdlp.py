@@ -16,6 +16,7 @@ import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from gather.spawn import ToolRefused, ToolUnavailable, find_tool, run_tool
 
@@ -25,12 +26,19 @@ DEFAULT_TIMEOUT = 120.0
 # executable, and a config can carry --exec. Gather passes its own flags only.
 NO_CONFIG = ("--ignore-config",)
 
-# Signals that the far side is throttling this client. Backoff treats both as retryable; the
-# bot check is YouTube asking the client to slow down, and waiting is the only answer Gather gives.
-THROTTLE_CODES = frozenset({"rate-limited", "bot-check"})
+# Signals that the far side is throttling this client: HTTP 429 and YouTube's session rate limit.
+# Backoff retries them under the same identity, within a bounded budget.
+THROTTLE_CODES = frozenset({"rate-limited"})
+
+# YouTube's "confirm you're not a bot" check. Gather detects it, stops, and leaves it to the person
+# running it: the call is not retried, the record says so in plain words, and a channel pass stops.
+# Gather never tries to answer or get around the check.
+BOT_CHECK = "bot-check"
+BOT_CHECK_STOPPED = "YouTube asked for a bot check, and gather stopped. It does not retry or answer a bot check."
 
 # Failure codes that will not change on a retry without credentials or a change on the far side.
-TERMINAL_CODES = frozenset({"unavailable", "private", "members-only", "age-restricted"})
+# A channel pass settles an entry that failed with one and does not ask for it again.
+TERMINAL_CODES = frozenset({BOT_CHECK, "unavailable", "private", "members-only", "age-restricted"})
 
 # Why YouTube served a video no formats. With --ignore-no-formats-error, yt-dlp prints the reason
 # as an extractor warning and exits 0, so these codes are also read from warnings.
@@ -40,11 +48,13 @@ PLAYABILITY_CODES = THROTTLE_CODES | TERMINAL_CODES | frozenset({"geo-blocked", 
 _EXTRACTOR_WARNING = re.compile(r"WARNING: \[[^\]\s]+\] ")
 
 _CLASSIFIERS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    # a bot check is matched first, so a line that also names a rate limit still stops
+    (BOT_CHECK, re.compile(r"confirm you.?re not a bot", re.I)),
     # YouTube's session limit reads "Video unavailable. This content isn't available, try again
-    # later. The current session has been rate-limited by YouTube ...", so it is matched first
+    # later. The current session has been rate-limited by YouTube ...", so it is matched before
+    # "unavailable"
     ("rate-limited", re.compile(r"HTTP Error 429|Too Many Requests|rate-limited by YouTube|try again later",
                                 re.I)),
-    ("bot-check", re.compile(r"confirm you.?re not a bot", re.I)),
     ("age-restricted", re.compile(r"confirm your age|age.restricted|inappropriate for some users", re.I)),
     ("members-only", re.compile(r"members.only|join this channel", re.I)),
     ("private", re.compile(r"private video", re.I)),
@@ -117,6 +127,20 @@ def base_argv(cfg: YtDlpConfig, which: Callable[[str], str | None] = find_tool) 
     if cfg.sleep_subtitles:
         argv += ["--sleep-subtitles", _num(cfg.sleep_subtitles)]
     return argv
+
+
+def without_impersonation(value: Any) -> Any:
+    """A copy of an info JSON value with every ``impersonate`` key removed, at any depth.
+
+    yt-dlp's YouTube extractor marks each caption track ``"impersonate": true``, and ``-J`` keeps
+    the mark. Loaded back with ``--load-info-json``, it makes yt-dlp fetch the track with a
+    browser's TLS fingerprint and headers whenever curl_cffi is importable where yt-dlp runs.
+    Gather hands yt-dlp the info without it. Pure; the input is left as it is."""
+    if isinstance(value, dict):
+        return {k: without_impersonation(v) for k, v in value.items() if k != "impersonate"}
+    if isinstance(value, list):
+        return [without_impersonation(v) for v in value]
+    return value
 
 
 def failure_reason(stderr: str, *, limit: int = 400) -> str:
@@ -199,26 +223,40 @@ def subprocess_runner(argv: list[str], timeout: float) -> CallResult:
 
 
 def throttle_reason(result: CallResult) -> str | None:
-    """The retry reason when a failed call is a throttle signal, else None."""
+    """The retry reason when a failed call is a throttle signal, else None. A bot check is not
+    a throttle: it gets None, so it is never retried."""
     if result.ok:
         return None
     code = result.code()
     return f"{code}: {result.reason()}" if code in THROTTLE_CODES else None
 
 
+def failure_text(result: CallResult, prefix: str = "yt-dlp failed: ") -> str:
+    """What a failed call's record says. A bot check leads with a plain sentence that YouTube
+    asked for one and Gather stopped, then yt-dlp's own line; any other failure is ``prefix``
+    and that line."""
+    if result.code() == BOT_CHECK:
+        return f"{BOT_CHECK_STOPPED} yt-dlp said: {result.reason()}"
+    return prefix + result.reason()
+
+
 def playability_warning(stderr: str) -> str | None:
     """The extractor warning that says why a video was not served, or None.
 
-    Only ``WARNING: [<extractor>] ...`` lines whose code is in ``PLAYABILITY_CODES`` count. A
-    throttle line wins over any other, so a throttled session is retried, never settled."""
+    Only ``WARNING: [<extractor>] ...`` lines whose code is in ``PLAYABILITY_CODES`` count. A bot
+    check line wins over any other, so a bot check always stops; then a throttle line, so a
+    throttled session is retried, never settled; then the first line."""
     found = []
     for raw in (stderr or "").splitlines():
         line = raw.strip()
         if _EXTRACTOR_WARNING.match(line) and classify(line) in PLAYABILITY_CODES:
             found.append(line)
-    throttled = [ln for ln in found if classify(ln) in THROTTLE_CODES]
-    ranked = throttled or found
-    return ranked[0] if ranked else None
+
+    def rank(line: str) -> int:
+        code = classify(line)
+        return 0 if code == BOT_CHECK else 1 if code in THROTTLE_CODES else 2
+
+    return min(found, key=rank) if found else None
 
 
 def _lists_formats(stdout: str) -> bool:
@@ -238,9 +276,9 @@ def check_playability(result: CallResult) -> CallResult:
     still yields its metadata and caption tracks. The same flag makes yt-dlp report YouTube's
     playability reason (a bot check, a session rate limit, a private or removed video) as a
     ``WARNING`` and exit 0. A call that listed no formats and carries such a warning is failed
-    here with that line, so a throttle is retried and a terminal reason is recorded as one. A
-    call that listed formats stays a success whatever its warnings say, and so does one that
-    listed none and gave no reason."""
+    here with that line, so a throttle is retried and a terminal reason, a bot check among
+    them, is recorded as one. A call that listed formats stays a success whatever its warnings
+    say, and so does one that listed none and gave no reason."""
     if not result.ok:
         return result
     line = playability_warning(result.stderr)

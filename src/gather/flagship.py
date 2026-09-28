@@ -60,6 +60,9 @@ def status_payload() -> dict:
                 "gather.pilot",
             ],
             "current_status": (
+                "2.0.0 video intake with one caption track per video, separate caption and "
+                "metadata passes, bounded rate-limit backoff, a stop at any YouTube bot check, "
+                "resumable channel runs, and the stealth backend removed, "
                 "1.9.1 network and device path refusal on file sources and MCP path arguments "
                 "and child-program lookups that skip PATH entries reaching the working folder, "
                 "1.9.0 launch-only MCP grants and safe child spawning, "

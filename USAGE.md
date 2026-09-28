@@ -73,18 +73,37 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   when yt-dlp can start `node`: Gather looks it up the way it looks up its own tools, so a
   `node` that only your working folder holds does not count. `none` turns it off; any
   other value is passed through.
+- **What yt-dlp sends.** Gather passes no flag that sets a User-Agent, a cookie, a proxy
+  or an impersonation target. yt-dlp marks each YouTube caption track for browser
+  impersonation, and Gather removes that mark before the caption download, so the track
+  is fetched as yt-dlp itself. yt-dlp still sends its own default headers, including a
+  desktop Chrome User-Agent whose version it picks each run. For some sites other than
+  YouTube, its extractors ask for impersonation while they extract, and yt-dlp has no
+  flag that turns this off. It happens only where yt-dlp can import `curl_cffi`;
+  `yt-dlp --list-impersonate-targets` marks every target unavailable when it cannot.
 - **Pacing and backoff.** `--sleep-requests` and `--sleep-subtitles` pass through to
-  yt-dlp and take 0 or more seconds. `--timeout` takes more than 0. On HTTP 429, a bot
-  check or YouTube's session rate limit, Gather retries with exponential backoff and jitter,
+  yt-dlp and take 0 or more seconds. `--timeout` takes more than 0. On HTTP 429 or
+  YouTube's session rate limit, Gather retries with exponential backoff and jitter,
   bounded by `--retries` (attempts, counting the first), `--backoff-cap` (one wait), and
   `--backoff-budget` (total wait per call). Every retry is logged to stderr and recorded.
+- **Bot checks.** When YouTube asks for a bot check ("confirm you're not a bot"), Gather
+  stops. It does not retry the call or try to answer the check. The failure is recorded
+  with the code `bot-check`, and its reason starts with "YouTube asked for a bot check, and
+  gather stopped", then gives yt-dlp's own line. On the extraction, `gather video` exits 1;
+  on the caption download it keeps the metadata and logs the check. `gather channel` stops
+  the pass at the first bot check, whatever `--max-throttled` says, records the remaining
+  entries as `stopped`, and exits 1. With `--concurrency` above 1, an entry another worker
+  had already started still runs to its end. The entry that met the check is settled, so a
+  resumed run does not ask for it again. When you choose to try that video again, ask for
+  it by name: `gather video URL --store DIR` with the pass's flags. A bot check while
+  listing a tab stops the run before any entry is gathered.
 - **Why a video served nothing.** The extraction runs with `--ignore-no-formats-error`, so
   a video whose formats are missing still gives its metadata and caption tracks. That flag
   also makes yt-dlp print YouTube's playability reason as a `WARNING` and exit 0. When the
-  extraction lists no formats, Gather reads that line. A bot check or a session rate limit
-  is retried as above. A private, members-only, age-restricted or removed video is
-  recorded as failed with its reason and skipped on the next run. A geo-blocked or upcoming
-  video is recorded as failed and tried again on the next run.
+  extraction lists no formats, Gather reads that line. A session rate limit is retried and
+  a bot check stops, both as above. A private, members-only, age-restricted or removed
+  video is recorded as failed with its reason and skipped on the next run. A geo-blocked or
+  upcoming video is recorded as failed and tried again on the next run.
 - **Real failure lines.** A failed call reports its `ERROR` lines, not a leading version
   or runtime warning. A yt-dlp that cannot start is recorded as `tool-missing`, and one
   Gather will not start with these arguments as `tool-refused`. On Windows a `yt-dlp.cmd`
@@ -96,6 +115,7 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   appends one row per entry to `DIR/intake/ledger-<pass>.jsonl` and skips settled entries
   on the next run, so a stopped run resumes. When an entry spends its whole backoff budget
   still throttled, the run stops starting new entries and records the rest as `stopped`.
+  A bot check stops the run the same way, on the first entry that meets one.
   If a run was killed mid-write, the next run drops the unfinished last row and gathers
   that entry again. Any other unreadable row stops the run before it calls yt-dlp and
   names the line.
@@ -109,8 +129,8 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   MCP the job needs the `video` network grant (see [Launch grants](#launch-grants)).
 
 Exit codes for `gather channel`: `0` when every pending entry was attempted; `1` when
-the pass ledger cannot be read, listing failed, or the pass stopped on throttling; `2` on
-bad options, including a `--timeout` of 0 or less and a negative sleep.
+the pass ledger cannot be read, listing failed, or the pass stopped on throttling or a bot
+check; `2` on bad options, including a `--timeout` of 0 or less and a negative sleep.
 
 ## Web-data engine
 

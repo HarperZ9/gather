@@ -3,8 +3,10 @@
 Each pass (``metadata``, ``metadata-comments``, ``captions``, ``full``, ``full-comments``)
 appends one JSON row per attempted entry to ``<store>/intake/ledger-<pass>.jsonl``. The ledger
 is the resume record: an entry whose latest row is settled is skipped on the next run, and an
-entry whose latest row is not (throttled, timed out, stopped) is tried again. Summaries are
-computed from rows alone, so a resumed pass reports its whole state, not just the last run.
+entry whose latest row is not (throttled, timed out, stopped) is tried again. An entry that met
+a YouTube bot check is settled: a resumed run does not ask for it again, and whether to ask is
+left to the person (``gather video URL --store DIR``). Summaries are computed from rows alone,
+so a resumed pass reports its whole state, not just the last run.
 
 Comment rows carry counts only, never commenter names: the ledger and summary describe the
 intake, not the people who wrote the comments.
@@ -18,12 +20,13 @@ from collections import Counter
 from collections.abc import Iterable
 
 from gather.captions import NO_MATCHING_LANGUAGE, NONE_OFFERED, TRANSLATION_ONLY
-from gather.ytdlp import TERMINAL_CODES
+from gather.ytdlp import BOT_CHECK, TERMINAL_CODES
 
 SUMMARY_SCHEMA = "gather.video-intake-summary/v1"
 
-# A missing caption for one of these reasons will not change on a retry.
-SETTLED_CAPTION_REASONS = frozenset({NONE_OFFERED, TRANSLATION_ONLY, NO_MATCHING_LANGUAGE})
+# A missing caption for one of these reasons will not change on a retry, or, for a bot check on
+# the caption download, is left to the person, as a bot check on the extraction is.
+SETTLED_CAPTION_REASONS = frozenset({NONE_OFFERED, TRANSLATION_ONLY, NO_MATCHING_LANGUAGE, BOT_CHECK})
 
 DOES_NOT_PROVE = (
     "that the listing holds every upload: a channel tab omits private, removed, and members-only uploads",

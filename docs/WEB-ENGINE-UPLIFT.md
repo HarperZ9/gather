@@ -16,10 +16,16 @@ One exception is settled: gather ships no bot-detection evasion. It does
 not impersonate a browser's TLS or header fingerprint, rotate identities or
 proxies, or solve a CAPTCHA or bot-check page. Where gather retries a throttled
 call (video intake), it waits with bounded backoff under the same identity, and
-a channel run stops starting new entries once an entry spends that budget. Scrapling's impersonating fetch and
+a channel run stops starting new entries once an entry spends that budget. A bot
+check is never retried: gather records it, stops, and leaves it to the person running
+it. Scrapling's impersonating fetch and
 crawlee's fingerprint and session rotation are ground gather does not contest.
 The optional stealth backend that impersonated a browser's TLS fingerprint was
-removed in 1.10.0.
+removed in 2.0.0. Video intake runs yt-dlp, which sends its own default headers
+(a desktop Chrome User-Agent) and, for some sites other than YouTube, asks for
+impersonation while it extracts when it can import `curl_cffi`. Gather removes
+yt-dlp's impersonation mark from YouTube caption downloads; the rest is yt-dlp's
+own behavior, stated in USAGE.md.
 
 ## The competitors and the gap (verified 2026-07-02)
 

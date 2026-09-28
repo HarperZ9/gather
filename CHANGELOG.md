@@ -3,13 +3,69 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
-## Unreleased
+## 2.0.0 (2026-09-28)
 
-### Removed
+### Breaking changes
 
-- Removed the `stealth` capability backend (`backends_stealth.py`) and the
-  `curl_cffi` optional dependency. TLS fingerprint impersonation to bypass bot
-  detection is out of scope; the default transport identifies itself honestly.
+This release removes public names, so it is a major version. It also changes what video
+intake does when YouTube asks for a bot check. What changed, and what to do:
+
+- The `stealth` extra is gone. `pip install 'gather-engine[stealth]'` still installs Gather;
+  pip warns that the extra does not exist and installs the core. Drop `[stealth]` from
+  requirement files and install commands. `gather-engine[all]` now installs `lxml` and
+  `playwright` only.
+- The module `gather.backends_stealth` is gone, and importing it raises `ImportError`.
+  Remove the import. Nothing replaces it.
+- The constant `gather.backends.CAP_STEALTH` is gone, and importing it raises `ImportError`.
+  `gather caps` no longer lists `stealth`, even where `curl_cffi` is installed. Remove any
+  reference to it.
+- A YouTube bot check ("confirm you're not a bot") is never retried. Builds from main after
+  1.9.1 retried it with backoff like HTTP 429; 1.9.1 did not retry it either. Gather records
+  the failure with the code `bot-check`, and the record starts "YouTube asked for a bot
+  check, and gather stopped", then gives yt-dlp's own line. `gather channel` stops the pass
+  at the first bot check, whatever `--max-throttled` says, and exits 1. It settles the entry
+  that met the check, so a resumed run does not ask for it again. A bot check while listing
+  a tab stops the run before any entry is gathered. What to do: when you choose to try a
+  video again, ask for it by name with `gather video URL --store DIR` and the pass's flags.
+  `--retries` and the backoff flags now cover HTTP 429 and YouTube's session rate limit
+  only. `gather.ytdlp.THROTTLE_CODES` no longer holds `bot-check`; `TERMINAL_CODES` does.
+
+### Removed: the `stealth` extra and its backend
+
+- The `stealth` extra, its `curl_cffi` dependency, and the `stealth` capability backend
+  (`gather.backends_stealth`) are removed. That backend impersonated a browser's TLS
+  fingerprint to get past bot detection. Gather no longer ships bot-detection evasion of any
+  kind, and nothing replaces it. Gather's own HTTP requests go out with Gather's own
+  User-Agent.
+- `pip install 'gather-engine[stealth]'` still installs Gather. pip warns
+  `gather-engine 2.0.0 does not provide the extra 'stealth'` and installs the core
+  without it. Drop `[stealth]` from requirement files and install commands.
+- `gather-engine[all]` now installs `lxml` and `playwright` only. An upgrade leaves an
+  installed `curl_cffi` in place. Gather's own code no longer uses it, but a yt-dlp in
+  the same environment can (see below), so run `pip uninstall curl_cffi` if nothing else
+  needs it.
+- Caption downloads no longer pose as a browser. yt-dlp marks every YouTube caption track
+  for impersonation and keeps the mark in the info JSON Gather saves and hands back for the
+  caption download. Where yt-dlp could import `curl_cffi`, the track went out with a
+  browser's TLS fingerprint and headers. Gather now removes the mark first. A test on the
+  saved info runs everywhere, and a test against real yt-dlp, run where yt-dlp is
+  installed, checks that the caption request carries yt-dlp's own headers.
+- What yt-dlp still decides: it sends its own default headers, including a desktop Chrome
+  User-Agent whose version it picks each run, and for some sites other than YouTube its
+  extractors ask for impersonation while they extract. Gather passes no flag that asks for
+  either, and yt-dlp has no flag that turns off an extractor's request. That request takes
+  effect only where yt-dlp can import `curl_cffi`.
+- `gather caps` no longer lists `stealth`, including on a machine where `curl_cffi` is
+  installed.
+- Code that imports `gather.backends_stealth` or `gather.backends.CAP_STEALTH` now raises
+  `ImportError`. Remove those imports.
+- Tests fail if a dependency or extra names a known fingerprint-impersonation,
+  patched-browser, or challenge-solving package, if a source file imports or looks one up
+  or passes yt-dlp `--impersonate`, or if an installed `curl_cffi` registers a capability.
+  The package list matches by name, so a new tool under another name still needs review.
+- The credential strip on a same-host redirect from https to http has its own test for both
+  redirect handlers, the one `http_get` uses and the one the accountable `fetch` uses. The
+  removed stealth tests were the only ones that covered that branch.
 
 ### Video intake pacing and channel runs
 
@@ -36,17 +92,19 @@ built behind a feature branch and reviewed before merge.
   first, then the original-language auto-caption (`en-orig`). The old `en.*` pattern fetched
   every English variant and could pick a machine translation; a translation-only video is
   now recorded as missing with the reason `translation-only`.
-- HTTP 429, bot checks and YouTube's session rate limit are retried with exponential
-  backoff and jitter, bounded by attempts and by total wait. Every retry and final failure
-  is logged and recorded. A channel run stops starting new entries once an entry spends its
-  whole budget still throttled, and records the rest as stopped.
+- HTTP 429 and YouTube's session rate limit are retried with exponential backoff and
+  jitter, bounded by attempts and by total wait. Every retry and final failure is logged and
+  recorded. A channel run stops starting new entries once an entry spends its whole budget
+  still throttled, and records the rest as stopped. A bot check is never retried and stops
+  the run at once (see Breaking changes).
 - The extraction runs with `--ignore-no-formats-error`, so a video whose formats are missing
   still yields its metadata and caption tracks. With that flag yt-dlp reports YouTube's
   playability reason as a warning and exits 0. When the extraction lists no formats, Gather
-  reads that warning: a bot check or a session rate limit is retried like an HTTP 429, and
-  a private, members-only, age-restricted or removed video is recorded as failed with that
-  reason and settled. A geo-blocked or upcoming video is recorded as failed and tried again
-  on the next run. None of them stores a metadata item or a "no captions offered" outcome.
+  reads that warning: a session rate limit is retried like an HTTP 429, a bot check ends
+  the entry without a retry, and a private, members-only, age-restricted or removed video is
+  recorded as failed with that reason and settled. A geo-blocked or upcoming video is
+  recorded as failed and tried again on the next run. None of them stores a metadata item
+  or a "no captions offered" outcome.
 - yt-dlp runs with `--js-runtimes node` when it can start `node` (`--js-runtime` overrides),
   and `--sleep-requests` / `--sleep-subtitles` pass through. The check uses the same PATH
   lookup as every child Gather starts, so a `node` only the working folder holds does not

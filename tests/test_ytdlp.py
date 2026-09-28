@@ -16,16 +16,20 @@ from fake_ytdlp import (
 import gather.ytdlp as ytdlp_mod
 from gather.spawn import ToolRefused
 from gather.ytdlp import (
+    TERMINAL_CODES,
+    THROTTLE_CODES,
     CallResult,
     YtDlpConfig,
     base_argv,
     check_playability,
     classify,
     failure_reason,
+    failure_text,
     playability_warning,
     resolve_js_runtime,
     subprocess_runner,
     throttle_reason,
+    without_impersonation,
 )
 
 
@@ -93,6 +97,7 @@ def test_failure_reason_falls_back_to_the_last_non_warning_line():
     ("ERROR: [youtube] x: Premieres in 3 hours", "upcoming"),
     ("ERROR: [youtube] x: Requested format is not available", "no-formats"),
     ("ERROR: something new", "error"),
+    ("ERROR: HTTP Error 429: Too Many Requests; Sign in to confirm you’re not a bot", "bot-check"),
 ])
 def test_classify_names_the_failure(text, code):
     assert classify(text) == code
@@ -167,7 +172,7 @@ def _warned(reason):
 
 
 @pytest.mark.parametrize("reason,code,throttle", [
-    (BOT_CHECK, "bot-check", True),
+    (BOT_CHECK, "bot-check", False),
     (SESSION_LIMIT, "rate-limited", True),
     (PRIVATE, "private", False),
     (REMOVED, "unavailable", False),
@@ -201,9 +206,35 @@ def test_only_extractor_warnings_are_read_as_playability():
     assert playability_warning(_warned(PRIVATE)).startswith("WARNING: [youtube] Private video.")
 
 
+def test_a_bot_check_is_terminal_and_never_a_throttle():
+    # this tool family detects a bot challenge, stops, and leaves it to the person running it
+    assert "bot-check" in TERMINAL_CODES and "bot-check" not in THROTTLE_CODES
+    assert THROTTLE_CODES == {"rate-limited"}
+    assert throttle_reason(CallResult(1, "", f"ERROR: [youtube] abc: {BOT_CHECK}\n")) is None
+    assert throttle_reason(check_playability(CallResult(0, _page(), _warned(BOT_CHECK)))) is None
+
+
+def test_a_bot_check_line_wins_over_any_other_line():
+    for other in (PRIVATE, SESSION_LIMIT):
+        for first, second in ((other, BOT_CHECK), (BOT_CHECK, other)):
+            stderr = f"WARNING: [youtube] {first}\nWARNING: [youtube] {second}\n{NO_FORMATS}"
+            assert classify(playability_warning(stderr)) == "bot-check", (first, second)
+
+
 def test_a_throttle_line_wins_over_a_terminal_line():
-    stderr = f"WARNING: [youtube] {PRIVATE}\nWARNING: [youtube] {BOT_CHECK}\n{NO_FORMATS}"
-    assert classify(playability_warning(stderr)) == "bot-check"
+    stderr = f"WARNING: [youtube] {PRIVATE}\nWARNING: [youtube] {SESSION_LIMIT}\n{NO_FORMATS}"
+    assert classify(playability_warning(stderr)) == "rate-limited"
+
+
+def test_a_bot_check_failure_says_so_in_plain_words_and_keeps_yt_dlps_line():
+    for res in (CallResult(1, "", f"{fake_ytdlp.WARN}ERROR: [youtube] abc: {BOT_CHECK}\n"),
+                check_playability(CallResult(0, _page(), _warned(BOT_CHECK)))):
+        text = failure_text(res)
+        assert text.startswith("YouTube asked for a bot check, and gather stopped. ")
+        assert "not a bot" in text and "older than 90 days" not in text
+    private = CallResult(1, "", f"ERROR: [youtube] abc: {PRIVATE}\n")
+    assert failure_text(private) == "yt-dlp failed: " + private.reason()
+    assert failure_text(private, prefix="") == private.reason()
 
 
 def test_a_failed_or_unreadable_call_is_left_as_it_is():
@@ -233,3 +264,13 @@ def test_config_rejects_a_timeout_or_sleep_that_cannot_work(field, value):
 def test_config_accepts_zero_sleep_and_a_positive_timeout():
     cfg = YtDlpConfig(timeout=0.5, sleep_requests=0, sleep_subtitles=0)
     assert base_argv(cfg, not_on_path) == ["yt-dlp", "--ignore-config"]
+
+
+def test_without_impersonation_drops_the_mark_at_any_depth_and_leaves_the_input_alone():
+    info = {"id": "a", "title": "impersonate", "impersonate": True,
+            "subtitles": {"en": [{"ext": "vtt", "url": "u", "impersonate": True}]},
+            "formats": [{"format_id": "18", "impersonate": "chrome"}]}
+    assert without_impersonation(info) == {"id": "a", "title": "impersonate",
+                                           "subtitles": {"en": [{"ext": "vtt", "url": "u"}]},
+                                           "formats": [{"format_id": "18"}]}
+    assert info["subtitles"]["en"][0]["impersonate"] is True and info["impersonate"] is True

@@ -6,6 +6,9 @@ small thread pool (default 2), with a shared ``Pacer`` spacing entry starts. Eve
 outcome is appended to the pass ledger as it finishes, so an interrupted run resumes where it
 stopped. When an entry spends its whole backoff budget still throttled, the run stops starting
 new entries and records each remaining one as stopped, with the reason, instead of pressing on.
+A YouTube bot check stops the run at once, on the first entry that meets it, and a bot check
+while listing a tab stops the listing: Gather detects the check, stops, and leaves it to the
+person running it.
 """
 
 from __future__ import annotations
@@ -100,11 +103,20 @@ def merge_entries(per_tab: Sequence[list[dict]]) -> tuple[list[dict], int]:
 
 def list_channel(source: VideoSource, url: str, tabs: Sequence[str] = TABS) -> dict:
     """List each tab. A tab that fails (a channel with no streams tab, say) is recorded with
-    its reason and listed as zero; the other tabs still count."""
+    its reason and listed as zero; the other tabs still count. A bot check stops the listing:
+    the tabs after it are recorded as ``stopped`` without a request, and ``stopped`` says why."""
     report: dict[str, dict] = {}
     listings: list[list[dict]] = []
+    stopped: str | None = None
     for tab, tab_url in tab_urls(url, tabs):
+        if stopped is not None:
+            report[tab] = {"url": tab_url, "listed": 0, "retries": 0, "code": "stopped",
+                           "error": "not listed: gather stopped after a bot check on an earlier tab"}
+            listings.append([])
+            continue
         res, out = source.list_entries(tab_url)
+        if out.bot_check:
+            stopped = f"YouTube asked for a bot check while listing the {tab} tab, and gather stopped"
         info: dict = {"url": tab_url, "listed": 0, "retries": len([a for a in out.attempts if not a.get("final")])}
         if out.error is not None:
             info.update(error=out.error, code=out.error_code)
@@ -119,7 +131,8 @@ def list_channel(source: VideoSource, url: str, tabs: Sequence[str] = TABS) -> d
             listings.append(entries)
         report[tab] = info
     entries, dupes = merge_entries(listings)
-    return {"tabs": report, "entries": entries, "unique_entries": len(entries), "duplicates": dupes}
+    return {"tabs": report, "entries": entries, "unique_entries": len(entries), "duplicates": dupes,
+            "stopped": stopped}
 
 
 def outcome_row(out: VideoOutcome, entry: dict, pass_: str, stored: dict, at: float) -> dict:
@@ -189,15 +202,27 @@ class ChannelRun:
         with self._lock:
             stored = self._store(out)
             row = outcome_row(out, entry, self.pass_, stored, self.clock())
-            if out.throttled:
-                self._throttled += 1
-                if self._throttled >= self.max_throttled and not self._stop.is_set():
-                    step = out.attempts[-1]["step"] if out.attempts else "a step"
-                    self.stop_reason = (f"stopped after {entry['id']}: {step} still throttled after the "
-                                        f"backoff budget ({self._throttled} entr{'y' if self._throttled == 1 else 'ies'})")
-                    self._stop.set()
-                    self.log(f"gather: {self.stop_reason}; remaining entries are recorded as stopped")
+            self._stop_after(entry, out)
             self._append(row)
+
+    def _stop_after(self, entry: dict, out: VideoOutcome) -> None:
+        """Stop starting entries at once after a bot check, or once ``max_throttled`` entries
+        spent their backoff budget still throttled. Called under the lock."""
+        if out.throttled:
+            self._throttled += 1
+        if self._stop.is_set():
+            return
+        if out.bot_check:
+            self.stop_reason = (f"stopped after {entry['id']}: YouTube asked for a bot check on the "
+                                f"{out.bot_check} step, and gather does not retry or answer one")
+        elif out.throttled and self._throttled >= self.max_throttled:
+            step = out.attempts[-1]["step"] if out.attempts else "a step"
+            self.stop_reason = (f"stopped after {entry['id']}: {step} still throttled after the "
+                                f"backoff budget ({self._throttled} entr{'y' if self._throttled == 1 else 'ies'})")
+        else:
+            return
+        self._stop.set()
+        self.log(f"gather: {self.stop_reason}; remaining entries are recorded as stopped")
 
     def _store(self, out: VideoOutcome) -> dict:
         if not out.items:

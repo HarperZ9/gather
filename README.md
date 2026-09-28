@@ -8,7 +8,7 @@
 [![downloads](https://img.shields.io/pypi/dm/gather-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/gather-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success?style=flat-square&labelColor=14041b)
-![version: 1.9.1](https://img.shields.io/badge/version-1.9.1-26dfe8?style=flat-square&labelColor=14041b)
+![version: 2.0.0](https://img.shields.io/badge/version-2.0.0-26dfe8?style=flat-square&labelColor=14041b)
 
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
@@ -16,7 +16,7 @@ gather pulls research out of the places most tools break on: arXiv papers, authe
 
 ## Current status
 
-`gather-engine 1.9.1` is the current source version. Core intake,
+`gather-engine 2.0.0` is the current source version. Core intake,
 content-addressed corpus storage, exact UTF-8 source-byte receipts, readable
 context selection, descriptor handoff, pilot monitoring, CLI, Python API, and MCP
 surfaces are present in this checkout. Browser rendering, OCR, audio, and fast
@@ -57,7 +57,7 @@ fabricated field cannot reach the corpus by being plausible.
 - **Structured extraction with a hallucination check.** `gather.schema_extract` binds schema fields to source nodes, and `verify_record` rejects any LLM-proposed field value not grounded in the fetched content.
 - **Streaming extraction.** `gather.stream` parses an HTML stream chunk by chunk and emits partial-update commits as blocks complete, each folded into a hash chain, so a streamed extraction is replayable.
 - **Hard-source adapters behind one shape.** Video with captions and comments (`yt-dlp`), static web, RSS/Atom feeds, local docs, arXiv, PDFs (`pdftotext`), authenticated JSON APIs (token from env, never logged), JS-rendered pages (headless Chromium), scanned images (`tesseract`), and audio (`whisper`). Each external tool is optional and only needed for its own adapter.
-- **Channel and playlist intake.** `gather channel <url> --store DIR` lists a channel's videos, shorts, and streams tabs (or one playlist) and gathers every entry with bounded concurrency, resumable from a per-pass ledger. Metadata and comments run as one pass and captions as another (`--no-captions`, `--captions-only`), with polite pacing, bounded backoff on HTTP 429 and bot checks, one caption track per video, and a run summary that counts every outcome by reason.
+- **Channel and playlist intake.** `gather channel <url> --store DIR` lists a channel's videos, shorts, and streams tabs (or one playlist) and gathers every entry with bounded concurrency, resumable from a per-pass ledger. Metadata and comments run as one pass and captions as another (`--no-captions`, `--captions-only`), with polite pacing, bounded backoff on HTTP 429 and session rate limits, a stop at the first bot check (never retried or answered), one caption track per video, and a run summary that counts every outcome by reason.
 - **Scholarly-graph federation.** `gather scholar` queries OpenAlex, Semantic Scholar, and Crossref in one call, dedupes results by normalized DOI (never a fuzzy title match), and can capture citation edges as first-class records with `--edges`.
 - **A durable local corpus.** Any fetch command takes `--store DIR`: bodies are content-addressed and deduped by hash, new writes preserve exact UTF-8 source bytes, and `gather corpus list|verify|digest|runs|search|stats|prune|availability|context` inspects, re-checks, and queries what you stored.
 - **Readable context selection.** `gather corpus context DIR` shows bounded, re-hashed source/comment excerpts with row refs and missing/corrupt/unsafe/oversized-body reasons; `--select ROW_REF[:START[:LIMIT]] --expect-digest SHA256` exports a private context payload with a deterministic selection digest, refusing stale digests and selected text over budget. Python callers that already hold a retained corpus root fd/HANDLE can pass a same-process `CorpusRootDescriptor` so Gather does not reopen the root path. On Linux/WSL filesystems where retained directory fds cannot supply stable confined reads, currently including WSL Windows-drive 9p/v9fs mounts, Gather refuses opened corpus, descendant directory, and catalog/body file descriptors before reading corpus metadata or bodies. This is acquisition context, not a truth, claim-support, completeness, caller workspace-parent, or secret-free verdict.
@@ -188,7 +188,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 - [docs/WEB-ENGINE-UPLIFT.md](docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
 - [docs/PILOT.md](docs/PILOT.md): the accountable pilot evidence engine, its manifest boundary, and the private/shared evidence split.
-- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 1.9.1.
+- [CHANGELOG.md](CHANGELOG.md): version history. Current release: 2.0.0.
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
 

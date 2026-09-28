@@ -2,7 +2,7 @@ import json
 import os
 
 import pytest
-from fake_ytdlp import BOT_CHECK, PRIVATE, FakeYtDlp, video_info
+from fake_ytdlp import BOT_CHECK, PRIVATE, WARN, FakeYtDlp, video_info
 
 import gather.video_source as video_source_mod
 from gather.channel import ChannelRun, merge_entries, parse_listing, tab_urls
@@ -78,6 +78,9 @@ def test_pass_names():
     ({"status": "failed", "code": "rate-limited"}, "metadata-comments", False),
     ({"status": "failed", "code": "timeout"}, "metadata", False),
     ({"status": "stopped", "code": "stopped"}, "captions", False),
+    ({"status": "failed", "code": "bot-check"}, "captions", True),
+    ({"status": "failed", "code": "bot-check"}, "metadata", True),
+    ({"status": "ok", "caption": "missing", "caption_reason": "bot-check"}, "full", True),
 ])
 def test_what_counts_as_settled_for_resume(row, pass_, settled):
     assert is_settled(row, pass_) is settled
@@ -190,23 +193,46 @@ def _entries(ids):
     return [{"id": v, "url": f"https://www.youtube.com/watch?v={v}", "tab": "videos"} for v in ids]
 
 
-def test_a_bot_check_warning_stops_the_pass_and_leaves_the_entry_pending(tmp_path):
+STOPPED = "YouTube asked for a bot check, and gather stopped. "
+
+
+@pytest.mark.parametrize("max_throttled", [1, 5])
+def test_a_bot_check_warning_ends_the_entry_at_once_and_stops_the_pass(tmp_path, max_throttled):
     ids = ["v0", "v1", "v2"]
     fake = FakeYtDlp({v: video_info(v) for v in ids})
     for v in ids:
         fake.unplayable[v] = (BOT_CHECK, -1)
+    logs = []
     run = ChannelRun(_source(fake, "only"), Corpus(str(tmp_path)), str(tmp_path / "ledger.jsonl"), "captions",
-                     Pacer(0, 0), concurrency=1, max_throttled=1, log=lambda m: None)
+                     Pacer(0, 0), concurrency=1, max_throttled=max_throttled, log=logs.append)
     rows = run.run(_entries(ids))
-    assert run.stop_reason and "v0: metadata still throttled" in run.stop_reason
-    assert [r["status"] for r in rows] == ["failed", "stopped", "stopped"]
-    assert rows[0]["code"] == "bot-check" and rows[0]["throttled"] and rows[0]["retries"] == 1
+    assert run.stop_reason == ("stopped after v0: YouTube asked for a bot check on the metadata step, "
+                               "and gather does not retry or answer one")
+    assert [r["status"] for r in rows] == ["failed", "stopped", "stopped"]   # whatever --max-throttled says
+    assert rows[0]["code"] == "bot-check" and not rows[0]["throttled"] and rows[0]["retries"] == 0
+    assert rows[0]["reason"].startswith(STOPPED) and "Sign in to confirm" in rows[0]["reason"]
     assert rows[0]["caption"] == "missing" and rows[0]["caption_reason"] == "bot-check"
-    assert not is_settled(rows[0], "captions")                   # the next run tries it again
-    assert len(fake.calls) == 2 and run.stored == {"added": 0, "deduped": 0}
+    assert is_settled(rows[0], "captions")                       # a resumed run leaves it to the person
+    assert all(r["reason"] == run.stop_reason for r in rows[1:])
+    assert len(fake.calls) == 1 and run.stored == {"added": 0, "deduped": 0}   # no second attempt, no next entry
+    assert any(run.stop_reason in m for m in logs)
 
 
-def test_channel_command_resumes_an_entry_a_bot_check_stopped(tmp_path, monkeypatch, capsys):
+def test_a_bot_check_on_a_caption_download_stops_the_pass(tmp_path):
+    ids = ["v0", "v1"]
+    fake = FakeYtDlp({v: video_info(v) for v in ids})
+    fake.caption_fail = WARN + f"ERROR: [youtube] v0: {BOT_CHECK}\n"
+    run = ChannelRun(_source(fake, "with"), Corpus(str(tmp_path)), str(tmp_path / "ledger.jsonl"), "full",
+                     Pacer(0, 0), concurrency=1, log=lambda m: None)
+    rows = run.run(_entries(ids))
+    assert run.stop_reason and "v0: YouTube asked for a bot check on the captions step" in run.stop_reason
+    assert [r["status"] for r in rows] == ["ok", "stopped"]
+    assert rows[0]["caption_reason"] == "bot-check" and rows[0]["caption_detail"].startswith(STOPPED)
+    assert rows[0]["retries"] == 0 and is_settled(rows[0], "full")
+    assert len(fake.calls) == 2 and run.stored["added"] == 1       # one extraction, one caption call, then stop
+
+
+def test_channel_command_leaves_a_bot_checked_entry_to_the_person(tmp_path, monkeypatch, capsys):
     fake = FakeYtDlp({v: video_info(v) for v in ("a", "b", "c")}, tabs={"videos": ["a", "b", "c"]})
     fake.unplayable["a"] = (BOT_CHECK, -1)
     monkeypatch.setattr(video_source_mod, "subprocess_runner", fake)
@@ -216,15 +242,44 @@ def test_channel_command_resumes_an_entry_a_bot_check_stopped(tmp_path, monkeypa
             "--js-runtime", "none", "--json"]
     assert main(argv) == 1
     first = json.loads(capsys.readouterr().out)
-    assert first["stopped"] and first["run"]["failures_by_reason"] == {"bot-check": 1}
+    assert first["stopped"].startswith("stopped after a: YouTube asked for a bot check")
+    assert first["run"]["failures_by_reason"] == {"bot-check": 1} and first["run"]["retries"]["total"] == 0
     assert first["run"]["status"] == {"failed": 1, "stopped": 2} and first["stored_this_run"]["added"] == 0
+    assert len([c for c in fake.calls if "--flat-playlist" not in c]) == 1   # one ask for a, none for b or c
 
-    del fake.unplayable["a"]                                     # the session cools down
+    del fake.unplayable["a"]                                     # the check would pass now
+    before = len(fake.calls)
     assert main(argv) == 0
     again = json.loads(capsys.readouterr().out)
-    assert again["resume"] == {"settled_before_run": 0, "gathered_this_run": 3}
-    assert again["pass_totals"]["status"] == {"ok": 3}
+    assert again["resume"] == {"settled_before_run": 1, "gathered_this_run": 2}
+    assert not any(c[-1].endswith("=a") for c in fake.calls[before:])   # a resumed run does not ask for a again
+    assert again["pass_totals"]["status"] == {"failed": 1, "ok": 2}
+    assert again["pass_totals"]["failures_by_reason"] == {"bot-check": 1}
+
+    # the person asks for it by name when they choose to; the next channel run then counts it stored
+    assert main(["video", "https://www.youtube.com/watch?v=a", "--no-captions", "--store", store,
+                 "--js-runtime", "none"]) == 0
+    capsys.readouterr()
     assert stored_refs(Corpus(store).rows(), "metadata") == {"a", "b", "c"}
+    assert main(argv) == 0
+    assert json.loads(capsys.readouterr().out)["resume"] == {"settled_before_run": 3, "gathered_this_run": 0}
+
+
+def test_a_bot_check_while_listing_stops_before_any_other_request(tmp_path, monkeypatch, capsys):
+    fake = FakeYtDlp({v: video_info(v) for v in ("a", "s1")}, tabs={"videos": ["a"], "shorts": ["s1"]})
+    fake.listing_fail["videos"] = WARN + f"ERROR: [youtube:tab] chan: {BOT_CHECK}\n"
+    monkeypatch.setattr(video_source_mod, "subprocess_runner", fake)
+    store = str(tmp_path / "corpus")
+    assert main(["channel", CHAN, "--store", store, "--interval", "0", "--jitter", "0", "--retries", "2",
+                 "--backoff-base", "0.01", "--js-runtime", "none", "--json"]) == 1   # a retry would show fast
+    err = capsys.readouterr().err
+    assert "channel failed: YouTube asked for a bot check while listing the videos tab, and gather stopped" in err
+    assert len(fake.calls) == 1 and fake.calls[0][-1] == f"{CHAN}/videos"   # no retry, no other tab, no entry
+    listing = json.loads((tmp_path / "corpus" / "intake" / "listing.json").read_text(encoding="utf-8"))
+    assert listing["tabs"]["videos"]["code"] == "bot-check" and listing["tabs"]["videos"]["retries"] == 0
+    assert listing["tabs"]["videos"]["error"].startswith(STOPPED)
+    assert {listing["tabs"][t]["code"] for t in ("shorts", "streams")} == {"stopped"}
+    assert listing["stopped"] and listing["entries"] == []
 
 
 def test_channel_command_settles_a_private_video_warning_as_a_failure(tmp_path, monkeypatch, capsys):
