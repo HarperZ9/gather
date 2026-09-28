@@ -19,8 +19,8 @@ gather pulls research out of the places most tools break on: arXiv papers, authe
 `gather-engine 1.9.1` is the current source version. Core intake,
 content-addressed corpus storage, exact UTF-8 source-byte receipts, readable
 context selection, descriptor handoff, pilot monitoring, CLI, Python API, and MCP
-surfaces are present in this checkout. Browser rendering, OCR, audio, stealth,
-and fast parsing remain explicit optional capabilities reported by `gather caps`.
+surfaces are present in this checkout. Browser rendering, OCR, audio, and fast
+parsing remain explicit optional capabilities reported by `gather caps`.
 
 ## Operator surface
 
@@ -64,7 +64,7 @@ fabricated field cannot reach the corpus by being plausible.
 - **Multi-source runs.** `gather run config.json` orchestrates many sources, a scope filter, and optional synthesis into one recorded session kept in the corpus history.
 - **Accountable pilot evidence engine.** `gather pilot run|refresh|verify|bundle` drives a closed manifest through a source-isolated capture into a content-addressed corpus, writes a redacted report and a hash-chained receipt, monitors sources for change (NEW/CHANGED/UNCHANGED with archived history), and packages deterministic shared or full bundles any third party re-verifies offline. See [docs/PILOT.md](docs/PILOT.md).
 - **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.context`, `gather.pilot`), and a plain Python API.
-- **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering, `[stealth]` adds curl_cffi TLS impersonation. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
+- **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
 
 ## Install
 
@@ -98,7 +98,7 @@ gather extract https://example.com/article
 Then try the rest of the surface:
 
 ```bash
-gather caps                                    # what this install can do (fast / browser / stealth)
+gather caps                                    # what this install can do (fast / browser)
 gather crawl https://example.com --depth 2     # a hash-chained crawl ledger as JSON
 gather arxiv "aperiodic monotile" --store ./corpus
 gather scholar "10.1234/monotile" --edges --json
@@ -154,12 +154,11 @@ All four run offline; no probe fires. A registry row is a catalog fact and is ne
 
 ## Optional capability backends
 
-<p align="center"><img src="docs/art/capability-backends.svg" alt="A card of the four capabilities gather can be asked for. fetch is always served by the stdlib. fast-parse falls back to the stdlib parser, which returns the same answer more slowly. js-render and stealth are refused with a reason when no backend is installed, and the js-render row is marked because it is the one where a plausible fake exists." width="100%"></p>
+<p align="center"><img src="docs/art/capability-backends.svg" alt="A card of the three capabilities gather can be asked for. fetch is always served by the stdlib. fast-parse falls back to the stdlib parser, which returns the same answer more slowly. js-render is refused with a reason when no backend is installed, and is the one where a plausible fake exists." width="100%"></p>
 
 ```bash
 pip install 'gather-engine[fast]'      # lxml, faster parsing on large docs (informal ~2x, unpublished)
 pip install 'gather-engine[browser]'   # Playwright JS render (then: playwright install chromium)
-pip install 'gather-engine[stealth]'   # curl_cffi TLS/browser impersonation
 ```
 
 The core never grows a hard dependency. Install a backend and it registers; skip it and the stdlib path or an explicit UNVERIFIABLE result stands in.

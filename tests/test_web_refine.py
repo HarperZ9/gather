@@ -9,7 +9,6 @@ from dataclasses import replace
 
 import pytest
 
-import gather.backends_stealth as bs
 from gather.cache import ResponseCache, cached_fetch
 from gather.dom import find, parse_dom, select
 from gather.export import to_dict, to_json
@@ -63,29 +62,6 @@ def test_fix4_304_without_cache_entry_is_refused(tmp_path) -> None:
     with pytest.raises(ValueError):
         cached_fetch("http://e.com/", cache=ResponseCache(tmp_path), fetch_fn=ff,
                      revalidate=True, clock=lambda: 1.0)
-
-
-# Fix 5: credentials must be stripped on an https->http downgrade redirect.
-def test_fix5_downgrade_redirect_strips_credentials(monkeypatch) -> None:
-    monkeypatch.setattr(bs, "validate_public_http_url", lambda u: u)
-
-    class Resp:
-        def __init__(self, s, h=None, c=b""):
-            self.status_code, self.headers, self.content = s, h or {}, c
-
-    class Client:
-        def __init__(self, *r):
-            self.r, self.calls = list(r), []
-
-        def get(self, url, *, headers, timeout, impersonate, allow_redirects):
-            self.calls.append(dict(headers))
-            return self.r.pop(0)
-
-    client = Client(Resp(302, {"location": "http://e.com/x"}), Resp(200, {}, b"ok"))
-    bs.stealth_transport("https://e.com/", headers={"Authorization": "Bearer t", "User-Agent": "x"},
-                         timeout=5, max_bytes=100, client=client)
-    assert "Authorization" not in client.calls[1]   # dropped on the http hop
-    assert "User-Agent" in client.calls[1]
 
 
 # Fix 6: urls() must not crash on a hit dict missing 'url'.

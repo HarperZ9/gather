@@ -40,8 +40,8 @@ prove where something came from.
 - **Corpus.** A durable, content-addressed store (`--store DIR`). Bodies are
   deduped by hash; `gather corpus verify` re-hashes everything against its
   receipts.
-- **Capabilities.** Optional backends (`fast`, `browser`, `stealth`) register
-  when installed. `gather caps` reports what your install can do; a missing
+- **Capabilities.** Optional backends (`fast`, `browser`) register when
+  installed. `gather caps` reports what your install can do; a missing
   capability is reported honestly, never faked.
 
 ## Your first ten minutes

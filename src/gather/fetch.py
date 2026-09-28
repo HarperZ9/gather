@@ -17,9 +17,8 @@ touches the network.
 
 Deliberate honesty note: the default User-Agent identifies gather rather than
 impersonating a browser, and zero-dep cannot forge a TLS fingerprint. A caller
-may pass their own headers to impersonate; that is their choice, on the record,
-not a silent default. That is the accountability trade against Scrapling's
-default stealth.
+may pass their own headers; that is their choice, on the record, not a silent
+default.
 """
 from __future__ import annotations
 
