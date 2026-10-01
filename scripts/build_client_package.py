@@ -12,6 +12,8 @@ import subprocess
 import sys
 import zipfile
 
+from client_manifest import native_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = json.loads((ROOT / "scripts/client-package.json").read_text())
 def digest(data):
@@ -143,15 +145,7 @@ def build(output, mode="release", native=False):
         if len(copying) != 1:
             raise ValueError("PyInstaller license not found")
         native_payload["PYINSTALLER-LICENSE.txt"] = copying[0].read_bytes()
-        manifest = {"manifest_version":"0.3", "name":SPEC["name"]+"-local",
-            "version":qualified["version"], "display_name":SPEC["name"].title()+" Local",
-            "description":SPEC["desc"], "author":{"name":"Zain Dana Harper"}, "license":"FSL-1.1-MIT",
-            "server":{"type":"binary", "entry_point":"server/"+exe.name, "mcp_config":{
-                "command":"${__dirname}/server/"+exe.name,
-                "args":["--workspace", "${user_config.workspace}"], "env":{}}},
-            "user_config":{"workspace":{"type":"directory", "title":"Readable workspace",
-                "description":"Local directory this profile may read. Choose only approved files.", "required":True}},
-            "compatibility":{"platforms":["win32"]}}
+        manifest = native_manifest(SPEC, qualified["version"], exe.name)
         native_payload["manifest.json"] = (json.dumps(manifest, indent=2)+"\n").encode()
         native_payload["QUALIFICATION.json"] = (json.dumps({"source":qualified,"validation":validation}, indent=2)+"\n").encode()
         native_payload["PAYLOAD-SHA256SUMS"] = checksums(native_payload)

@@ -397,6 +397,13 @@ license or privacy posture does not allow redistribution.
 
 The optional client bundle adds a bounded read-only MCP profile with an explicit
 workspace selected at launch. See [client package setup](client-plugin/README.md).
+Add `--allow-origin https://example.com` to opt into GET requests from one public
+HTTPS origin, or `--allow-loopback-origin http://127.0.0.1:8080` for an explicitly
+selected local service. Repeat a flag to grant another origin. `gather.fetch`
+accepts only `url`; tool arguments and environment variables cannot grant access.
+MCPB users can enter these origins in the optional setup fields as JSON arrays.
+Both fields default to `[]`; leaving either blank also grants no access.
+The [example launch](examples/client-network.md) includes a request and limits.
 Windows x64 MCPB and ZIP bundles include their runtime; source plugins require
 Python 3.11+. The full CLI/MCP retains advanced operations. This profile alone
 does not qualify the full product's mature workflows or marketplace acceptance.

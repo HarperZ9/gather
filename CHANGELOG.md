@@ -8,6 +8,8 @@ built behind a feature branch and reviewed before merge.
 Publication is held pending full-workflow and installed-client qualification.
 
 - Add a local MCP profile with an explicit readable workspace, typed permission refusals, and process/network denial at launch. The full CLI/MCP remains available separately.
+- Add optional exact-origin HTTP retrieval through launch flags, with a separate literal-loopback grant, bounded response size, pinned connection addresses and existing fetch receipts. Refuse redirects, ambient proxies, credentials and process execution.
+- Add optional MCPB setup fields for public and local-service origin lists. Empty settings grant no access; malformed settings stop launch before serving tools.
 - Add portable source plugins for Claude/Codex-compatible clients and Windows x64 ZIP/MCPB packages containing the runtime, licenses, source hashes and checksums.
 - Check actual stdio behavior before packaging, reject untracked or credential-like release payloads, and attach checked client assets to the same product release.
 - Keep this profile explicitly limited to read-only workflows. Full retrieval, process-backed benchmarks and persistent-state workflows remain open qualification gates.

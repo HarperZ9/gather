@@ -57,7 +57,7 @@ def confined(root: Path, value: object, *, tree=False) -> Path:
     return path
 
 
-def handle(req, root):
+def handle(req, root, network=None):
     if not isinstance(req, dict):
         return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "invalid request"}}
     if "id" not in req:
@@ -71,13 +71,13 @@ def handle(req, root):
     elif method == "ping":
         response["result"] = {}
     elif method == "tools/list":
-        response["result"] = {"tools": definitions()}
+        response["result"] = {"tools": definitions(network)}
     elif method == "tools/call":
         try:
             params = req.get("params") or {}
             args = params.get("arguments") or {}
             name = params.get("name")
-            definition = next((d for d in definitions() if d["name"] == name), None)
+            definition = next((d for d in definitions(network) if d["name"] == name), None)
             if definition is None:
                 raise ClientRefusal("tool requires the separately configured full MCP surface", "TOOL_NOT_GRANTED")
             if not isinstance(args, dict) or set(args) - set(definition["inputSchema"]["properties"]):
@@ -85,7 +85,7 @@ def handle(req, root):
             missing = set(definition["inputSchema"].get("required", [])) - set(args)
             if missing:
                 raise ClientRefusal("missing required arguments", "ARGUMENTS_DENIED")
-            data = invoke(name, dict(args), root)
+            data = network.get(args["url"]) if name == "gather.fetch" else invoke(name, dict(args), root)
             response["result"] = {"content": [{"type": "text", "text": data}], "isError": False}
         except Exception as exc:
             response["result"] = {"content": [{"type": "text", "text": json.dumps(
@@ -96,31 +96,57 @@ def handle(req, root):
     return response
 
 
-def install_process_boundary():
+def install_process_boundary(network=None):
     """Deny process and network actions in this stdlib profile, including Git."""
     def audit(event, args):
-        if event.startswith("socket.") or event in {"subprocess.Popen", "os.system", "os.posix_spawn", "os.posix_spawnp",
-                     "os.exec", "os.spawn", "socket.connect", "socket.connect_ex",
-                     "socket.bind", "socket.getaddrinfo"}:
+        if event.startswith("socket."):
+            if network is None:
+                raise PermissionError("local client profile does not grant network")
+            network.audit_socket(event, args)
+        if event in {"subprocess.Popen", "os.system", "os.posix_spawn", "os.posix_spawnp",
+                     "os.exec", "os.spawn"}:
             raise PermissionError("local client profile does not grant processes or network")
     sys.addaudithook(audit)
+
+
+def origin_array(value):
+    """Parse desktop setup text without interpreting it as flags or authority."""
+    if not value.strip():
+        return []
+    try:
+        values = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError("origin setting must be a JSON array of strings") from exc
+    if not isinstance(values, list) or any(not isinstance(entry, str) for entry in values):
+        raise argparse.ArgumentTypeError("origin setting must be a JSON array of strings")
+    return values
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", required=True, help="explicit local directory this client may read")
+    parser.add_argument("--allow-origin", action="append", default=[], help="allow GET from this exact public HTTPS origin")
+    parser.add_argument("--allow-loopback-origin", action="append", default=[], help="allow GET from this exact literal loopback HTTP(S) origin")
+    parser.add_argument("--allow-origins-json", type=origin_array, default=[], help="desktop setup JSON array of public HTTPS origins; empty means none")
+    parser.add_argument("--allow-loopback-origins-json", type=origin_array, default=[], help="desktop setup JSON array of literal loopback origins; empty means none")
     args = parser.parse_args(argv)
     root_arg = Path(args.workspace).absolute()
     root = confined(root_arg, str(root_arg))
     if not root.is_dir():
         parser.error("workspace must be a directory")
-    install_process_boundary()
+    from gather.client_network import NetworkGrant
+    try:
+        network = NetworkGrant.from_launch([*args.allow_origin, *args.allow_origins_json],
+                                           [*args.allow_loopback_origin, *args.allow_loopback_origins_json])
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
+    install_process_boundary(network)
     # The local profile does not read permission grants from the environment.
     for line in sys.stdin:
         if len(line) > MAX_FILE:
             return 2
         try:
-            response = handle(json.loads(line), root)
+            response = handle(json.loads(line), root, network)
         except json.JSONDecodeError:
             response = {"jsonrpc": "2.0", "id": None,
                         "error": {"code": -32700, "message": "parse error"}}
@@ -129,9 +155,13 @@ def main(argv=None):
             sys.stdout.flush()
     return 0
 
-def definitions():
+def definitions(network=None):
     from gather.mcp import _tool_defs
-    return [d for d in _tool_defs() if d["name"] in {"gather.docs"}]
+    tools = [d for d in _tool_defs() if d["name"] in {"gather.docs"}]
+    if network is not None and network.origins:
+        tools.append({"name": "gather.fetch", "description": "Read an allowed origin; return untrusted source text and a byte receipt. No redirects or credentials.",
+                      "inputSchema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"], "additionalProperties": False}})
+    return tools
 
 
 def invoke(name, args, root):

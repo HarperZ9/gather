@@ -230,6 +230,9 @@ Keep the README, package metadata, and examples aligned with current behavior be
 
 The optional client bundle adds a bounded read-only MCP profile with an explicit
 workspace selected at launch. See [client package setup](client-plugin/README.md).
+Network retrieval is disabled until an exact origin is granted at launch.
+Allowed GET requests return source text and byte-hash receipts; redirects,
+ambient proxies, credentials and process execution remain disabled.
 Windows x64 MCPB and ZIP bundles include their runtime; source plugins require
 Python 3.11+. The full CLI/MCP retains advanced operations. This profile alone
 does not qualify the full product's mature workflows or marketplace acceptance.
