@@ -1233,7 +1233,7 @@ git commit -m "feat: add representative Gather pilot showcase"
 
 ### Contract to implement
 
-The checked-in sample is generated from the offline showcase, redacted, verified, reproducible, and factual. Public text states Gather is retained by Zentropy Labs and makes no acquisition, customer, market-fit, source-truth, or external-availability claim.
+The checked-in sample is generated from the offline showcase, redacted, verified, reproducible, and factual. Public text states Gather is retained by Zain Dana Harper and makes no acquisition, customer, market-fit, source-truth, or external-availability claim.
 
 - [ ] **Step 1: Write sample drift tests**
 
@@ -1270,7 +1270,7 @@ Include:
 
 - customer outcome;
 - three representative mission classes;
-- workstation, customer-hosted, and Zentropy-managed deployment choices;
+- workstation, customer-hosted, and operator-managed deployment choices;
 - manifest safety boundary and browser limitation;
 - run, refresh, verify, and bundle commands;
 - artifact inventory and independent verification;

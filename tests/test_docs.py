@@ -12,7 +12,7 @@ def test_flagship_brand_assets_exist_and_are_referenced():
         "docs/brand/gather-mark.svg",
         "docs/brand/gather-hero.png",
         "examples/gather-demo.html",
-        ".github/assets/zentropy-banner.png",
+        ".github/assets/banner.png",
     ]:
         assert (root / rel).exists(), rel
     # The banner is the 1280x640 social-preview image, uploaded through the

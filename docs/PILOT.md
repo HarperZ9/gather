@@ -6,7 +6,7 @@ controlled-live capture, every captured item lands in a content-addressed
 corpus with a hash-chained witness, and the result is a redacted report and
 receipt bundle any third party re-verifies without private source material.
 
-Gather is a **retained** Zentropy Labs capability. This pilot makes no
+Gather is a **retained** capability of Zain Dana Harper. This pilot makes no
 acquisition, customer, market-fit, source-truth, or external-availability
 claim.
 
@@ -36,7 +36,8 @@ The showcase (`examples/pilot/showcase-offline.json`) exercises all three:
 - **Customer-hosted**: the pilot runs inside the customer's network; Gather
   never sees private payloads, only the redacted receipts the customer chooses
   to share.
-- **Zentropy-managed**: Zentropy operates the pilot on a customer's behalf
+- **Operator-managed** (manifest value `zentropy_managed`, kept for
+  compatibility): Zain Dana Harper operates the pilot on a customer's behalf
   under a custody agreement; the same manifest and verification apply.
 
 In every deployment, a shared bundle carries only receipts, hashes, redacted
@@ -89,7 +90,7 @@ anywhere in the chain flips the verdict to `false`.
 
 ## Retained capability
 
-Gather is retained by Zentropy Labs. The pilot is the first shipped subproject
+Gather is retained by Zain Dana Harper. The pilot is the first shipped subproject
 of a larger SaaS roadmap (a FastAPI control plane, React application, billing,
 and deployment system). Those later subprojects are **not** shipped here; this
 document links to the roadmap without claiming they are available.
