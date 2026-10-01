@@ -62,7 +62,7 @@ jobs:
           path: release/
 
   publish:
-    needs: build
+    needs: [build, native-client]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -109,3 +109,58 @@ jobs:
             gh release create "${GITHUB_REF_NAME}" dist/*.whl dist/*.tar.gz SHA256SUMS.txt \
               --verify-tag --title "${GITHUB_REF_NAME}" --notes-file release/notes.md
           fi
+  native-client:
+    name: Qualify and bundle local Windows client tools
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Use a canonical native temporary directory
+        shell: pwsh
+        run: |
+          $nativeTemp = python -c "import os; from pathlib import Path; p=Path(os.environ['RUNNER_TEMP'])/'native-client-temp'; p.mkdir(exist_ok=True); print(p.resolve())"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "TEMP=$nativeTemp" >> $env:GITHUB_ENV
+          "TMP=$nativeTemp" >> $env:GITHUB_ENV
+      - name: Install native build and test tools
+        run: python -m pip install pyinstaller==6.21.0 pytest==8.4.2
+      - name: Exercise local client boundaries
+        run: python -m pytest tests/test_client_profile.py tests/test_client_package.py tests/test_client_network.py tests/test_client_setup.py -q
+      - name: Build native client and verify actual stdio
+        shell: pwsh
+        run: |
+          $mode = if ($env:GITHUB_REF.StartsWith('refs/tags/v')) { 'release' } else { 'dev' }
+          python scripts/build_client_package.py "$env:RUNNER_TEMP/client-package" --mode $mode --native
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: local-client-assets
+          path: ${{ runner.temp }}/client-package/artifacts/
+          if-no-files-found: error
+
+  attach-client:
+    name: Attach checked client packages to the same product release
+    needs: [github-release, native-client]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: local-client-assets
+          path: client-assets/
+      - name: Verify checksums and attach without replacing published bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          (cd client-assets && sha256sum -c CLIENT-SHA256SUMS.txt)
+          gh release upload "$GITHUB_REF_NAME" client-assets/*

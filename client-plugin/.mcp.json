@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "gather": {
+      "command": "python3",
+      "args": [
+        "-I",
+        "-S",
+        "-B",
+        "${CLAUDE_PLUGIN_ROOT}/server/serve.py",
+        "--workspace",
+        "REPLACE_WITH_ABSOLUTE_WORKSPACE"
+      ],
+      "env": {}
+    }
+  }
+}

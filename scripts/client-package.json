@@ -1,0 +1,11 @@
+{
+  "pkg": "gather",
+  "version": "2.1.0",
+  "desc": "Read local research documents and return provenance receipts.",
+  "tool": "gather.docs",
+  "args": {
+    "path": "sample.md"
+  },
+  "danger": "gather.run",
+  "name": "gather"
+}

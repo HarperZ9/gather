@@ -60,6 +60,7 @@ def status_payload() -> dict:
                 "gather.pilot",
             ],
             "current_status": (
+                f"{__version__} bounded local client profile and native package candidates; "
                 "2.0.0 video intake with one caption track per video, separate caption and "
                 "metadata passes, bounded rate-limit backoff, a stop at any YouTube bot check, "
                 "resumable channel runs, and the stealth backend removed, "

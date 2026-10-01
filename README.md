@@ -8,7 +8,7 @@
 [![downloads](https://img.shields.io/pypi/dm/gather-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/gather-engine/)
 ![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
 ![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success?style=flat-square&labelColor=14041b)
-![version: 2.0.0](https://img.shields.io/badge/version-2.0.0-26dfe8?style=flat-square&labelColor=14041b)
+![version: 2.1.0](https://img.shields.io/badge/version-2.1.0-26dfe8?style=flat-square&labelColor=14041b)
 
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
@@ -16,7 +16,7 @@ gather pulls research out of the places most tools break on: arXiv papers, authe
 
 ## Current status
 
-`gather-engine 2.0.0` is the current source version. Core intake,
+`gather-engine 2.1.0` is the current source version. Core intake,
 content-addressed corpus storage, exact UTF-8 source-byte receipts, readable
 context selection, descriptor handoff, pilot monitoring, CLI, Python API, and MCP
 surfaces are present in this checkout. Browser rendering, OCR, audio, and fast
@@ -225,3 +225,14 @@ Keep the README, package metadata, and examples aligned with current behavior be
 ---
 
 **[Zentropy Labs](https://github.com/ZentropyLabs-ai)** · order out of entropy. An independent lab building evidence-first tools that leave a re-checkable artifact behind. Built by Zain Dana Harper in Seattle. The full workbench is at [Project Telos](https://harperz9.github.io).
+
+## Local client packages
+
+The optional client bundle adds a bounded read-only MCP profile with an explicit
+workspace selected at launch. See [client package setup](client-plugin/README.md).
+Network retrieval is disabled until an exact origin is granted at launch.
+Allowed GET requests return source text and byte-hash receipts; redirects,
+ambient proxies, credentials and process execution remain disabled.
+Windows x64 MCPB and ZIP bundles include their runtime; source plugins require
+Python 3.11+. The full CLI/MCP retains advanced operations. Client-specific
+installation and marketplace acceptance require separate verification.

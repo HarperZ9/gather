@@ -3,6 +3,18 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## 2.1.0 (2026-10-01)
+
+Adds local client packages with explicit launch permissions. Client-specific installation
+and marketplace acceptance remain separate qualification steps.
+
+- Add a local MCP profile with an explicit readable workspace, typed permission refusals, and process/network denial at launch. The full CLI/MCP remains available separately.
+- Add optional exact-origin HTTP retrieval through launch flags, with a separate literal-loopback grant, bounded response size, pinned connection addresses and existing fetch receipts. Refuse redirects, ambient proxies, credentials and process execution.
+- Add optional MCPB setup fields for public and local-service origin lists. Empty settings grant no access; malformed settings stop launch before serving tools.
+- Add portable source plugins for Claude/Codex-compatible clients and Windows x64 ZIP/MCPB packages containing the runtime, licenses, source hashes and checksums.
+- Check actual stdio behavior before packaging, reject untracked or credential-like release payloads, and attach checked client assets to the same product release.
+- Keep process-backed intake and persistent-state operations on the full CLI/MCP. Local document reads and explicitly allowed HTTP retrieval are available in the client profile.
+
 ## 2.0.0 (2026-09-28)
 
 ### Breaking changes
