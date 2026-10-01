@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "gather": {
+      "command": "python3",
+      "args": [
+        "-I",
+        "-S",
+        "-B",
+        "./server/serve.py",
+        "--workspace",
+        "REPLACE_WITH_ABSOLUTE_WORKSPACE"
+      ],
+      "env": {},
+      "cwd": "."
+    }
+  }
+}

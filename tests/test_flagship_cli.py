@@ -1,5 +1,6 @@
 import json
 
+from gather import __version__
 from gather.cli import main
 
 
@@ -37,7 +38,7 @@ def test_status_advertises_pilot_command_and_tool(capsys):
     payload = json.loads(capsys.readouterr().out)
     assert "pilot" in payload["native"]["commands"]
     assert "gather.pilot" in payload["native"]["mcp_tools"]
-    assert payload["native"]["current_status"].startswith("2.0.0")
+    assert payload["native"]["current_status"].startswith(__version__)
 
 
 
