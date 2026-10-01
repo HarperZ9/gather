@@ -1,0 +1,307 @@
+from __future__ import annotations
+
+import argparse
+import sys
+
+from gather import __version__
+from gather.commands import (
+    cmd_api,
+    cmd_arxiv,
+    cmd_browser,
+    cmd_docs,
+    cmd_feed,
+    cmd_ocr,
+    cmd_parse,
+    cmd_pdf,
+    cmd_run,
+    cmd_scholar,
+    cmd_transcribe,
+    cmd_video,
+    cmd_web,
+)
+from gather.corpus_cmd import cmd_corpus
+from gather.federation_cmd import cmd_federation
+from gather.flagship import cmd_demo, cmd_doctor, cmd_status
+from gather.mcp import serve as serve_mcp
+from gather.pilot_commands import (
+    cmd_pilot_bundle,
+    cmd_pilot_refresh,
+    cmd_pilot_run,
+    cmd_pilot_verify,
+)
+from gather.video_cmd import add_channel_parser, add_ytdlp_options
+from gather.web_commands import (
+    cmd_caps,
+    cmd_crawl,
+    cmd_extract,
+    cmd_markdown,
+    cmd_monitor,
+)
+
+
+def _serve_mcp(args) -> int:
+    from gather.grants import Grants
+
+    return serve_mcp(grants=Grants.from_launch(
+        exec_commands=args.allow_exec, network=args.allow_network, auth_env=args.auth_env))
+
+
+def _add_common(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
+    p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
+    p.add_argument("--store", default=None, metavar="DIR", help="persist gathered items into a corpus at DIR")
+
+
+def _add_flagship_commands(sub) -> None:
+    status = sub.add_parser("status", help="emit Gather's Project Telos operator-spine status")
+    status.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    status.set_defaults(func=cmd_status)
+
+    doctor = sub.add_parser("doctor", help="check Gather's operator-spine readiness")
+    doctor.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    doctor.set_defaults(func=cmd_doctor)
+
+    demo = sub.add_parser("demo", help="show Gather's operator-spine demo command")
+    demo.add_argument("--json", action="store_true", help="emit a Project Telos action envelope")
+    demo.set_defaults(func=cmd_demo)
+
+
+def _add_corpus_parser(sub) -> None:
+    corpus = sub.add_parser(
+        "corpus",
+        help="inspect a stored corpus: list/verify/digest/runs/search/stats/prune/availability/context")
+    corpus.add_argument("action", choices=[
+        "list", "verify", "digest", "runs", "search", "stats", "prune", "availability", "context"])
+    corpus.add_argument("dir", help="the corpus directory (created by --store)")
+    corpus.add_argument("--json", action="store_true", help="emit as JSON")
+    corpus.add_argument("--verify", action="store_true", help="with runs: re-check each record's seal")
+    corpus.add_argument("--apply", action="store_true", help="with prune: actually delete orphan objects")
+    corpus.add_argument("--terms", default=None,
+                        help="with search: scope keywords, case-insensitive substrings of title+body (any match)")
+    corpus.add_argument("--source", default=None,
+                        help="with search: keep items from any of these sources (comma-sep, OR within)")
+    corpus.add_argument("--kind", default=None, help="with search: keep items of any of these kinds (comma-sep)")
+    corpus.add_argument("--method", default=None, help="with search: keep items of any of these methods (comma-sep)")
+    corpus.add_argument("--limit", type=int, default=None, help="with search: cap the matches (<=0 means none)")
+    corpus.add_argument("--select", action="append", default=[],
+                        help="with context: ROW_REF[:START[:LIMIT]] to include in a private context payload")
+    corpus.add_argument("--expect-digest", default=None,
+                        help="with context --select: required current corpus digest guard")
+    corpus.add_argument("--max-rows", type=int, default=None,
+                        help="with context: cap returned/selected rows")
+    corpus.add_argument("--excerpt-chars", type=int, default=None,
+                        help="with context: cap inspect excerpts")
+    corpus.add_argument("--max-total-chars", type=int, default=None,
+                        help="with context --select: cap selected text across all rows")
+    corpus.add_argument("--max-catalog-bytes", type=int, default=None,
+                        help="with context: refuse catalogs above this byte count")
+    corpus.add_argument("--max-catalog-rows", type=int, default=None,
+                        help="with context: refuse catalogs above this row count")
+    corpus.add_argument("--max-body-bytes", type=int, default=None,
+                        help="with context: refuse any selected or inspected body above this byte count")
+    corpus.add_argument("--max-read-bytes", type=int, default=None,
+                        help="with context: cap aggregate body bytes read for this command")
+    corpus.set_defaults(func=cmd_corpus)
+
+
+def _add_federation_parser(sub) -> None:
+    fed = sub.add_parser(
+        "federation",
+        help="validate a registry, compile capture plans, or audit a policy/entity receipt")
+    fed.add_argument("action", choices=["validate", "plan", "policy", "entity"])
+    fed.add_argument(
+        "file",
+        help='JSON document: registry rows or {"sources":[...]} (validate/plan); '
+             'policy rules or {"rules":[...]} (policy); '
+             'entity candidates or {"candidates":[...]} (entity)')
+    fed.add_argument("--json", action="store_true", help="emit the sealed payload as JSON")
+    fed.set_defaults(func=cmd_federation)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="gather", description="Gather: accountable research intake.")
+    parser.add_argument("--version", action="version", version=f"gather {__version__}")
+    sub = parser.add_subparsers(dest="command")
+    _add_flagship_commands(sub)
+
+    parse = sub.add_parser("parse", help="parse a saved yt-dlp info.json (+ optional .vtt), offline, no network")
+    parse.add_argument("info", help="path to a yt-dlp info.json")
+    parse.add_argument("--vtt", default=None, help="path to a .vtt captions file")
+    parse.add_argument("--auto-captions", action="store_true",
+                       help="captions are machine-generated: collapse rolling-window growth, stamp auto-caption")
+    _add_common(parse)
+    parse.set_defaults(func=cmd_parse)
+
+    video = sub.add_parser("video", help="fetch a video via yt-dlp (needs yt-dlp on PATH and network)")
+    video.add_argument("url")
+    video.add_argument("--comments", action="store_true", help="also gather comments")
+    add_ytdlp_options(video)
+    _add_common(video)
+    video.set_defaults(func=cmd_video)
+    add_channel_parser(sub)
+
+    web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")
+    web.add_argument("url")
+    _add_common(web)
+    web.set_defaults(func=cmd_web)
+
+    feed = sub.add_parser("feed", help="fetch an RSS or Atom feed via http(s)")
+    feed.add_argument("url")
+    _add_common(feed)
+    feed.set_defaults(func=cmd_feed)
+
+    docs = sub.add_parser("docs", help="read a local text file or a directory of them, offline")
+    docs.add_argument("path")
+    _add_common(docs)
+    docs.set_defaults(func=cmd_docs)
+
+    arxiv = sub.add_parser("arxiv", help="fetch papers from the arXiv API by id or free-text query")
+    arxiv.add_argument("query", help="an arXiv id (2301.12345) or a search query")
+    arxiv.add_argument("--max-results", type=int, default=10, help="max results for a search query")
+    _add_common(arxiv)
+    arxiv.set_defaults(func=cmd_arxiv)
+
+    scholar = sub.add_parser(
+        "scholar",
+        help="federate OpenAlex + Semantic Scholar + Crossref, dedup by DOI, capture citation edges")
+    scholar.add_argument("query", help="a DOI (10.1234/xyz) or a free-text query")
+    scholar.add_argument("--providers", default="openalex,semanticscholar,crossref",
+                         help="comma-separated subset of the three scholarly graphs")
+    scholar.add_argument("--no-federate", action="store_true",
+                         help="emit each provider's paper directly, undeduped (default: dedup by DOI)")
+    scholar.add_argument("--edges", action="store_true",
+                         help="also fold citation edges into the digest as first-class receipts")
+    _add_common(scholar)
+    scholar.set_defaults(func=cmd_scholar)
+
+    pdf = sub.add_parser("pdf", help="extract text from a local PDF (needs pdftotext on PATH)")
+    pdf.add_argument("path")
+    _add_common(pdf)
+    pdf.set_defaults(func=cmd_pdf)
+
+    api = sub.add_parser("api", help="fetch a JSON API with a bearer token from the environment")
+    api.add_argument("url")
+    api.add_argument("--auth-env", default="GATHER_API_TOKEN", help="env var holding the bearer token")
+    api.add_argument("--items-key", default=None, help="key of the records array in the JSON response")
+    api.add_argument("--text-key", default=None, help="record field to use as item text (else the whole record)")
+    api.add_argument("--id-key", default="id", help="record field to use as item id")
+    api.add_argument("--title-key", default="title", help="record field to use as item title")
+    _add_common(api)
+    api.set_defaults(func=cmd_api)
+
+    browser = sub.add_parser("browser", help="fetch a JS-rendered page via a headless browser (needs chromium on PATH)")
+    browser.add_argument("url")
+    browser.add_argument("--browser", default="chromium", help="headless browser binary")
+    browser.add_argument("--no-sandbox", action="store_true",
+                         help="disable the Chromium sandbox (only if running as root in a container; a downgrade)")
+    _add_common(browser)
+    browser.set_defaults(func=cmd_browser)
+
+    ocr = sub.add_parser("ocr", help="recognize text in a local image via tesseract (needs tesseract on PATH)")
+    ocr.add_argument("path")
+    ocr.add_argument("--lang", default="eng", help="tesseract language code")
+    _add_common(ocr)
+    ocr.set_defaults(func=cmd_ocr)
+
+    transcribe = sub.add_parser("transcribe", help="transcribe a local audio file via whisper (needs whisper on PATH)")
+    transcribe.add_argument("path")
+    transcribe.add_argument("--model", default="base", help="whisper model name")
+    _add_common(transcribe)
+    transcribe.set_defaults(func=cmd_transcribe)
+
+    run = sub.add_parser("run", help="run a multi-source gather session from a JSON config")
+    run.add_argument("config",
+                     help="JSON config: {jobs:[{source,target}], scope, store, "
+                          "synthesize | synthesizer:[cmd...], synth_prompt}")
+    run.add_argument("--json", action="store_true", help="emit the witnessed run record as JSON")
+    run.set_defaults(func=cmd_run)
+
+    _add_corpus_parser(sub)
+    _add_federation_parser(sub)
+
+    caps = sub.add_parser("caps", help="report the web-data capabilities this install can actually use")
+    caps.add_argument("--json", action="store_true", help="emit as JSON")
+    caps.set_defaults(func=cmd_caps)
+
+    ex = sub.add_parser("extract", help="extract Markdown + a per-block provenance receipt from a URL or local HTML file")
+    ex.add_argument("target", help="a URL or a path to a local .html file")
+    ex.set_defaults(func=cmd_extract)
+
+    md = sub.add_parser("markdown", help="print structured Markdown for a URL or local HTML file")
+    md.add_argument("target", help="a URL or a path to a local .html file")
+    md.set_defaults(func=cmd_markdown)
+
+    crawl = sub.add_parser("crawl", help="crawl a site and emit a witnessed, hash-chained crawl ledger as JSON")
+    crawl.add_argument("url")
+    crawl.add_argument("--depth", type=int, default=2, help="max crawl depth")
+    crawl.add_argument("--max-pages", type=int, default=50, dest="max_pages", help="max pages to fetch")
+    crawl.set_defaults(func=cmd_crawl)
+
+    monitor = sub.add_parser(
+        "monitor",
+        help="re-fetch a source set and diff against baselines; emit a "
+             "hash-chained change-custody ledger (NEW/UNCHANGED/CHANGED/GONE)")
+    monitor.add_argument("--sources", required=True,
+                         help="path to a text file of URLs (one per line, # comments ok)")
+    monitor.add_argument("--state", required=True,
+                         help="JSON state/ledger file (created if absent, appended if present)")
+    monitor.add_argument("--json", action="store_true", help="print the full report as JSON")
+    monitor.set_defaults(func=cmd_monitor)
+
+    mcp = sub.add_parser("mcp", help="serve Gather tools over MCP stdio")
+    mcp.add_argument("--allow-exec", action="append", default=[], metavar="COMMAND",
+                     help="let a gather.run config run this synthesizer or provenance command "
+                          "(repeatable; adds to GATHER_ALLOW_EXEC)")
+    mcp.add_argument("--allow-network", action="append", default=[], metavar="SOURCE",
+                     help="let tool calls use this network source, or 'all' "
+                          "(repeatable; adds to GATHER_ALLOW_NETWORK)")
+    mcp.add_argument("--auth-env", action="append", default=[], metavar="NAME@HOST",
+                     help="let the api source send variable NAME to HOST only "
+                          "(repeatable; adds to GATHER_AUTH_ENV_ALLOW)")
+    mcp.set_defaults(func=_serve_mcp)
+
+    pilot = sub.add_parser(
+        "pilot",
+        help="run, refresh, verify, and bundle accountable research pilots")
+    pilot_sub = pilot.add_subparsers(dest="pilot_action", required=True)
+
+    pilot_run = pilot_sub.add_parser("run", help="run a pilot from a closed manifest")
+    pilot_run.add_argument("manifest", help="path to a pilot manifest JSON file")
+    pilot_run.add_argument("--output", required=True, help="output directory for the pilot evidence root")
+    pilot_run.add_argument("--json", action="store_true", help="emit the run result as JSON")
+    pilot_run.set_defaults(func=cmd_pilot_run)
+
+    pilot_refresh = pilot_sub.add_parser("refresh", help="re-capture monitored sources and archive the prior view")
+    pilot_refresh.add_argument("output_dir", help="an existing pilot evidence root")
+    pilot_refresh.add_argument("--json", action="store_true", help="emit the refresh result as JSON")
+    pilot_refresh.set_defaults(func=cmd_pilot_refresh)
+
+    pilot_verify = pilot_sub.add_parser("verify", help="verify a pilot evidence root without network access")
+    pilot_verify.add_argument("output_dir", help="a pilot evidence root")
+    pilot_verify.add_argument("--json", action="store_true", help="emit the verification as JSON")
+    pilot_verify.set_defaults(func=cmd_pilot_verify)
+
+    pilot_bundle = pilot_sub.add_parser("bundle", help="package a deterministic shared or full bundle")
+    pilot_bundle.add_argument("output_dir", help="a verified pilot evidence root")
+    pilot_bundle.add_argument("--output", required=True, dest="bundle_output", help="bundle ZIP path")
+    pilot_bundle.add_argument("--visibility", choices=("shared", "full"), required=True)
+    pilot_bundle.add_argument("--include-private-evidence", action="store_true",
+                              help="confirm a full bundle that carries the private artifact root")
+    pilot_bundle.add_argument("--json", action="store_true", help="emit the bundle receipt as JSON")
+    pilot_bundle.set_defaults(func=cmd_pilot_bundle)
+
+    return parser
+
+
+def main(argv=None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    func = getattr(args, "func", None)
+    if func is None:
+        parser.print_help()
+        return 1
+    return func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,11 @@
+{
+  "name": "gather-local",
+  "version": "2.1.0",
+  "description": "Read local research documents and return provenance receipts.",
+  "author": {
+    "name": "Zain Dana Harper"
+  },
+  "license": "FSL-1.1-MIT",
+  "repository": "https://github.com/HarperZ9/gather",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+}

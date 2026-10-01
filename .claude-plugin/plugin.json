@@ -1,0 +1,18 @@
+{
+  "author": {
+    "name": "Zain Dana Harper"
+  },
+  "description": "Read local research documents and return provenance receipts.",
+  "license": "FSL-1.1-MIT",
+  "name": "gather-local",
+  "repository": "https://github.com/HarperZ9/gather",
+  "userConfig": {
+    "workspace": {
+      "description": "Absolute path to an existing folder Gather may read. Network access remains off.",
+      "required": true,
+      "title": "Gather workspace",
+      "type": "directory"
+    }
+  },
+  "version": "2.1.0"
+}

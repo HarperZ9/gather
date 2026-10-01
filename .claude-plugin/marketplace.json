@@ -1,0 +1,14 @@
+{
+  "description": "Read local research documents and return provenance receipts.",
+  "name": "gather-local",
+  "owner": {
+    "name": "Zain Dana Harper"
+  },
+  "plugins": [
+    {
+      "description": "Read local research documents and return provenance receipts.",
+      "name": "gather-local",
+      "source": "./"
+    }
+  ]
+}

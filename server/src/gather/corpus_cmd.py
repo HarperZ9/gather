@@ -1,0 +1,206 @@
+from __future__ import annotations
+
+import json
+import sys
+from typing import cast
+
+from gather.commands import _split
+
+
+def cmd_corpus(args) -> int:
+    from gather.store import Corpus
+    try:
+        return _corpus_dispatch(args, Corpus(args.dir))
+    except ValueError as exc:  # a malformed catalog/runs line surfaces as a clean error, not a traceback
+        print(f"corpus {args.action} failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def _corpus_dispatch(args, c) -> int:
+    from gather.digest import verify_digest
+
+    if args.action == "list":
+        rows = list(c.rows())
+        if args.json:
+            print(json.dumps(rows, indent=2, ensure_ascii=False))
+        else:
+            for r in rows:
+                print(f"  {r['kind']:<10} {r['id']:<20} {r['method']:<16} {r['title'][:40]}")
+            print(f"{len(rows)} item(s) in {args.dir}")
+        return 0
+    if args.action == "verify":
+        return _cmd_verify(args, c)
+    if args.action == "search":
+        return _cmd_search(args, c)
+    if args.action == "context":
+        return _cmd_context(args, c)
+    if args.action == "runs":
+        return _cmd_runs(args, c)
+    if args.action == "stats":
+        s = c.stats()
+        if args.json:
+            print(json.dumps(s, indent=2, ensure_ascii=False))
+        else:
+            print(f"{s['items']} item(s), {s['distinct_bodies']} distinct bodies in {args.dir}")
+            print("by source:", s["by_source"])
+            print("by kind:  ", s["by_kind"])
+            print("by method:", s["by_method"])
+        return 0
+    if args.action == "availability":
+        return _cmd_availability(args, c)
+    if args.action == "prune":
+        res = c.prune(apply=args.apply)
+        if args.json:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        elif args.apply:
+            print(f"removed {res['removed']} orphan object(s)")
+        else:
+            print(f"{res['orphans']} orphan object(s); run with --apply to remove")
+        return 0
+    d = c.digest()  # action == "digest"
+    if args.json:
+        print(d.to_json())
+    else:
+        print(f"corpus digest: {len(d.receipts)} receipts, seal {d.seal[:16]}..., verified {verify_digest(d)}")
+    return 0
+
+
+def _cmd_verify(args, c) -> int:
+    results = c.verify()
+    bad = [r for r in results if r["status"] != "MATCH"]
+    if args.json:
+        print(json.dumps(results, indent=2, ensure_ascii=False))
+    else:
+        counts: dict[str, int] = {}
+        for r in results:
+            counts[r["status"]] = counts.get(r["status"], 0) + 1
+        print(f"verified {len(results)} item(s): {dict(sorted(counts.items()))}")
+        for r in bad:
+            print(f"  {r['status']:<8} {r['id']} {r['sha256'][:12]}")
+    return 1 if bad else 0
+
+
+def _cmd_search(args, c) -> int:
+    from gather.digest import digest
+    from gather.recall import Query, recall_audited
+    from gather.source import Catalog
+
+    q = Query(terms=tuple(_split(args.terms)), sources=tuple(_split(args.source)),
+              kinds=tuple(_split(args.kind)), methods=tuple(_split(args.method)))
+    items, skipped = recall_audited(c, q, limit=args.limit)
+    d = digest(items)
+    if args.json:
+        cat = Catalog()
+        cat.add(items)
+        print(json.dumps({"catalog": cat.rows(), "digest": json.loads(d.to_json()), "skipped": skipped},
+                         indent=2, ensure_ascii=False))
+    else:
+        for i in items:
+            print(f"  {i.kind:<10} {i.id:<20} {i.provenance.source:<8} {i.title[:36]}")
+        skip_note = f", {len(skipped)} skipped (missing/corrupt body)" if skipped else ""
+        if items:
+            print(f"{len(items)} match(es), bodies verified{skip_note}; digest seal {d.seal[:16]}...")
+        else:
+            print(f"0 matches{skip_note}")
+    return 1 if skipped else 0
+
+
+def _cmd_runs(args, c) -> int:
+    history = list(c.runs())
+    if args.verify:
+        from gather.run import RunRecord, verify_record
+
+        def _check(r: dict) -> bool:
+            try:
+                return verify_record(RunRecord.from_dict(r))
+            except ValueError:
+                return False  # a malformed record fails the check rather than crashing the command
+
+        checked = [(r.get("digest_seal", "")[:12], _check(r)) for r in history]
+        bad = [s for s, ok in checked if not ok]
+        if args.json:
+            print(json.dumps([{"digest_seal": s, "verified": ok} for s, ok in checked], indent=2))
+        else:
+            for s, ok in checked:
+                print(f"  {'OK ' if ok else 'BAD'} record {s}")
+            print(f"verified {len(checked)} run record(s), {len(bad)} bad")
+        return 1 if bad else 0
+    if args.json:
+        print(json.dumps(history, indent=2, ensure_ascii=False))
+    else:
+        for r in history:
+            syn = " +synthesis" if r.get("synthesized") else ""
+            print(f"  gathered {r['gathered']:<4} kept {r['kept']:<4} scope {r.get('scope')}"
+                  f" seal {r['digest_seal'][:12]}{syn}")
+        print(f"{len(history)} run(s) in {args.dir}")
+    return 0
+
+
+def _cmd_availability(args, c) -> int:
+    """Witness the availability of every catalog row against the stored bodies and report the
+    typed outcome per row. The sealed record (receipts with their rungs, plus the seal) is the
+    thing to keep: any later edit to a rung breaks its seal. Exit 1 unless every source assessed
+    AVAILABLE, so the gate is the machine-checked binding, never the rung's own status string."""
+    from gather.availability import (
+        AVAILABLE,
+        assess_availability,
+        stored_probe,
+        witness_availability,
+    )
+
+    d = witness_availability(c.rows(), stored_probe(c))
+    outcomes = [{"id": r["id"], "sha256": r["sha256"], "availability": assess_availability(r)}
+                for r in d.receipts]
+    bad = [o for o in outcomes if o["availability"] != AVAILABLE]
+    if args.json:
+        print(json.dumps({"digest": json.loads(d.to_json()), "outcomes": outcomes},
+                         indent=2, ensure_ascii=False))
+    else:
+        counts: dict[str, int] = {}
+        for o in outcomes:
+            counts[o["availability"]] = counts.get(o["availability"], 0) + 1
+        print(f"checked {len(outcomes)} item(s): {dict(sorted(counts.items()))}; seal {d.seal[:16]}...")
+        for o in bad:
+            print(f"  {o['availability']:<11} {o['id']} {o['sha256'][:12]}")
+    return 1 if bad else 0
+
+
+def _cmd_context(args, c) -> int:
+    from gather.context import inspect_corpus, select_context
+
+    if args.select:
+        if not args.expect_digest:
+            raise ValueError("context selection requires --expect-digest")
+        payload = select_context(
+            c,
+            list(args.select),
+            expected_corpus_digest=args.expect_digest,
+            max_rows=args.max_rows,
+            max_total_chars=args.max_total_chars,
+            max_catalog_bytes=args.max_catalog_bytes,
+            max_catalog_rows=args.max_catalog_rows,
+            max_body_bytes=args.max_body_bytes,
+            max_read_bytes=args.max_read_bytes,
+        )
+    else:
+        payload = inspect_corpus(
+            c,
+            max_rows=args.max_rows,
+            excerpt_chars=args.excerpt_chars,
+            max_catalog_bytes=args.max_catalog_bytes,
+            max_catalog_rows=args.max_catalog_rows,
+            max_body_bytes=args.max_body_bytes,
+            max_read_bytes=args.max_read_bytes,
+        )
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(f"{payload['schema']} {str(payload['corpus_digest'])[:16]}...")
+        if payload["schema"] == "gather.readable-corpus/v1":
+            rows = cast(list[dict[str, object]], payload["rows"])
+            for row in rows:
+                print(f"  {row['row_ref']} {str(row['body_status']):<7} {str(row['kind']):<10} {str(row['title'])[:40]}")
+        else:
+            print(f"selected {payload['selection_count']} row(s), {payload['total_text_chars']} char(s)")
+            print(f"selection digest: {payload['selection_digest']}")
+    return 0
