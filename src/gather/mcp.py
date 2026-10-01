@@ -47,7 +47,39 @@ def _payload_from_items(items, scope: list[str]) -> dict:
     return catalog_digest_payload(kept, dropped=dropped)
 
 
+def _hints(title: str, *, read_only: bool = True, idempotent: bool = True,
+           open_world: bool = False) -> dict:
+    return {"title": title, "readOnlyHint": read_only, "destructiveHint": False,
+            "idempotentHint": idempotent, "openWorldHint": open_world}
+
+
+# MCP tool annotations. A hint describes the tool to the client and grants
+# nothing; launch grants still refuse network sources, commands and credentials.
+TOOL_ANNOTATIONS = {
+    "gather.status": _hints("Gather status"),
+    "gather.doctor": _hints("Gather readiness check"),
+    "gather.docs": _hints("Read local documents with receipts"),
+    "gather.arxiv": _hints("Fetch arXiv metadata", idempotent=False, open_world=True),
+    "gather.federation": _hints("Validate or plan a source registry"),
+    "gather.run": _hints("Run a gather config", read_only=False, idempotent=False,
+                         open_world=True),
+    "gather.context": _hints("Select verified corpus context"),
+    "gather.pilot": _hints("Run or verify a gather pilot", read_only=False, idempotent=False,
+                           open_world=True),
+    "gather.fetch": _hints("Read an allowed web origin", idempotent=False, open_world=True),
+}
+
+
+def annotate(tool: dict) -> dict:
+    notes = dict(TOOL_ANNOTATIONS[tool["name"]])
+    return {**tool, "title": notes["title"], "annotations": notes}
+
+
 def _tool_defs() -> list[dict]:
+    return [annotate(tool) for tool in _raw_tool_defs()]
+
+
+def _raw_tool_defs() -> list[dict]:
     return [
         {
             "name": "gather.status",

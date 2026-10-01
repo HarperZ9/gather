@@ -1,7 +1,7 @@
 {
   "name": "gather-local",
   "version": "2.1.0",
-  "description": "Read local research documents and return provenance receipts.",
+  "description": "Read local documents and get a digest receipt for each one your assistant can cite.",
   "author": {
     "name": "Zain Dana Harper"
   },

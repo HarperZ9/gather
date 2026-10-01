@@ -1,6 +1,6 @@
 ---
 name: gather-local
-description: Read local research documents and return provenance receipts.
+description: Read local documents and get a digest receipt for each one your assistant can cite.
 ---
 
 Use the gather local tools only for files in the operator-selected workspace.
