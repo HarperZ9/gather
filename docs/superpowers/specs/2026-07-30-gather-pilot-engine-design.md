@@ -2,7 +2,7 @@
 
 **Status:** Approved for implementation
 **Date:** 2026-07-30
-**Owner:** Zentropy Labs
+**Owner:** Zain Dana Harper
 **Product:** Gather
 
 ## 1. Decision
@@ -25,7 +25,7 @@ controlled or explicitly allowlisted. Browser-backed sources require an
 additional trusted-host declaration because Gather cannot yet filter every
 browser redirect and subresource request.
 
-Gather remains a retained Zentropy Labs capability. A pilot licenses use and
+Gather remains a retained capability of Zain Dana Harper. A pilot licenses use and
 delivers customer artifacts. It does not transfer Gather, its source, its
 schemas, its reusable adapters, or ownership of improvements.
 
@@ -61,7 +61,7 @@ The pilot must demonstrate three representative missions:
 
 All three missions converge into one artifact root and one corpus. The artifact
 root may live on an operator workstation, a customer-controlled host, or a
-Zentropy-managed pilot host. A mission is a presentation grouping, not a
+operator-managed pilot host. A mission is a presentation grouping, not a
 separate storage or product boundary.
 
 ## 3. Delivery Shape
@@ -672,7 +672,7 @@ directory.
 
 The artifact root is deployment-neutral. It may be created on a workstation,
 inside a customer-controlled VM or container, or inside an agreed
-Zentropy-managed environment. A bundle may be transferred or hosted through a
+operator-managed environment. A bundle may be transferred or hosted through a
 separate approved delivery surface without changing its receipts. Gather
 records the declared deployment mode but does not claim the surrounding host's
 encryption, identity, retention, backup, or access-control posture.
@@ -730,15 +730,15 @@ copy, pricing presentation, and final package assembly.
    - connects Gather to PSL's ideation, diligence, market mapping, technical
      research, and portfolio-monitoring work;
    - shows how one corpus supports both studio validation and fund diligence;
-   - extends the existing Zentropy Labs deck and five-minute verification demo;
-   - states that Gather remains a Zentropy Labs retained capability.
+   - extends the existing deck and five-minute verification demo;
+   - states that Gather remains a retained capability of Zain Dana Harper.
 2. **Reusable partner package**
    - describes the same pilot without PSL-specific claims;
    - maps the three missions to venture studios, research organizations,
      newsrooms, engineering teams, and regulated operators;
    - includes the operator runbook, manifest template, sample report, safety
      boundary, and commercial boundary.
-   - offers workstation, customer-hosted, and Zentropy-managed pilot delivery;
+   - offers workstation, customer-hosted, and operator-managed pilot delivery;
    - includes a verified shared bundle suitable for remote review.
 
 The engine does not generate negotiation language. Its sample reports,
@@ -753,11 +753,11 @@ The public repository's existing fair-source license remains unchanged.
 
 The pilot package states:
 
-- Gather and all reusable product code remain owned by Zentropy Labs.
+- Gather and all reusable product code remain owned by Zain Dana Harper.
 - The customer owns material it supplies.
 - The customer receives its corpus, reports, and agreed customer-specific
   configuration.
-- Deployment may be workstation-based, customer-hosted, or Zentropy-managed.
+- Deployment may be workstation-based, customer-hosted, or operator-managed.
 - Remote operation and delivery require an explicit custody agreement covering
   access, retention, deletion, and incident responsibility.
 - No exclusivity, assignment, source transfer, acquisition option, or ownership
@@ -766,7 +766,7 @@ The pilot package states:
   Gather's existing license.
 
 The package may include an illustrative capped services pilot derived from the
-existing Zentropy economics brief. It must label pricing as proposed until the
+existing economics brief. It must label pricing as proposed until the
 operator publishes or sends it. This implementation does not send outreach,
 accept payment, or bind either party to legal terms.
 
@@ -891,7 +891,7 @@ The pilot is complete only when:
 8. The HTML report is self-contained and opens without a server.
 9. `pilot verify` catches deliberate tampering and exits nonzero.
 10. The full test, lint, and type-check gates pass.
-11. The public docs state the retained Zentropy ownership boundary.
+11. The public docs state the retained ownership boundary.
 12. The checked-in sample report and capability matrix provide verified inputs
     for the later PSL and reusable partner packages.
 13. A verified shared bundle can be delivered or hosted remotely without

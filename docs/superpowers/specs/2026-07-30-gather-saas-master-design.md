@@ -2,7 +2,7 @@
 
 **Status:** Approved for implementation
 **Date:** 2026-07-30
-**Owner:** Zentropy Labs
+**Owner:** Zain Dana Harper
 **Product:** Gather
 
 ## 1. Decision
@@ -17,7 +17,7 @@ research, media intelligence, engineering operations, and regulated review.
 
 The product is not local-only. It supports:
 
-- Zentropy-managed hosted operation;
+- operator-managed hosted operation;
 - customer-controlled cloud or on-premises deployment;
 - workstation and offline execution;
 - remotely shared redacted reports;
@@ -26,7 +26,7 @@ The product is not local-only. It supports:
 Billing is implemented as a complete integration but remains disabled by
 default until the operator approves pricing and activation.
 
-Gather remains a retained Zentropy Labs capability. Pilot, subscription,
+Gather remains a retained capability of Zain Dana Harper. Pilot, subscription,
 services, partnership, advisory, and co-build arrangements do not imply a sale,
 assignment, acquisition option, exclusivity, source transfer, or ownership of
 general product improvements.
@@ -185,7 +185,7 @@ dependencies live behind `gather-engine[saas]`, and web dependencies live under
 - PostgreSQL for application state and the job queue;
 - provider-neutral OIDC configuration;
 - production containers that can run on a customer-controlled platform or an
-  approved Zentropy-managed host.
+  approved operator-managed host.
 
 No production deployment occurs without an explicit operator instruction to
 deploy.
@@ -468,7 +468,7 @@ Root-key providers are an interface:
 
 - `DevelopmentKeyProvider` reads a dedicated development key and refuses
   production mode;
-- `AwsKmsKeyProvider` supports the first Zentropy-managed production target;
+- `AwsKmsKeyProvider` supports the first operator-managed production target;
 - customer-hosted deployments may supply another provider through the same
   interface.
 
@@ -694,7 +694,7 @@ The same images support:
 - customer root-key provider;
 - customer ingress and TLS.
 
-### 19.3 Zentropy-managed
+### 19.3 Operator-managed
 
 The first managed environment requires:
 
@@ -851,7 +851,7 @@ The SaaS pilot is complete only when:
 12. Security, privacy, retention, backup, incident, support, and deployment
     documentation is complete.
 13. The PSL and reusable partner packages demonstrate representative value and
-    state that Gather remains a retained Zentropy Labs capability.
+    state that Gather remains a retained capability of Zain Dana Harper.
 
 ## 23. Pitch and Package
 
@@ -871,7 +871,7 @@ Representative value is shown through:
 - independent verification after export.
 
 The PSL package explains how Gather supports both studio validation and fund
-diligence while remaining part of the broader Zentropy workbench.
+diligence while remaining part of the broader workbench.
 
 The reusable package includes:
 
