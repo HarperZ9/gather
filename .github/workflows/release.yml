@@ -125,7 +125,7 @@ jobs:
       - name: Install native build and test tools
         run: python -m pip install pyinstaller==6.21.0 pytest==8.4.2
       - name: Exercise local client boundaries
-        run: python -m pytest tests/test_client_profile.py tests/test_client_package.py -q
+        run: python -m pytest tests/test_client_profile.py tests/test_client_package.py tests/test_client_network.py tests/test_client_setup.py -q
       - name: Build native client and verify actual stdio
         shell: pwsh
         run: |

@@ -1,7 +1,7 @@
 # gather local client package
 
 Read local research documents and explicitly allowed HTTP sources with provenance receipts.
-This read-only profile is an unpublished development candidate.
+This profile defaults to local, read-only access.
 It requires an explicit workspace at launch and refuses other tools, path escapes,
 links, and tool-supplied permission grants. It does not read ambient grants.
 Concurrent filesystem mutation is outside this convenience boundary; it is not
