@@ -1,5 +1,15 @@
 # gather local client package
 
+Gather reads documents in a folder you choose and returns each one with a digest receipt, so your assistant can cite exactly what it read.
+
+## Try it
+
+- Read notes.md in my workspace and give me its digest receipt.
+- Catalog the documents in the research folder and list their titles.
+- Read the docs folder, keep only items that mention latency, and cite each source digest.
+
+## Details
+
 Read local research documents and explicitly allowed HTTP sources with provenance receipts.
 This profile defaults to local, read-only access.
 It requires an explicit workspace at launch and refuses other tools, path escapes,

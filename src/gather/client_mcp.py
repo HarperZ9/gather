@@ -156,11 +156,11 @@ def main(argv=None):
     return 0
 
 def definitions(network=None):
-    from gather.mcp import _tool_defs
+    from gather.mcp import _tool_defs, annotate
     tools = [d for d in _tool_defs() if d["name"] in {"gather.docs"}]
     if network is not None and network.origins:
-        tools.append({"name": "gather.fetch", "description": "Read an allowed origin; return untrusted source text and a byte receipt. No redirects or credentials.",
-                      "inputSchema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"], "additionalProperties": False}})
+        tools.append(annotate({"name": "gather.fetch", "description": "Read an allowed origin; return untrusted source text and a byte receipt. No redirects or credentials.",
+                      "inputSchema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"], "additionalProperties": False}}))
     return tools
 
 
