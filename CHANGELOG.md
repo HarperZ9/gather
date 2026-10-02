@@ -5,6 +5,9 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- Commit the client server code inside the plugin folder at `client-plugin/server/src/`, so a plugin installed from the folder alone starts. `python scripts/build_client_package.py --sync-vendored` rewrites it from `src/`, and a test fails when the two drift. The launcher no longer falls back to the repository's `src/`; a missing copy stops with a one-line message.
+- Use the 512 px icon so every plugin file stays under 256 KiB.
+- The skill now says that `gather.fetch` reads allowed origins, matching what the plugin offers.
 - Give the Claude plugin its directory listing: display name, keywords, homepage, documentation, support, privacy and terms links, and a 1024 px icon.
 - Claude Code now asks for the readable workspace and the two optional origin lists when you enable the plugin. The Claude `.mcp.json` passes them as `${user_config.*}` launch arguments with the same defaults as the MCPB, so `[]` still grants no network access. Portable and Codex manifests keep their placeholders.
 - Document every network destination of the client profile in its README and privacy notes: DNS lookups and GET requests to the origins you grant, and nothing else.
