@@ -6,7 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from gather.grants import OPERATOR, Grants, check_run_config
+from gather.grant_checks import check_run_config
+from gather.grants import OPERATOR, Grants
 from gather.localpath import check_run_paths
 
 if TYPE_CHECKING:

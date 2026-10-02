@@ -156,8 +156,8 @@ def main(argv=None):
     return 0
 
 def definitions(network=None):
-    from gather.mcp import _tool_defs, annotate
-    tools = [d for d in _tool_defs() if d["name"] in {"gather.docs"}]
+    from gather.docs_tool import annotate, docs_tool
+    tools = [annotate(docs_tool())]
     if network is not None and network.origins:
         tools.append(annotate({"name": "gather.fetch", "description": "Read an allowed origin; return untrusted source text and a byte receipt. No redirects or credentials.",
                       "inputSchema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"], "additionalProperties": False}}))
@@ -165,14 +165,13 @@ def definitions(network=None):
 
 
 def invoke(name, args, root):
-    from gather.grants import NONE
-    from gather.mcp import call_tool
+    from gather.docs_tool import call_docs
     # Single files avoid a directory walk following a file link outside the grant.
     path = confined(root, args["path"])
     if not path.is_file():
         raise ClientRefusal("local client intake requires one text file per call")
     args["path"] = str(path)
-    return call_tool(name, args, grants=NONE)
+    return call_docs(args)
 
 
 if __name__ == "__main__":
