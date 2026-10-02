@@ -403,6 +403,7 @@ selected local service. Repeat a flag to grant another origin. `gather.fetch`
 accepts only `url`; tool arguments and environment variables cannot grant access.
 MCPB users can enter these origins in the optional setup fields as JSON arrays.
 Both fields default to `[]`; leaving either blank also grants no access.
+Claude Code asks for the workspace and the same two fields when you enable the plugin.
 The [example launch](examples/client-network.md) includes a request and limits.
 Windows x64 MCPB and ZIP bundles include their runtime; source plugins require
 Python 3.11+. The full CLI/MCP retains advanced operations. Client-specific

@@ -3,6 +3,12 @@
 All notable changes to Gather. Versions follow semantic versioning; each minor release was
 built behind a feature branch and reviewed before merge.
 
+## Unreleased
+
+- Give the Claude plugin its directory listing: display name, keywords, homepage, documentation, support, privacy and terms links, and a 1024 px icon.
+- Claude Code now asks for the readable workspace and the two optional origin lists when you enable the plugin. The Claude `.mcp.json` passes them as `${user_config.*}` launch arguments with the same defaults as the MCPB, so `[]` still grants no network access. Portable and Codex manifests keep their placeholders.
+- Document every network destination of the client profile in its README and privacy notes: DNS lookups and GET requests to the origins you grant, and nothing else.
+
 ## 2.1.0 (2026-10-01)
 
 Adds local client packages with explicit launch permissions. Client-specific installation

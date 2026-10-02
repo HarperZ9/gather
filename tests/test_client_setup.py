@@ -60,3 +60,20 @@ def test_manifest_argument_strings_do_not_become_flags(tmp_path, endpoint):
         loopback_origins=json.dumps([origin + " --allow-origin https://example.com"])))
     assert result.returncode == 2
     assert hits == []
+
+
+def test_claude_plugin_arguments_start_the_server_with_default_settings(tmp_path):
+    import subprocess
+    config = json.loads((ROOT / "client-plugin/.mcp.json").read_text(encoding="utf-8"))["mcpServers"]["gather"]
+    values = {"CLAUDE_PLUGIN_ROOT": str(ROOT / "client-plugin"), "user_config.workspace": str(tmp_path),
+              "user_config.allowed_origins": "[]", "user_config.loopback_origins": "[]"}
+    args = config["args"]
+    for key, value in values.items():
+        args = [arg.replace("${" + key + "}", value) for arg in args]
+    assert not any("${" in arg for arg in args)
+    requests = [{"id": 1, "method": "initialize"}, {"id": 2, "method": "tools/list"}]
+    result = subprocess.run([sys.executable, *args], input="".join(json.dumps(r) + "\n" for r in requests),
+                            capture_output=True, text=True, timeout=20, check=False)
+    assert result.returncode == 0, result.stderr
+    rows = [json.loads(line) for line in result.stdout.splitlines()]
+    assert [tool["name"] for tool in rows[1]["result"]["tools"]] == ["gather.docs"]

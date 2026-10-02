@@ -18,11 +18,51 @@ def test_source_bundle_is_deterministic_and_contains_runtime_source(tmp_path):
     with zipfile.ZipFile(first[0]) as archive:
         names = archive.namelist()
         assert "server/src/" + package.SPEC["pkg"] + "/client_mcp.py" in names
-        assert {"plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"} <= set(names)
+        assert {"plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json",
+                ".claude-plugin/icon.png"} <= set(names)
         assert all(".." not in Path(name).parts and not Path(name).is_absolute() for name in names)
         assert json.loads(archive.read("plugin.json"))["version"] == package.version()
     with pytest.raises(ValueError, match="new directory"):
         package.build(tmp_path/"one", "dev")
+
+def test_claude_manifest_carries_directory_listing_and_prompts_for_bindings():
+    from client_manifest import claude_manifest, claude_mcp, native_manifest
+    plugin_dir = ROOT / "client-plugin"
+    claude = json.loads((plugin_dir / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
+    assert claude == claude_manifest(package.SPEC, package.version())
+    portable = json.loads((plugin_dir / "plugin.json").read_text(encoding="utf-8"))
+    for key in ("name", "version", "license", "author", "description", "repository"):
+        assert claude[key] == portable[key]
+    for key in ("homepage", "documentationUrl", "supportUrl", "privacyPolicyUrl", "termsOfServiceUrl"):
+        assert claude[key].startswith("https://")
+    assert claude["displayName"] == "Gather" and 5 <= len(claude["keywords"]) <= 8
+    assert all(k == k.lower() for k in claude["keywords"])
+    assert (plugin_dir / claude["icon"]).is_file()
+    assert "userConfig" not in portable and "icon" not in portable
+    # Claude Code offers the same setup fields and defaults as the MCPB.
+    native = native_manifest(package.SPEC, package.version(), "gather-local.exe")
+    assert claude["userConfig"] == native["user_config"]
+    assert claude["userConfig"]["workspace"] == {**claude["userConfig"]["workspace"],
+                                                 "type": "directory", "required": True}
+    assert claude["userConfig"]["allowed_origins"]["default"] == "[]"
+    assert claude["userConfig"]["loopback_origins"]["default"] == "[]"
+    config = json.loads((plugin_dir / ".mcp.json").read_text(encoding="utf-8"))
+    assert config == claude_mcp(package.SPEC)
+    args = config["mcpServers"]["gather"]["args"]
+    assert [a for a in args if "${" in a] == ["${CLAUDE_PLUGIN_ROOT}/server/serve.py",
+        "${user_config.workspace}", "${user_config.allowed_origins}", "${user_config.loopback_origins}"]
+    assert "REPLACE_WITH_ABSOLUTE_WORKSPACE" not in json.dumps(config)
+    for name in ("mcp.json", ".codex-mcp.json"):
+        assert "REPLACE_WITH_ABSOLUTE_WORKSPACE" in (plugin_dir / name).read_text(encoding="utf-8")
+    assert not (plugin_dir / "CLAUDE.md").exists()
+
+
+def test_committed_icon_is_a_square_png_the_directory_accepts():
+    data = (ROOT / "client-plugin/.claude-plugin/icon.png").read_bytes()
+    assert data[:8] == bytes([137, 80, 78, 71, 13, 10, 26, 10]) and data[12:16] == b"IHDR"
+    width, height = int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    assert width == height and 512 <= width <= 2048 and len(data) < 2 * 1024 * 1024
+
 
 def test_release_refuses_unqualified_working_source(monkeypatch):
     monkeypatch.setattr(package, "git", lambda *args: " M source.py" if args[0] == "status" else "a" * 40)

@@ -6,5 +6,43 @@
     "name": "Zain Dana Harper"
   },
   "license": "FSL-1.1-MIT",
-  "repository": "https://github.com/HarperZ9/gather"
+  "repository": "https://github.com/HarperZ9/gather",
+  "displayName": "Gather",
+  "keywords": [
+    "documents",
+    "provenance",
+    "citations",
+    "receipts",
+    "research",
+    "local-first",
+    "read-only"
+  ],
+  "homepage": "https://harperz9.github.io/gather.html",
+  "documentationUrl": "https://github.com/HarperZ9/gather/blob/main/client-plugin/README.md",
+  "supportUrl": "https://harperz9.github.io/plugins/gather/support.html",
+  "privacyPolicyUrl": "https://harperz9.github.io/plugins/gather/privacy.html",
+  "termsOfServiceUrl": "https://harperz9.github.io/plugins/gather/terms.html",
+  "icon": "./.claude-plugin/icon.png",
+  "userConfig": {
+    "workspace": {
+      "type": "directory",
+      "title": "Readable workspace",
+      "description": "Local directory this profile may read. Choose only approved files.",
+      "required": true
+    },
+    "allowed_origins": {
+      "type": "string",
+      "title": "Allowed public HTTPS origins (optional)",
+      "description": "JSON array, for example [\"https://example.com\"]. Leave [] to deny public network access. Requests send model-selected paths and queries to these origins.",
+      "required": false,
+      "default": "[]"
+    },
+    "loopback_origins": {
+      "type": "string",
+      "title": "Allowed local service origins (optional)",
+      "description": "JSON array, for example [\"http://127.0.0.1:8080\"]. Leave [] to deny local service access. Grant only services you intend the calling model to query.",
+      "required": false,
+      "default": "[]"
+    }
+  }
 }
