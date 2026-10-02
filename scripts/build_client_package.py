@@ -12,6 +12,7 @@ import subprocess
 import sys
 import zipfile
 
+from client_closure import closure
 from client_manifest import native_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,9 +85,15 @@ def plugin_entries():
     """Plugin files except the vendored server code, which the build takes from src/."""
     return {k: v for k, v in entries(ROOT / "client-plugin").items() if not k.startswith(VENDORED)}
 
+def client_sources(source=None):
+    """Files under src/ that client-plugin/server/serve.py can import, as the source ZIP ships them."""
+    source = entries(ROOT / "src") if source is None else source
+    keep = set(closure(ROOT / "src", (ROOT / "client-plugin/server/serve.py").read_bytes(), SPEC["pkg"]))
+    return {k: v for k, v in source.items() if k in keep}
+
 def vendored_expected():
     """The server code the source ZIP carries under server/src/, LF-normalized."""
-    return {VENDORED + k: normalized(v) for k, v in entries(ROOT / "src").items()}
+    return {VENDORED + k: normalized(v) for k, v in client_sources().items()}
 
 def vendored_drift():
     """Missing, extra and changed files between the committed vendored tree and src/."""
@@ -137,7 +144,7 @@ def build(output, mode="release", native=False):
                      **{"scripts/"+k: digest(v) for k,v in scripts.items()},
                      **{"client-plugin/"+k: digest(v) for k,v in plugin.items()}}
     output.mkdir(parents=True)
-    payload = {**plugin, **{"server/src/"+k:v for k,v in source.items()}}
+    payload = {**plugin, **{"server/src/"+k:v for k,v in client_sources(source).items()}}
     payload["LICENSE"] = (ROOT / "LICENSE").read_bytes()
     payload["SOURCE.json"] = (json.dumps(qualified, indent=2)+"\n").encode()
     payload["PAYLOAD-SHA256SUMS"] = checksums(payload)
