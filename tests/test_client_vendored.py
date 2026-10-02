@@ -23,7 +23,11 @@ def test_vendored_server_code_matches_src():
 def test_plugin_folder_fits_directory_limits():
     files = [path for path in PLUGIN.rglob("*") if path.is_file() and "__pycache__" not in path.parts]
     assert len(files) <= 512
-    assert all(path.stat().st_size < 256 * 1024 for path in files), max(files, key=lambda p: p.stat().st_size)
+    # The 256 KiB rule covers files other than images and fonts; the icon has its own 2 MB cap.
+    media = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2", ".ttf", ".otf"}
+    other = [path for path in files if path.suffix.lower() not in media]
+    assert all(path.stat().st_size < 256 * 1024 for path in other), max(other, key=lambda p: p.stat().st_size)
+    assert all(path.stat().st_size < 2 * 1024 * 1024 for path in files if path not in other)
     assert not [path for path in files if path.name == ".gitattributes"]
 
 
