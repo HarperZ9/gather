@@ -8,7 +8,11 @@
         "-B",
         "${CLAUDE_PLUGIN_ROOT}/server/serve.py",
         "--workspace",
-        "REPLACE_WITH_ABSOLUTE_WORKSPACE"
+        "${user_config.workspace}",
+        "--allow-origins-json",
+        "${user_config.allowed_origins}",
+        "--allow-loopback-origins-json",
+        "${user_config.loopback_origins}"
       ],
       "env": {}
     }

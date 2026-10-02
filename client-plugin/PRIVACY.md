@@ -9,8 +9,13 @@ workspace unless that client and model are authorized to receive it.
 ## What it stores and sends
 
 This profile stores nothing on disk. Network access is off unless the person who
-installs the plugin names exact HTTPS origins at launch; then `gather.fetch` reads
-those origins only, without credentials or redirects.
+installs the plugin names exact origins at launch: public HTTPS origins in the
+allowed public origins setting, or literal loopback origins such as
+`http://127.0.0.1:8080` in the local service setting. Then `gather.fetch` sends GET
+requests to those origins only, without credentials, cookies, custom headers or
+redirects. The URL path and query chosen by the model reach that origin. The
+hostnames of granted origins are looked up through the system DNS resolver. No
+other destination is contacted.
 
 ## Retention and support
 
