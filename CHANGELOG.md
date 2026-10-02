@@ -8,6 +8,7 @@ built behind a feature branch and reviewed before merge.
 - Give the Claude plugin its directory listing: display name, keywords, homepage, documentation, support, privacy and terms links, and a 1024 px icon.
 - Claude Code now asks for the readable workspace and the two optional origin lists when you enable the plugin. The Claude `.mcp.json` passes them as `${user_config.*}` launch arguments with the same defaults as the MCPB, so `[]` still grants no network access. Portable and Codex manifests keep their placeholders.
 - Document every network destination of the client profile in its README and privacy notes: DNS lookups and GET requests to the origins you grant, and nothing else.
+- Add a "What this plugin runs and handles" section to the client README and privacy notes: hooks, the exact launch command, network destinations and headers, files written, and every environment variable read. A test runs a served session and fails if it reads an environment variable the section does not name.
 
 ## 2.1.0 (2026-10-01)
 
