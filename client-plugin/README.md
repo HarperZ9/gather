@@ -39,6 +39,9 @@ In Claude Code, enabling the plugin asks for three settings:
 The Claude manifest passes these values as `${user_config.*}` launch arguments.
 Blank or `[]` settings grant nothing, and a malformed setting stops launch. The
 source plugin needs Python 3.11 or later on the `PATH` as `python3`.
+The plugin folder carries its own copy of the server code in `server/src`, so it
+runs without the rest of the repository. If that folder is missing, the server
+stops with a message asking you to reinstall the plugin.
 
 Portable and Codex manifests keep the placeholder `REPLACE_WITH_ABSOLUTE_WORKSPACE`.
 Replace it with the absolute directory the client may read, and select your
