@@ -1,6 +1,6 @@
 {
   "schema": "gather.pilot-manifest/1",
-  "pilot_id": "zentropy-representative-showcase",
+  "pilot_id": "zain-dana-harper-representative-showcase",
   "title": "Gather representative research operations pilot",
   "mode": "offline",
   "deployment": {"mode": "workstation", "custodian": "customer"},
