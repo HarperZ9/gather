@@ -11,6 +11,7 @@ from gather.grants import Grants
 
 DEFAULT_BROWSER = "chromium"
 DEFAULT_AUTH_ENV = "GATHER_API_TOKEN"
+REDDIT_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
@@ -25,6 +26,9 @@ def check_run_config(cfg: Mapping[str, object], grants: Grants) -> None:
             grants.require_network(source)
             if source == "api":
                 grants.require_credential(job.get("auth_env", DEFAULT_AUTH_ENV), job.get("target"))
+            if source == "reddit":  # the app id and secret go only to the token host
+                for name in ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"):
+                    grants.require_credential(name, REDDIT_TOKEN_URL)
             if source == "video" and job.get("api_key_env"):
                 grants.require_credential(job.get("api_key_env"), YOUTUBE_API_URL)
     for key in ("synthesizer", "provenance"):

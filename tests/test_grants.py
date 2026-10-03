@@ -13,7 +13,7 @@ from gather.grants import Grants
 from gather.mcp import handle_request, serve
 
 FAKE_SECRET = "planted-fake-secret-value-7c1e"
-NETWORK_SOURCES = ("web", "feed", "arxiv", "video", "api", "browser")
+NETWORK_SOURCES = ("web", "feed", "arxiv", "video", "api", "browser", "reddit")
 
 
 def _req(name, arguments, mid=3):

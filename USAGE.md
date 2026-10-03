@@ -185,6 +185,48 @@ Exit codes for `gather channel`: `0` when every pending entry was attempted; `1`
 the pass ledger cannot be read, listing failed, or the pass stopped on throttling or a bot
 check; `2` on bad options, including a `--timeout` of 0 or less and a negative sleep.
 
+## Reddit
+
+`gather reddit` reads Reddit through its official Data API with your own app. Create a
+"script" app at https://www.reddit.com/prefs/apps, then set its id and secret in the
+environment:
+
+```bash
+export REDDIT_CLIENT_ID=...          # the app id under the app name
+export REDDIT_CLIENT_SECRET=...      # the app secret
+export REDDIT_USERNAME=yourname      # optional; goes into the User-Agent Reddit asks for
+
+gather reddit r/MachineLearning --limit 50 --store DIR      # the hot listing
+gather reddit r/MachineLearning/top --time week             # hot, new, top, rising, controversial
+gather reddit https://www.reddit.com/r/x/comments/abc123/title/ --depth 5 --comment-limit 200
+```
+
+- **What it reads.** A subreddit listing becomes one `post` item per post. A post URL (or
+  `comments/ID`) becomes the post plus one `comment` item per comment, depth first. A post's
+  text is its title, a blank line, and its body or link; a comment's text is its body. Each
+  item's ref is the post or comment permalink, and its method is `reddit-oauth-api`. "More
+  comments" stubs are not followed, because each one costs another request. Empty bodies are
+  skipped.
+- **Authentication.** Gather uses Reddit's application-only OAuth grant. The app secret goes
+  only into the token request's Basic header, and the bearer token only into API request
+  headers. Neither reaches a URL, an item, a receipt or an error message. The User-Agent
+  follows Reddit's form, `python:gather-reach.<app id prefix>:<version> (by /u/<name>)`;
+  `REDDIT_USER_AGENT` replaces it. Read-only: Gather never posts, comments or votes.
+- **Pacing.** At most one request per second. When a response says no requests remain in the
+  current window, Gather waits for the reset if it is 120 seconds away or less, and otherwise
+  stops and names the reset time. A 429 gets one wait and one retry.
+- **Route record.** Each item carries `meta.route` with `"channel": "reddit"`,
+  `"path": "reddit-oauth-api"`, `"auth": "present"`, the seconds, requests and bytes of the
+  read, and the last `x-ratelimit-remaining` value.
+- **Same contract as Telos.** The environment names, User-Agent form, sorts, time windows,
+  name and id checks, limits and normalised fields match the Telos reach reader, so a Reddit
+  read means the same thing in both tools.
+- **Run configs and MCP.** A `reddit` job takes `limit`, `time`, `depth` and
+  `comment_limit`. On MCP it needs the `reddit` network grant and
+  `GATHER_AUTH_ENV_ALLOW=REDDIT_CLIENT_ID@www.reddit.com,REDDIT_CLIENT_SECRET@www.reddit.com`.
+- **Terms.** Reddit's free Data API tier covers personal and non-commercial use. Commercial
+  use needs an agreement with Reddit.
+
 ## Web-data engine
 
 Each command prints a receipt as JSON.

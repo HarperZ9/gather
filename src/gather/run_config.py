@@ -47,6 +47,10 @@ def build_source(name: str, opts: dict):
         return ArxivSource(max_results=int(opts.get("max_results", 10)))
     if name == "video":
         return _video_route(opts)
+    if name == "reddit":
+        from gather.reddit import RedditSource
+        return RedditSource(limit=int(opts.get("limit", 25)), time_window=str(opts.get("time", "day")),
+                            depth=int(opts.get("depth", 3)), comment_limit=int(opts.get("comment_limit", 100)))
     if name == "pdf":
         from gather.pdf import PdfSource
         return PdfSource()

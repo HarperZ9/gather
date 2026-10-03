@@ -26,7 +26,7 @@ import urllib.parse
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
-NETWORK_SOURCES = frozenset({"web", "feed", "arxiv", "scholar", "video", "api", "browser"})
+NETWORK_SOURCES = frozenset({"web", "feed", "arxiv", "scholar", "video", "api", "browser", "reddit"})
 EXEC_VAR, NETWORK_VAR, AUTH_VAR = "GATHER_ALLOW_EXEC", "GATHER_ALLOW_NETWORK", "GATHER_AUTH_ENV_ALLOW"
 _ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 _DETAIL = {

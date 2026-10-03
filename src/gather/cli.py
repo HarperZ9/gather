@@ -27,6 +27,7 @@ from gather.pilot_commands import (
     cmd_pilot_run,
     cmd_pilot_verify,
 )
+from gather.reddit_cmd import add_reddit_parser
 from gather.video_cmd import add_channel_parser
 from gather.web_commands import (
     cmd_caps,
@@ -125,6 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_video_parsers(sub, _add_common)
     add_channel_parser(sub)
+    add_reddit_parser(sub, _add_common)
 
     web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")
     web.add_argument("url")
