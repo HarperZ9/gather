@@ -260,10 +260,11 @@ def test_unknown_caption_mode_is_rejected():
         VideoSource(captions="sometimes")
 
 
-def test_run_config_video_jobs_can_pick_a_pass():
+def test_run_config_video_jobs_can_pick_a_pass(monkeypatch):
+    from gather import video_source as video_source_mod
     from gather.run_config import build_source
     fake = FakeYtDlp({"abc": video_info("abc")})
+    monkeypatch.setattr(video_source_mod, "subprocess_runner", fake)
     src = build_source("video", {"comments": True, "captions": "skip"})
-    src._runner = fake
     kinds = {i.kind for i in src.fetch(URL)}
     assert kinds == {"metadata", "comment"} and not any("--load-info-json" in c for c in fake.calls)

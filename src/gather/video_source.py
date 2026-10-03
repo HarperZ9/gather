@@ -126,6 +126,11 @@ class VideoSource:
     def base_argv(self) -> list[str]:
         return list(self._base)
 
+    @property
+    def captions(self) -> str:
+        """The caption pass this source runs: ``with``, ``skip`` or ``only``."""
+        return self._captions
+
     def fetch(self, target: str) -> list[Item]:
         """Fetch one video's items. Raises RuntimeError with the real yt-dlp ERROR line when the
         metadata call fails, led by a plain sentence when the failure was a bot check. Caption

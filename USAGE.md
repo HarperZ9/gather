@@ -126,7 +126,60 @@ gather channel "https://www.youtube.com/playlist?list=ID" --store DIR --no-capti
   and the yt-dlp program by file name, so you can pass it on as it is.
 - **Run configs and MCP.** A `video` job in a `gather run` config or an MCP `gather.run`
   call takes `"captions": "with"`, `"skip"` or `"only"`, next to `"comments": true`. On
-  MCP the job needs the `video` network grant (see [Launch grants](#launch-grants)).
+  MCP the job needs the `video` network grant (see [Launch grants](#launch-grants)). Add
+  `"api_key_env": "GATHER_YOUTUBE_API_KEY"` to turn on the Data API fallback for that job;
+  on MCP it then also needs `GATHER_AUTH_ENV_ALLOW=GATHER_YOUTUBE_API_KEY@www.googleapis.com`.
+
+### Which path served each video
+
+yt-dlp is the primary path for every YouTube read. Gather turns to the official YouTube
+Data API v3 only when both of these hold:
+
+1. You set your own Data API key in `GATHER_YOUTUBE_API_KEY` (or the variable you name
+   with `--api-key-env`).
+2. yt-dlp was throttled or failed for a reason about the path: a rate limit, a bot check,
+   a timeout, a yt-dlp that would not start, or another error.
+
+A reason about the video itself (private, removed, members-only, age-restricted,
+geo-blocked, upcoming) never triggers the fallback, because the API would give the same
+answer. A captions-only pass does not fall back either. The Data API serves caption text
+only for videos your key's owner can edit, so the fallback returns the metadata item and
+records the transcript as missing with the reason `api-no-captions`. Each fallback read
+costs 1 unit of your Data API quota. `--no-api-fallback` keeps every read on yt-dlp.
+
+The key travels only in the `X-Goog-Api-Key` request header. It never appears in a URL,
+an item, a receipt or a log line.
+
+Every item carries a route record in `meta.route`, and the `--json` catalog row shows it:
+
+```json
+{"schema": "gather.route/1", "channel": "youtube", "path": "yt-dlp", "auth": "absent",
+ "elapsed_s": 8.828, "requests": 2, "bytes": 95729, "bytes_per_s": 10843.8,
+ "requests_per_min": 13.59}
+```
+
+`elapsed_s`, `requests` and `bytes` cover the calls that served the item. A fallback item
+has `"path": "youtube-data-api"`, `"auth": "present"`, the quota units it used, and a
+`fallback_reason` that names the yt-dlp failure.
+
+### Throttle check
+
+`gather video-probe` reads three fixed public videos through yt-dlp, one at a time, with
+at least 2 seconds between them, and reports how fast the path answered:
+
+```bash
+gather video-probe            # a verdict line and one line per video
+gather video-probe --json     # the full report
+```
+
+For each video it records the metadata call's seconds and the caption download's seconds,
+bytes and bytes per second. The verdict is `throttled` when any call met a rate limit or a
+bot check, or when the median metadata call took longer than 20 seconds; `failing` when no
+probe video could be read for another reason; and `ok` otherwise. The exit status is 0 for
+`ok` and 1 for the others. The probe sends at most two requests per video and never
+downloads video or audio. A run on 2026-10-03 measured a median metadata call of 6.5
+seconds (9.2 calls per minute) and caption downloads of 3.7 to 3.9 seconds each, with the
+verdict `ok`.
 
 Exit codes for `gather channel`: `0` when every pending entry was attempted; `1` when
 the pass ledger cannot be read, listing failed, or the pass stopped on throttling or a bot

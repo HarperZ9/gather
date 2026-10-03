@@ -11,12 +11,10 @@ from gather.commands import (
     cmd_docs,
     cmd_feed,
     cmd_ocr,
-    cmd_parse,
     cmd_pdf,
     cmd_run,
     cmd_scholar,
     cmd_transcribe,
-    cmd_video,
     cmd_web,
 )
 from gather.corpus_cmd import cmd_corpus
@@ -29,7 +27,7 @@ from gather.pilot_commands import (
     cmd_pilot_run,
     cmd_pilot_verify,
 )
-from gather.video_cmd import add_channel_parser, add_ytdlp_options
+from gather.video_cmd import add_channel_parser
 from gather.web_commands import (
     cmd_caps,
     cmd_crawl,
@@ -37,6 +35,7 @@ from gather.web_commands import (
     cmd_markdown,
     cmd_monitor,
 )
+from gather.youtube_cmd import add_video_parsers
 
 
 def _serve_mcp(args) -> int:
@@ -124,20 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
     _add_flagship_commands(sub)
 
-    parse = sub.add_parser("parse", help="parse a saved yt-dlp info.json (+ optional .vtt), offline, no network")
-    parse.add_argument("info", help="path to a yt-dlp info.json")
-    parse.add_argument("--vtt", default=None, help="path to a .vtt captions file")
-    parse.add_argument("--auto-captions", action="store_true",
-                       help="captions are machine-generated: collapse rolling-window growth, stamp auto-caption")
-    _add_common(parse)
-    parse.set_defaults(func=cmd_parse)
-
-    video = sub.add_parser("video", help="fetch a video via yt-dlp (needs yt-dlp on PATH and network)")
-    video.add_argument("url")
-    video.add_argument("--comments", action="store_true", help="also gather comments")
-    add_ytdlp_options(video)
-    _add_common(video)
-    video.set_defaults(func=cmd_video)
+    add_video_parsers(sub, _add_common)
     add_channel_parser(sub)
 
     web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")

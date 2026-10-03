@@ -11,6 +11,7 @@ from gather.grants import Grants
 
 DEFAULT_BROWSER = "chromium"
 DEFAULT_AUTH_ENV = "GATHER_API_TOKEN"
+YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
 def check_run_config(cfg: Mapping[str, object], grants: Grants) -> None:
@@ -24,6 +25,8 @@ def check_run_config(cfg: Mapping[str, object], grants: Grants) -> None:
             grants.require_network(source)
             if source == "api":
                 grants.require_credential(job.get("auth_env", DEFAULT_AUTH_ENV), job.get("target"))
+            if source == "video" and job.get("api_key_env"):
+                grants.require_credential(job.get("api_key_env"), YOUTUBE_API_URL)
     for key in ("synthesizer", "provenance"):
         command = cfg.get(key)
         if command:

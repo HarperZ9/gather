@@ -17,6 +17,8 @@ DIRECT_METHODS = frozenset({
     # scholarly-graph federation: each provider's paper fetch, and a citation edge (the provider
     # asserted the link; gather records that it did). All DIRECT. See gather.scholar.
     "openalex-api", "semanticscholar-api", "crossref-api", "citation-edge",
+    # official platform APIs read with the user's own credentials (see gather.youtube_api, gather.reddit)
+    "youtube-data-api", "reddit-oauth-api",
 })
 DERIVED_METHODS = frozenset({"compiled", "synthesized"})
 

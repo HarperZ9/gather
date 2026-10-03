@@ -42,15 +42,22 @@ class Catalog:
         return list(self._items)
 
     def rows(self) -> list[dict]:
-        return [
-            {
-                "kind": i.kind, "id": i.id, "title": i.title,
-                "source": i.provenance.source, "ref": i.provenance.ref,
-                "method": i.provenance.method, "sha256": i.provenance.sha256,
-                "derived_from": list(i.provenance.derived_from), "chars": len(i.text),
-            }
-            for i in self._items
-        ]
+        return [_row(i) for i in self._items]
 
     def to_json(self) -> str:
         return json.dumps(self.rows(), indent=2, ensure_ascii=False)
+
+
+def _row(i: Item) -> dict:
+    """One catalog row. An item from a source with several paths also carries its ``route``
+    record (see gather.route): which path served it and the measured rate."""
+    row = {
+        "kind": i.kind, "id": i.id, "title": i.title,
+        "source": i.provenance.source, "ref": i.provenance.ref,
+        "method": i.provenance.method, "sha256": i.provenance.sha256,
+        "derived_from": list(i.provenance.derived_from), "chars": len(i.text),
+    }
+    route = i.meta.get("route")
+    if isinstance(route, dict):
+        row["route"] = route
+    return row
