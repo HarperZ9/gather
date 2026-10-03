@@ -5,6 +5,12 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 2.2.0 (2026-10-03)
+
+YouTube reads keep yt-dlp first and gain a keyed Data API fallback with a route record on every
+item; Reddit arrives on its official Data API; cited reports from a local model get a code check
+on every citation; and scope filters can write a recomputable ledger of what they dropped.
+
 - Add `gather reddit`: subreddit listings and post threads through Reddit's official Data API, with your own app's id and secret from `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`. Application-only OAuth, read-only, at most one request per second, and a wait for the window reset when Reddit says none remain. The contract (environment names, User-Agent form, sorts, limits, fields) matches the Telos reach reader. Items carry a `gather.route/1` record. On MCP a `reddit` job needs the network grant and credential grants bound to `www.reddit.com`.
 - Add `gather.http_call`: one request returning status, body and headers through the same host and redirect guards as `http_get`, for APIs that report rate limits in headers.
 - Add `gather report`: a short cited report from a question and fixed excerpts, written by a model served on your own machine (loopback endpoints only), with every citation checked in code against the excerpt it names. The report item is `synthesized` with `derived_from` set to the excerpt hashes; the check result rides in `meta.citation_check`. Add `gather cite-check` to run the check alone on any report text.
