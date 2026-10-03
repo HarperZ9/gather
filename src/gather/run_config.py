@@ -24,6 +24,7 @@ class RunPlan:
     synthesizer: Synthesizer | None
     synth_prompt: str
     provenance: Any
+    ledger: str | None = None
 
 
 def load_run_config(path: str) -> dict:
@@ -134,7 +135,11 @@ def plan_from_config(cfg: dict, *, grants: Grants = OPERATOR) -> RunPlan:
         from gather.provenance import SubprocessProvenanceProvider
         provider = SubprocessProvenanceProvider(prov_cmd)
 
+    ledger = cfg.get("ledger")
+    if ledger is not None and (not isinstance(ledger, str) or not grants.operator):
+        raise ValueError('"ledger" is a folder path, and only a config run from the command line may name one')
     return RunPlan(
+        ledger=ledger,
         jobs=jobs,
         scope=scope,
         store=store,
@@ -147,9 +152,19 @@ def plan_from_config(cfg: dict, *, grants: Grants = OPERATOR) -> RunPlan:
 def run_plan(plan: RunPlan, *, clock: Callable[[], float] = time.time) -> tuple[RunRecord, list[Item]]:
     from gather.run import gather_run
 
+    scope_filter = None
+    if plan.ledger:
+        from gather.filter_ledger import scope_with_ledger, write_ledger
+
+        def scope_filter(items, terms):  # the default keyword filter, recorded
+            kept, record = scope_with_ledger(items, terms)
+            write_ledger(str(plan.ledger), record, items)
+            return kept, record["dropped"]
+
     return gather_run(
         plan.jobs,
         clock=clock,
+        scope_filter=scope_filter,
         scope=plan.scope,
         store=plan.store,
         synthesizer=plan.synthesizer,

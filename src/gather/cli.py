@@ -20,6 +20,7 @@ from gather.commands import (
 from gather.corpus_cmd import cmd_corpus
 from gather.federation_cmd import cmd_federation
 from gather.flagship import cmd_demo, cmd_doctor, cmd_status
+from gather.ledger_cmd import add_ledger_parser
 from gather.mcp import serve as serve_mcp
 from gather.pilot_commands import (
     cmd_pilot_bundle,
@@ -51,6 +52,8 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
     p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
     p.add_argument("--store", default=None, metavar="DIR", help="persist gathered items into a corpus at DIR")
+    p.add_argument("--ledger", default=None, metavar="DIR",
+                   help="write a filter ledger (ledger.json, input.jsonl) of what --scope dropped into DIR")
 
 
 def _add_flagship_commands(sub) -> None:
@@ -129,6 +132,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_channel_parser(sub)
     add_reddit_parser(sub, _add_common)
     add_report_parsers(sub, _add_common)
+    add_ledger_parser(sub)
 
     web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")
     web.add_argument("url")

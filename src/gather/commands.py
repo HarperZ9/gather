@@ -13,12 +13,22 @@ def _scope(args) -> list[str]:
     return _split(args.scope)
 
 
-def _emit(items, scope, as_json, store=None) -> int:
+def _scoped(items, scope, ledger=None):
+    """The scope filter; with ``ledger``, every drop is also written to a ledger beside its input."""
+    if not ledger:
+        from gather.scope import filter_scope
+        return filter_scope(items, scope)
+    from gather.filter_ledger import scope_with_ledger, write_ledger
+    kept, record = scope_with_ledger(items, scope)
+    write_ledger(ledger, record, items)
+    return kept, record["dropped"]
+
+
+def _emit(items, scope, as_json, store=None, ledger=None) -> int:
     from gather.digest import digest, verify_digest
     from gather.payloads import catalog_digest_payload
-    from gather.scope import filter_scope
 
-    kept, dropped = filter_scope(items, scope)
+    kept, dropped = _scoped(items, scope, ledger)
     d = digest(kept)
     stored = None
     if store:
@@ -48,7 +58,7 @@ def _fetch_and_emit(fetch, args, fail: str = "fetch failed") -> int:
     except Exception as exc:
         print(f"{fail}: {exc}", file=sys.stderr)
         return 1
-    return _emit(items, _scope(args), args.json, store=args.store)
+    return _emit(items, _scope(args), args.json, store=args.store, ledger=getattr(args, "ledger", None))
 
 
 def cmd_parse(args) -> int:
@@ -61,7 +71,7 @@ def cmd_parse(args) -> int:
         with open(args.vtt, encoding="utf-8") as f:
             vtt = f.read()
     items = parse_video(info_json, vtt, fetched_at=time.time(), auto_captions=args.auto_captions)
-    return _emit(items, _scope(args), args.json, store=args.store)
+    return _emit(items, _scope(args), args.json, store=args.store, ledger=args.ledger)
 
 
 def cmd_video(args) -> int:
@@ -115,17 +125,16 @@ def cmd_scholar(args) -> int:
     except Exception as exc:
         print(f"scholar failed: {exc}", file=sys.stderr)
         return 1
-    return _emit_with_edges(items, edges, _scope(args), args.json, store=args.store)
+    return _emit_with_edges(items, edges, _scope(args), args.json, store=args.store, ledger=args.ledger)
 
 
-def _emit_with_edges(items, edges, scope, as_json, store=None) -> int:
+def _emit_with_edges(items, edges, scope, as_json, store=None, ledger=None) -> int:
     """Emit scholar items plus citation-edge receipts, folding the edges into the same witnessed
     digest as the papers, so the seal covers the graph (nodes and links), not just the nodes."""
     from gather.digest import digest_of_receipts, verify_digest
-    from gather.scope import filter_scope
     from gather.store import Corpus
 
-    kept, dropped = filter_scope(items, scope)
+    kept, dropped = _scoped(items, scope, ledger)
     item_receipts = [
         {"kind": i.kind, "id": i.id, "title": i.title, "source": i.provenance.source,
          "ref": i.provenance.ref, "method": i.provenance.method, "sha256": i.provenance.sha256,
