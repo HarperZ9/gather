@@ -5,6 +5,8 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- Add `gather reddit`: subreddit listings and post threads through Reddit's official Data API, with your own app's id and secret from `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`. Application-only OAuth, read-only, at most one request per second, and a wait for the window reset when Reddit says none remain. The contract (environment names, User-Agent form, sorts, limits, fields) matches the Telos reach reader. Items carry a `gather.route/1` record. On MCP a `reddit` job needs the network grant and credential grants bound to `www.reddit.com`.
+- Add `gather.http_call`: one request returning status, body and headers through the same host and redirect guards as `http_get`, for APIs that report rate limits in headers.
 - YouTube reads keep yt-dlp as the primary path and gain a fallback: when yt-dlp is throttled or failing and you set your own key in `GATHER_YOUTUBE_API_KEY`, the video's metadata comes from the official Data API v3. A reason about the video itself (private, removed, geo-blocked) never triggers it. The key travels only in a request header. `--no-api-fallback` turns it off; run configs opt in with `api_key_env`.
 - Every YouTube item carries a `gather.route/1` record in `meta.route` and in its catalog row: the path that served it, whether a credential was used, the wall seconds, requests and bytes of the serving calls, and the rates.
 - Add `gather video-probe`: a throttle check that reads three fixed public videos through yt-dlp at a single user's pace and reports seconds per call, calls per minute, caption bytes per second and a verdict.
