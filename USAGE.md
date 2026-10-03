@@ -226,6 +226,41 @@ gather reddit https://www.reddit.com/r/x/comments/abc123/title/ --depth 5 --comm
   `GATHER_AUTH_ENV_ALLOW=REDDIT_CLIENT_ID@www.reddit.com,REDDIT_CLIENT_SECRET@www.reddit.com`.
 - **Terms.** Reddit's free Data API tier covers personal and non-commercial use. Commercial
   use needs an agreement with Reddit.
+## Cited reports from a local model
+
+`gather report` turns a question and a fixed set of excerpts into a short cited report, written
+by a model you run on your own machine, and checks every citation in code:
+
+```bash
+gather report "What does Gather record for each item?" --excerpts excerpts.json --model qwen3:8b
+gather report "..." --excerpts excerpts.json --model olmo2:7b --endpoint http://127.0.0.1:8080/v1 --json
+gather cite-check report.txt --excerpts excerpts.json     # the check alone, on any report text
+```
+
+- **Excerpts.** A JSON list of objects with `text` and optional `title`, `id` and `ref`. They
+  are numbered from 1 in the order given, and each is cut to its first 4,000 characters.
+- **Local models only.** `--endpoint` takes an OpenAI-compatible chat endpoint (Ollama,
+  llama.cpp's server, vLLM, LM Studio) and refuses any host that is not a loopback address, so
+  a hosted API cannot write the report. The default is Ollama's `http://127.0.0.1:11434/v1`.
+  The request carries no credential and bypasses any proxy. Gather records the model name the
+  server reports.
+- **How citations are checked.** The model is asked to quote each excerpt word for word in
+  double quotes, followed by the excerpt's number: `"exact words" [2]`. For each citation the
+  check compares strings after normalising quote marks, dashes, spacing and case. A citation
+  is `verified` when the quote appears in the cited excerpt, `not-in-source` when it does not,
+  `unknown-source` when no excerpt has that number, `too-short` when the quote has fewer than
+  four words, and `unchecked` when a bracketed number has no quote before it. Sentences with no
+  citation are listed. Precision is verified citations over all citations.
+- **Nothing is hidden.** The report text stays exactly as the model wrote it. The check result
+  (every citation with its status, the counts, the uncited sentences) is in the report item's
+  `meta.citation_check` and in the `--json` output.
+- **The receipt.** The report is one item with method `synthesized` and `derived_from` set to
+  the excerpts' content hashes. `--store DIR` adds it to a corpus.
+- **Exit status.** `gather report` and `gather cite-check` exit 0 when every citation is
+  verified, 1 when any is not, and 2 on an error, so either can gate a pipeline.
+
+What the check does not prove: that the sentence around a verified quote says what the excerpt
+means. A quote can be exact while the claim around it stretches the source.
 
 ## Web-data engine
 
