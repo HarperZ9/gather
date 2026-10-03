@@ -4,6 +4,7 @@ import argparse
 import sys
 
 from gather import __version__
+from gather.cli_ext import add_extension_parsers
 from gather.commands import (
     cmd_api,
     cmd_arxiv,
@@ -20,7 +21,6 @@ from gather.commands import (
 from gather.corpus_cmd import cmd_corpus
 from gather.federation_cmd import cmd_federation
 from gather.flagship import cmd_demo, cmd_doctor, cmd_status
-from gather.ledger_cmd import add_ledger_parser
 from gather.mcp import serve as serve_mcp
 from gather.pilot_commands import (
     cmd_pilot_bundle,
@@ -28,9 +28,6 @@ from gather.pilot_commands import (
     cmd_pilot_run,
     cmd_pilot_verify,
 )
-from gather.reddit_cmd import add_reddit_parser
-from gather.report_cmd import add_report_parsers
-from gather.video_cmd import add_channel_parser
 from gather.web_commands import (
     cmd_caps,
     cmd_crawl,
@@ -38,7 +35,6 @@ from gather.web_commands import (
     cmd_markdown,
     cmd_monitor,
 )
-from gather.youtube_cmd import add_video_parsers
 
 
 def _serve_mcp(args) -> int:
@@ -128,11 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
     _add_flagship_commands(sub)
 
-    add_video_parsers(sub, _add_common)
-    add_channel_parser(sub)
-    add_reddit_parser(sub, _add_common)
-    add_report_parsers(sub, _add_common)
-    add_ledger_parser(sub)
+    add_extension_parsers(sub, _add_common)
 
     web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")
     web.add_argument("url")
