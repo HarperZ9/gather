@@ -5,6 +5,8 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- `gather report` now asks the model again when a citation has no quote, up to 2 more times, so one report can make up to 3 model calls. `--quote-retries 0` restores one call. The prompt also forbids a bracketed excerpt number without a quotation right before it. The kept answer is never edited: if every answer has an unquoted citation, the last one is kept, its citation stays `unchecked`, and `meta.quote_requirement` reads `unmet`. Each call is recorded in `meta.attempts`, and `meta.elapsed_s` is now the sum over all calls.
+
 ## 2.2.0 (2026-10-03)
 
 YouTube reads keep yt-dlp first and gain a keyed Data API fallback with a route record on every
