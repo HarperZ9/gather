@@ -2,10 +2,12 @@
 (the citation check alone, on any report text).
 
 Both exit 0 when every citation is verified and 1 when any is not, so either can gate a pipeline.
+``gather report`` asks the model again when a citation has no quote, up to ``--quote-retries``.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections.abc import Callable
@@ -22,6 +24,8 @@ def add_report_parsers(sub, add_common: Callable) -> None:
     rep.add_argument("--endpoint", default=DEFAULT_ENDPOINT,
                      help=f"OpenAI-compatible endpoint on this machine (default {DEFAULT_ENDPOINT})")
     rep.add_argument("--timeout", type=float, default=600.0, metavar="S", help="seconds for the model's answer")
+    rep.add_argument("--quote-retries", type=_retries, default=2, metavar="N",
+                     help="new answers to ask for when a citation has no quote (default 2; 0 turns this off)")
     add_common(rep)
     rep.set_defaults(func=cmd_report)
 
@@ -30,6 +34,13 @@ def add_report_parsers(sub, add_common: Callable) -> None:
     chk.add_argument("--excerpts", required=True, metavar="FILE", help="the excerpts JSON the report cites")
     chk.add_argument("--json", action="store_true", help="emit the check as JSON")
     chk.set_defaults(func=cmd_cite_check)
+
+
+def _retries(value: str) -> int:
+    n = int(value)
+    if n < 0:
+        raise argparse.ArgumentTypeError("must be 0 or more")
+    return n
 
 
 def _summary(check: dict) -> str:
@@ -49,7 +60,8 @@ def cmd_report(args) -> int:
 
     try:
         model = LocalModel(args.model, endpoint=args.endpoint, timeout=args.timeout)
-        item = write_report(args.question, load_excerpts(args.excerpts), model)
+        item = write_report(args.question, load_excerpts(args.excerpts), model,
+                            quote_retries=args.quote_retries)
     except (ValueError, OSError, RuntimeError) as exc:
         print(f"report failed: {exc}", file=sys.stderr)
         return 2
@@ -60,6 +72,7 @@ def cmd_report(args) -> int:
     else:
         print(item.text)
         print(f"\n{_summary(check)}")
+        print(f"quote requirement: {item.meta['quote_requirement']} after {len(item.meta['attempts'])} model call(s)")
     if args.store:
         _emit([item], _scope(args), False, store=args.store)
     return 0 if _all_verified(check) else 1

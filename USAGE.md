@@ -251,6 +251,13 @@ gather cite-check report.txt --excerpts excerpts.json     # the check alone, on 
   `unknown-source` when no excerpt has that number, `too-short` when the quote has fewer than
   four words, and `unchecked` when a bracketed number has no quote before it. Sentences with no
   citation are listed. Precision is verified citations over all citations.
+- **A quote on every citation.** When an answer cites an excerpt number with no quote before
+  it, `gather report` asks the model again. The new request repeats the question and excerpts,
+  shows the previous answer and lists the sentences at fault. It asks at most 2 more times
+  (`--quote-retries N` changes that; `0` turns it off) and keeps the first answer with every
+  citation quoted. When none qualifies, it keeps the last answer as written, marks its unquoted
+  citations `unchecked`, and records `quote_requirement: unmet` in the item meta. Each model
+  call and its seconds are in `meta.attempts`; `meta.elapsed_s` is their sum.
 - **Nothing is hidden.** The report text stays exactly as the model wrote it. The check result
   (every citation with its status, the counts, the uncited sentences) is in the report item's
   `meta.citation_check` and in the `--json` output.
