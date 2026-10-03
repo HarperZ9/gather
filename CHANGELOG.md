@@ -5,6 +5,9 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- YouTube reads keep yt-dlp as the primary path and gain a fallback: when yt-dlp is throttled or failing and you set your own key in `GATHER_YOUTUBE_API_KEY`, the video's metadata comes from the official Data API v3. A reason about the video itself (private, removed, geo-blocked) never triggers it. The key travels only in a request header. `--no-api-fallback` turns it off; run configs opt in with `api_key_env`.
+- Every YouTube item carries a `gather.route/1` record in `meta.route` and in its catalog row: the path that served it, whether a credential was used, the wall seconds, requests and bytes of the serving calls, and the rates.
+- Add `gather video-probe`: a throttle check that reads three fixed public videos through yt-dlp at a single user's pace and reports seconds per call, calls per minute, caption bytes per second and a verdict.
 - Vendor only the modules the client server can import: 28 files instead of the whole package's 77. `scripts/client_closure.py` follows every import from `serve.py`, including imports inside functions and relative imports, and the source ZIP and the drift check use the same selection. The client now takes `gather.docs` from the new `gather.docs_tool` module, and the run-config and pilot-manifest grant checks move to `gather.grant_checks`, so the plugin carries no code that names `GATHER_API_TOKEN`. The full server behaves as before.
 - Commit the client server code inside the plugin folder at `client-plugin/server/src/`, so a plugin installed from the folder alone starts. `python scripts/build_client_package.py --sync-vendored` rewrites it from `src/`, and a test fails when the two drift. The launcher no longer falls back to the repository's `src/`; a missing copy stops with a one-line message.
 - The skill now says that `gather.fetch` reads allowed origins, matching what the plugin offers.

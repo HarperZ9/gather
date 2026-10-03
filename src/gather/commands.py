@@ -65,9 +65,9 @@ def cmd_parse(args) -> int:
 
 
 def cmd_video(args) -> int:
-    from gather.video_cmd import video_source_from_args
+    from gather.youtube_cmd import route_from_args
     try:
-        src = video_source_from_args(args, with_comments=args.comments)
+        src = route_from_args(args, with_comments=args.comments)
     except ValueError as exc:
         print(f"fetch failed: {exc}", file=sys.stderr)
         return 2

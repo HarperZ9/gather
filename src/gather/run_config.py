@@ -46,9 +46,7 @@ def build_source(name: str, opts: dict):
         from gather.arxiv import ArxivSource
         return ArxivSource(max_results=int(opts.get("max_results", 10)))
     if name == "video":
-        from gather.video import VideoSource
-        return VideoSource(with_comments=bool(opts.get("comments", False)),
-                           captions=str(opts.get("captions", "with")))
+        return _video_route(opts)
     if name == "pdf":
         from gather.pdf import PdfSource
         return PdfSource()
@@ -69,6 +67,20 @@ def build_source(name: str, opts: dict):
         from gather.transcribe import TranscribeSource
         return TranscribeSource()
     raise ValueError(f"unknown source: {name!r}")
+
+
+def _video_route(opts: dict):
+    """yt-dlp first; the Data API fallback only when the job names its key variable in
+    ``api_key_env`` (a launch grant for that variable and the API host covers it on MCP)."""
+    from gather.video import VideoSource
+    from gather.youtube_api import DataApiClient
+    from gather.youtube_route import YouTubeRoute
+
+    key_env = opts.get("api_key_env")
+    api = DataApiClient(key_env=key_env) if isinstance(key_env, str) and key_env else None
+    return YouTubeRoute(source_factory=lambda runner: VideoSource(
+        with_comments=bool(opts.get("comments", False)), captions=str(opts.get("captions", "with")),
+        runner=runner), api=api)
 
 
 def plan_from_config(cfg: dict, *, grants: Grants = OPERATOR) -> RunPlan:

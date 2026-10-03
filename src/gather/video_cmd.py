@@ -40,7 +40,7 @@ from gather.channel_ledger import (
 )
 from gather.pacing import BackoffPolicy, Pacer
 from gather.video_source import VideoSource
-from gather.ytdlp import DEFAULT_TIMEOUT
+from gather.ytdlp import DEFAULT_TIMEOUT, Runner
 
 # Channel passes are long and unattended, so a throttle gets a generous, bounded wait.
 CHANNEL_BACKOFF = BackoffPolicy(base=60.0, factor=2.0, cap=900.0, max_attempts=5, max_total_wait=2700.0)
@@ -93,14 +93,14 @@ def backoff_from_args(args, default: BackoffPolicy) -> BackoffPolicy:
 
 
 def video_source_from_args(args, *, with_comments: bool, default_backoff: BackoffPolicy | None = None,
-                           pacer: Pacer | None = None) -> VideoSource:
+                           pacer: Pacer | None = None, runner: Runner | None = None) -> VideoSource:
     from gather.video_source import DEFAULT_BACKOFF
     return VideoSource(
         yt_dlp=args.yt_dlp, with_comments=with_comments, timeout=args.timeout,
         captions=captions_mode(args), caption_langs=tuple(_split(args.caption_langs)) or ("en",),
         js_runtime=args.js_runtime, sleep_requests=args.sleep_requests,
         sleep_subtitles=args.sleep_subtitles,
-        backoff=backoff_from_args(args, default_backoff or DEFAULT_BACKOFF), pacer=pacer,
+        backoff=backoff_from_args(args, default_backoff or DEFAULT_BACKOFF), pacer=pacer, runner=runner,
     )
 
 
