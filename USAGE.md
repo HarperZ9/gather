@@ -261,6 +261,32 @@ gather cite-check report.txt --excerpts excerpts.json     # the check alone, on 
 
 What the check does not prove: that the sentence around a verified quote says what the excerpt
 means. A quote can be exact while the claim around it stretches the source.
+## Filter ledgers
+
+`--scope` keeps the items that mention a term and drops the rest. `--ledger DIR` records
+exactly what it dropped, so a reader can see the filter's effect and a second person can
+recompute it:
+
+```bash
+gather docs notes/ --scope tiling,penrose --ledger out/ledger --store corpus
+gather ledger verify out/ledger          # exit 0 when every count recomputes
+```
+
+`DIR/ledger.json` (schema `gather.filter-ledger/1`) holds the filters and their parameters,
+the input count and a digest over the input items' content hashes in order, one row per
+dropped item (its index in the input, id, content hash and reason code), the kept and dropped
+counts, and the counts by reason. Every dropped item has exactly one reason code: when several
+filters run, the first one that rejects an item names the reason. `DIR/input.jsonl` holds the
+input items, text included, so the counts can be recomputed without the original sources.
+
+`gather ledger verify` rebuilds the input digest, checks each row against the input item at
+its index, checks that kept plus dropped equals the input total and that the counts by reason
+match the rows, and runs the scope filter again to confirm it drops the same items. An input
+line whose text no longer matches its hash stops the check. A `gather run` config takes
+`"ledger": "DIR"` when you run it from the command line; an MCP call cannot name one.
+
+A ledger makes the filtering inspectable. It does not show that the filtering was fair, and a
+reason code can still carry a judgment inside its label.
 
 ## Web-data engine
 

@@ -4,6 +4,7 @@ import argparse
 import sys
 
 from gather import __version__
+from gather.cli_ext import add_extension_parsers
 from gather.commands import (
     cmd_api,
     cmd_arxiv,
@@ -27,9 +28,6 @@ from gather.pilot_commands import (
     cmd_pilot_run,
     cmd_pilot_verify,
 )
-from gather.reddit_cmd import add_reddit_parser
-from gather.report_cmd import add_report_parsers
-from gather.video_cmd import add_channel_parser
 from gather.web_commands import (
     cmd_caps,
     cmd_crawl,
@@ -37,7 +35,6 @@ from gather.web_commands import (
     cmd_markdown,
     cmd_monitor,
 )
-from gather.youtube_cmd import add_video_parsers
 
 
 def _serve_mcp(args) -> int:
@@ -51,6 +48,8 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--scope", default=None, help="comma-separated scope terms; keep items mentioning any")
     p.add_argument("--json", action="store_true", help="emit the catalog and digest as JSON")
     p.add_argument("--store", default=None, metavar="DIR", help="persist gathered items into a corpus at DIR")
+    p.add_argument("--ledger", default=None, metavar="DIR",
+                   help="write a filter ledger (ledger.json, input.jsonl) of what --scope dropped into DIR")
 
 
 def _add_flagship_commands(sub) -> None:
@@ -125,10 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
     _add_flagship_commands(sub)
 
-    add_video_parsers(sub, _add_common)
-    add_channel_parser(sub)
-    add_reddit_parser(sub, _add_common)
-    add_report_parsers(sub, _add_common)
+    add_extension_parsers(sub, _add_common)
 
     web = sub.add_parser("web", help="fetch a static web page via http(s) and extract readable text")
     web.add_argument("url")
