@@ -9,8 +9,8 @@ def test_flagship_brand_assets_exist_and_are_referenced():
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text(encoding="utf-8")
     for rel in [
-        "docs/brand/gather-mark.svg",
-        "docs/brand/gather-hero.png",
+        "docs/brand/mark-tile.svg",
+        "docs/art/social.png",
         "examples/gather-demo.html",
         ".github/assets/banner.png",
     ]:
@@ -19,16 +19,16 @@ def test_flagship_brand_assets_exist_and_are_referenced():
     # repository settings rather than linked from prose. What the README shows
     # a reader is the generated header and the pipeline diagram.
     for rel in [
-        "docs/art/gather-header.svg",
+        "docs/art/hero-dark.svg",
         "examples/gather-demo.html",
     ]:
         assert rel in readme
     assert "## Why it matters" in readme
     assert "## Work with it" in readme
-    hero = (root / "docs/brand/gather-hero.svg").read_text(encoding="utf-8")
+    hero = (root / "docs/art/hero-light.svg").read_text(encoding="utf-8")
     assert "<title" in hero
     assert "<desc" in hero
-    assert "#f4f3ef" in hero
+    assert "#f1ece1" in hero  # the light hero sits on the site's bone ground (4 October 2026)
 
 
 def test_document_item_is_receipted():
