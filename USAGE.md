@@ -268,6 +268,22 @@ gather cite-check report.txt --excerpts excerpts.json     # the check alone, on 
 
 What the check does not prove: that the sentence around a verified quote says what the excerpt
 means. A quote can be exact while the claim around it stretches the source.
+
+**Measured precision.** On 30 fixed questions over Gather's own docs (4 excerpts each, one of
+them holding the answer), with each model served by Ollama at temperature 0, pooled citation
+precision stays below 0.80 for both models measured. Every citation that is unquoted, too short
+or not found in its excerpt counts as a failure.
+
+| Gather | Model | Verified / citations | Precision | Wilson 95% interval |
+|---|---|---|---|---|
+| 2.2.0 | qwen3:8b | 19 / 88 | 0.216 | 0.143 to 0.313 |
+| 2.2.0 | olmo2:7b | 23 / 62 | 0.371 | 0.262 to 0.495 |
+| with the quote requirement | qwen3:8b | 57 / 88 | 0.648 | 0.544 to 0.739 |
+| with the quote requirement | olmo2:7b | 36 / 114 | 0.316 | 0.238 to 0.406 |
+
+Requiring a quote on every citation tripled the verified citations for qwen3:8b. It did not help
+olmo2:7b, which answered the request for quotes with more bare citations. Read each report as a
+draft to check: the status on each citation tells you which sentences to compare with the source.
 ## Filter ledgers
 
 `--scope` keeps the items that mention a term and drops the rest. `--ledger DIR` records
