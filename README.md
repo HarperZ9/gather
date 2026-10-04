@@ -1,14 +1,20 @@
-<p align="center"><img src="docs/art/gather-header.svg" alt="gather: research intake for gated APIs, paywalls, JS pages, and scanned PDFs." width="100%"></p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/art/hero-dark.svg">
+  <img src="docs/art/hero-light.svg" alt="gather: Research intake for gated APIs, JS pages and scanned PDFs. Five bundles of lines, solid, dashed, dotted, wavy and stepped, sweep in from the right and pass through a ring into one bright core. One line stops at the ring with a short cross mark." width="100%">
+</picture>
 
-**Research intake that reaches the hard places: gated APIs, paywalls, JS-walled pages, scanned PDFs.**
+# gather
 
-[![PyPI](https://img.shields.io/pypi/v/gather-engine?style=flat-square&labelColor=14041b&color=f8cc43)](https://pypi.org/project/gather-engine/)
-[![license](https://img.shields.io/badge/license-Gather_Fair--Source-8f8095?style=flat-square&labelColor=14041b)](LICENSE)
+Research intake for gated APIs, JS pages and scanned PDFs.
+
+```bash
+pip install gather-engine
+```
+
+[![version: 2.3.0](https://img.shields.io/badge/version-2.3.0-e6e1d6?style=flat-square&labelColor=1a1712)](https://pypi.org/project/gather-engine/)
 [![CI](https://github.com/HarperZ9/gather/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/gather/actions/workflows/ci.yml)
-[![downloads](https://img.shields.io/pypi/dm/gather-engine?label=downloads&style=flat-square&labelColor=14041b)](https://pypi.org/project/gather-engine/)
-![python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&labelColor=14041b)
-![deps: none (core)](https://img.shields.io/badge/core%20deps-none-success?style=flat-square&labelColor=14041b)
-![version: 2.3.0](https://img.shields.io/badge/version-2.3.0-26dfe8?style=flat-square&labelColor=14041b)
+[![license](https://img.shields.io/badge/license-Gather_Fair--Source-e6e1d6?style=flat-square&labelColor=1a1712)](LICENSE)
+![python 3.11+](https://img.shields.io/badge/python-3.11%2B-e6e1d6?style=flat-square&labelColor=1a1712)
 
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
 
