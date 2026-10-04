@@ -47,3 +47,9 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Run the child-spawn tests
         run: pytest -q -rs tests/test_spawn_working_folder.py tests/test_spawn_children.py tests/test_video_spawn.py tests/test_vendored.py
+  art-receipts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify art receipt digests
+        run: python3 scripts/check_art_receipts.py
