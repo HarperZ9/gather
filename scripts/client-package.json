@@ -1,6 +1,6 @@
 {
   "pkg": "gather",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "desc": "Read local documents and get a digest receipt for each one your assistant can cite.",
   "tool": "gather.docs",
   "args": {
