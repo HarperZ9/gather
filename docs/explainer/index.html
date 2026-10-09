@@ -121,6 +121,14 @@ footer.foot p{max-width:70ch;margin:0 0 .6rem}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important;animation-iteration-count:1!important;scroll-behavior:auto!important}
 }
+.film{margin:1rem 0 0;max-width:56rem}
+.film video{width:100%;height:auto;display:block;background:#000;border:1px solid var(--line)}
+.film figcaption{font-size:.9rem;color:var(--ink-soft);margin-top:.55rem;max-width:44rem;line-height:1.5}
+.soon{font-family:var(--font-mono);font-size:.8rem;color:var(--muted);margin-top:.8rem}
+ol.walkthrough{padding-left:1.4rem;max-width:56rem;margin:1rem 0 0}
+ol.walkthrough li{margin:0 0 1.4rem}
+ol.walkthrough h3{margin:0 0 .3rem;font-size:1.05rem}
+ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
 
 /* generic scene kit: a pipeline strip, an input/output panel, a case picker, a table */
 .kscene{display:flex;flex-direction:column;gap:.8rem}
@@ -172,6 +180,18 @@ footer.foot p{max-width:70ch;margin:0 0 .6rem}
     <li><b>Grants before reach</b>A run that would start a command, use the network or send a credential needs a grant you set at launch.</li>
   </ul>
   <p class="src">Source: <a href="https://github.com/HarperZ9/gather/blob/bba8cce608f7c6155a9fd044f8b46d226d0aa04f/README.md">README.md</a> at bba8cce (version 2.3.0)</p>
+</section>
+
+<section class="block wrap" aria-labelledby="watch">
+  <h2 id="watch">Watch</h2>
+  <figure class="film">
+    <video controls preload="none" playsinline crossorigin="anonymous" width="1920" height="1080" poster="https://harperz9.github.io/media/explainers/checking-cost/poster.jpg">
+      <source src="https://harperz9.github.io/media/explainers/checking-cost/checking-cost.mp4" type="video/mp4">
+      <track kind="captions" src="https://harperz9.github.io/media/explainers/checking-cost/checking-cost.vtt" srclang="en" label="English">
+    </video>
+    <figcaption><b>Claiming got cheap. Checking did not.</b> (2 min 57 s, narrated, captioned). Gather keeps a receipt for every source it pulls, so checking a citation stays cheap. <a href="https://harperz9.github.io/explainers.html#checking-cost-h">Transcript, sources and recall questions</a>.</figcaption>
+  </figure>
+  <p class="soon">Video walkthrough: coming with the next release.</p>
 </section>
 
 <section class="block wrap" aria-labelledby="how">
@@ -246,17 +266,30 @@ footer.foot p{max-width:70ch;margin:0 0 .6rem}
   </div>
 </section>
 
-<section class="block wrap" aria-labelledby="try">
-  <h2 id="try">Try it</h2>
-  <div class="measure"><p>Install from PyPI with <code>pip install gather-engine</code>, or from a checkout to run the demo (Python 3.11 or newer). None of this needs the network.</p></div>
+<section class="block wrap" aria-labelledby="walkthrough">
+  <h2 id="walkthrough">Walkthrough</h2>
+  <p class="measure">Install it, run it once, then use the main feature. Each command below is real, and so is its output.</p>
+  <ol class="walkthrough">
+    <li><h3>Install</h3><p>Install from a checkout to run the demo. Python 3.11 or newer; none of this needs the network.</p>
 <pre class="cmd"><code>$ git clone https://github.com/HarperZ9/gather && cd gather
-$ pip install -e .
-$ python examples/demo.py
+$ pip install -e .</code></pre></li>
+    <li><h3>First run: the demo</h3><p>The demo builds a sealed digest of three receipts, then tampers with one and shows the digest no longer verifies.</p>
+<pre class="cmd"><code>$ python examples/demo.py
 <span class="out">witnessed digest: 3 receipts, seal 7da7dc456b11..., verified True
 
-after tampering one receipt, digest verifies: False  <- caught</span>
-$ gather docs ./notes --store ./corpus
-$ gather corpus verify ./corpus</code></pre>
+after tampering one receipt, digest verifies: False  &lt;- caught</span></code></pre></li>
+    <li><h3>Extract a page</h3><p>Pull a saved page into structured blocks, each with its source position.</p>
+<pre class="cmd"><code>$ gather extract article.html
+<span class="out">html[1]/body[1]/h1[1]  h1  sha256 b09abb7b64e1424e...
+html[1]/body[1]/p[1]   p   sha256 1a8f9554b2960300...
+html[1]/body[1]/p[2]   p   sha256 95355aaf2715a43d...
+content_sha256   4c907012d520ed44...
+markdown_sha256  94812767e4d6dd59...
+method           html-extract</span></code></pre></li>
+    <li><h3>Store your notes and re-check them</h3><p>Store a folder by content hash, then verify the corpus later. A clean corpus exits 0.</p>
+<pre class="cmd"><code>$ gather docs ./notes --store ./corpus
+$ gather corpus verify ./corpus</code></pre></li>
+  </ol>
   <p class="src">Output from gather at bba8cce, run from source. gather-engine 2.3.0 is the current PyPI release.</p>
 </section>
 
