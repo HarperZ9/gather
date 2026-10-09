@@ -80,6 +80,53 @@ The [animated explainer](https://harperz9.github.io/repo-explainers/gather.html)
 walks through a local page extracted into hashed blocks, the grounding check on three proposed records, storage by content hash, corpus verify on corrupt and missing bodies, a scoped run with its digest, and the demo's tampered receipt. Every value on it is output from this repository. Its
 source is [docs/explainer/index.html](docs/explainer/index.html).
 
+## Watch
+
+[![Claiming got cheap. Checking did not.: a narrated film, 2 min 57 s](https://harperz9.github.io/media/explainers/checking-cost/poster.jpg)](https://harperz9.github.io/explainers.html#checking-cost-h)
+
+**[Claiming got cheap. Checking did not.](https://harperz9.github.io/explainers.html#checking-cost-h)** (2 min 57 s, narrated, captioned). Gather keeps a receipt for every source it pulls, so checking a citation stays cheap. The film page carries the transcript, the sources and recall questions.
+
+Video walkthrough: coming with the next release.
+
+## Walkthrough
+
+Install it, run it once, then use the main feature. Each command below is real, and so is its output.
+
+1. **Install.** Install from a checkout to run the demo. Python 3.11 or newer; none of this needs the network.
+
+   ```text
+   $ git clone https://github.com/HarperZ9/gather && cd gather
+   $ pip install -e .
+   ```
+
+2. **First run: the demo.** The demo builds a sealed digest of three receipts, then tampers with one and shows the digest no longer verifies.
+
+   ```text
+   $ python examples/demo.py
+   witnessed digest: 3 receipts, seal 7da7dc456b11..., verified True
+
+   after tampering one receipt, digest verifies: False  <- caught
+   ```
+
+3. **Extract a page.** Pull a saved page into structured blocks, each with its source position.
+
+   ```text
+   $ gather extract article.html
+   html[1]/body[1]/h1[1]  h1  sha256 b09abb7b64e1424e...
+   html[1]/body[1]/p[1]   p   sha256 1a8f9554b2960300...
+   html[1]/body[1]/p[2]   p   sha256 95355aaf2715a43d...
+   content_sha256   4c907012d520ed44...
+   markdown_sha256  94812767e4d6dd59...
+   method           html-extract
+   ```
+
+4. **Store your notes and re-check them.** Store a folder by content hash, then verify the corpus later. A clean corpus exits 0.
+
+   ```text
+   $ gather docs ./notes --store ./corpus
+   $ gather corpus verify ./corpus
+   ```
+
 ## Install
 
 ```bash
