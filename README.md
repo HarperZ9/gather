@@ -74,6 +74,12 @@ fabricated field cannot reach the corpus by being plausible.
 - **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.context`, `gather.pilot`), and a plain Python API.
 - **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
 
+## See it work, step by step
+
+The [animated explainer](https://harperz9.github.io/repo-explainers/gather.html)
+walks through a local page extracted into hashed blocks, the grounding check on three proposed records, storage by content hash, corpus verify on corrupt and missing bodies, a scoped run with its digest, and the demo's tampered receipt. Every value on it is output from this repository. Its
+source is [docs/explainer/index.html](docs/explainer/index.html).
+
 ## Install
 
 ```bash
