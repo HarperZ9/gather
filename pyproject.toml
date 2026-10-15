@@ -15,6 +15,14 @@ keywords = [
     "research", "intake", "ingestion", "provenance", "transcripts", "arxiv", "accountability",
     "ocr", "transcription", "headless-browser", "synthesis", "web-scraping", "ssrf-safe",
 ]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = []
 
 [project.optional-dependencies]
@@ -29,8 +37,10 @@ all = ["lxml>=5", "playwright>=1.4"]
 gather = "gather.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/HarperZ9/gather"
+Homepage = "https://harperz9.github.io/gather.html"
 Repository = "https://github.com/HarperZ9/gather"
+Issues = "https://github.com/HarperZ9/gather/issues"
+Changelog = "https://github.com/HarperZ9/gather/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
