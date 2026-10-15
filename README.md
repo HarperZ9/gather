@@ -86,8 +86,6 @@ source is [docs/explainer/index.html](docs/explainer/index.html).
 
 **[Claiming got cheap. Checking did not.](https://harperz9.github.io/explainers.html#checking-cost-h)** (2 min 57 s, narrated, captioned). Gather keeps a receipt for every source it pulls, so checking a citation stays cheap. The film page carries the transcript, the sources and recall questions.
 
-Video walkthrough: coming with the next release.
-
 ## Walkthrough
 
 Install it, run it once, then use the main feature. Each command below is real, and so is its output.
