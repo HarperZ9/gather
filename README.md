@@ -13,7 +13,7 @@ pip install gather-engine
 
 [![version: 2.3.0](https://img.shields.io/badge/version-2.3.0-e6e1d6?style=flat-square&labelColor=1a1712)](https://pypi.org/project/gather-engine/)
 [![CI](https://github.com/HarperZ9/gather/actions/workflows/ci.yml/badge.svg)](https://github.com/HarperZ9/gather/actions/workflows/ci.yml)
-[![license](https://img.shields.io/badge/license-Gather_Fair--Source-e6e1d6?style=flat-square&labelColor=1a1712)](LICENSE)
+[![license](https://img.shields.io/badge/license-AGPL--3.0--only-e6e1d6?style=flat-square&labelColor=1a1712)](LICENSE)
 ![python 3.11+](https://img.shields.io/badge/python-3.11%2B-e6e1d6?style=flat-square&labelColor=1a1712)
 
 gather pulls research out of the places most tools break on: arXiv papers, authenticated JSON APIs, JavaScript-rendered pages via a real headless browser, scanned images through OCR, and audio through transcription, alongside video, web, feeds, and local docs. The core runs with zero third-party runtime dependencies, and the same engine is reachable from the CLI, MCP tools, and plain Python. Every run writes a receipt you can re-check.
@@ -266,7 +266,10 @@ The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywh
 
 ## License
 
-Gather is fair-source: open to read, run, and build on, with commercial use reserved so the project can fund its own development. See [LICENSE](LICENSE).
+Gather's code is licensed under the [GNU Affero General Public License, version 3 only](LICENSE) (AGPL-3.0-only).
+Anyone may use, study, change and share it. If you distribute a changed copy, or run one as a service people use over a network, you must offer its source under the same licence.
+
+Releases up to 2.3.0 were published under FSL-1.1-MIT. Those releases keep their terms, and each converts to MIT two years after its release. [NOTICE](NOTICE) records this and the one vendored file.
 
 ## Work with it
 

@@ -1,0 +1,13 @@
+Gather
+Copyright 2026 Zain Dana Harper
+
+Licensed under the GNU Affero General Public License, version 3 only
+(AGPL-3.0-only). See LICENSE.
+
+Releases up to and including 2.3.0 were published under the Functional Source
+License, Version 1.1, MIT Future License (FSL-1.1-MIT). Those releases keep
+their terms, and each converts to the MIT license two years after its release
+date.
+
+src/gather/_vendor/safe_spawn.py is copied verbatim from Articulate, by the
+same author, and is included here under AGPL-3.0-only as part of Gather.

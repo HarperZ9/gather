@@ -5,6 +5,8 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- Licence: future releases are AGPL-3.0-only. Published releases up to 2.3.0 keep their FSL-1.1-MIT terms and still convert to MIT two years after each release.
+
 ## 2.3.0 (2026-10-03)
 
 `gather report` now requires a quote on every citation and asks the model again when one is missing. USAGE.md records the measured citation precision before and after the change; neither local model measured reaches a 0.80 lower bound.
