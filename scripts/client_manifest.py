@@ -31,7 +31,7 @@ def native_manifest(spec, version, exe_name):
     return {
         "manifest_version": "0.3", "name": spec["name"] + "-local", "version": version,
         "display_name": spec["name"].title() + " Local", "description": spec["desc"],
-        "author": {"name": "Zain Dana Harper"}, "license": "FSL-1.1-MIT",
+        "author": {"name": "Zain Dana Harper"}, "license": "AGPL-3.0-only",
         "server": {"type": "binary", "entry_point": "server/" + exe_name, "mcp_config": {
             "command": "${__dirname}/server/" + exe_name, "args": launch_args(), "env": {}}},
         "user_config": {key: dict(value) for key, value in USER_CONFIG.items()},
@@ -43,7 +43,7 @@ def claude_manifest(spec, version):
     """Claude plugin manifest: shared plugin fields plus the directory listing fields."""
     return {
         "name": spec["name"] + "-local", "version": version, "description": spec["desc"],
-        "author": {"name": "Zain Dana Harper"}, "license": "FSL-1.1-MIT",
+        "author": {"name": "Zain Dana Harper"}, "license": "AGPL-3.0-only",
         "repository": REPOSITORY, "displayName": spec["name"].title(),
         "keywords": ["documents", "provenance", "citations", "receipts", "research", "local-first", "read-only"],
         "homepage": SITE + "/gather.html",
