@@ -5,6 +5,10 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 2.3.1 (2026-10-22)
+
+Gather's code is now licensed AGPL-3.0-only, and the README opens with what Gather does, a checked first run, a comparison with adjacent tools, and its limits. No behaviour changes.
+
 - Licence: future releases are AGPL-3.0-only. Published releases up to 2.3.0 keep their FSL-1.1-MIT terms and still convert to MIT two years after each release.
 - README: a new opening with install and first-run output checked against 2.3.0, a comparison with adjacent tools, and limits. Images and links are absolute, so the PyPI page renders them. The package summary matches the new opening.
 

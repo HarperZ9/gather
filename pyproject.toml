@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gather-engine"
-version = "2.3.0"
+version = "2.3.1"
 description = "Collect web pages, papers, APIs, PDFs, scans, audio and video into a local corpus where every item records how it arrived."
 readme = "README.md"
 requires-python = ">=3.11"
