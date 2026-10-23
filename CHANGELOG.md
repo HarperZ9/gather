@@ -6,6 +6,7 @@ built behind a feature branch and reviewed before merge.
 ## Unreleased
 
 - Licence: future releases are AGPL-3.0-only. Published releases up to 2.3.0 keep their FSL-1.1-MIT terms and still convert to MIT two years after each release.
+- README: a new opening with install and first-run output checked against 2.3.0, a comparison with adjacent tools, and limits. Images and links are absolute, so the PyPI page renders them. The package summary matches the new opening.
 
 ## 2.3.0 (2026-10-03)
 
