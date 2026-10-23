@@ -11,11 +11,11 @@ Gather is for researchers, journalists and developers who feed sources to a pers
 
 ## Install and first run
 
-Python 3.11 or newer. Version 2.3.0 is on PyPI as `gather-engine`.
+Python 3.11 or newer. Version 2.3.1 is on PyPI as `gather-engine`.
 
 ```bash
 pip install gather-engine
-gather --version                      # gather 2.3.0
+gather --version                      # gather 2.3.1
 ```
 
 Extract a saved page into hashed blocks, each tied to its place in the page:
@@ -267,7 +267,7 @@ The `web` adapter reads static HTML and does not run JavaScript; a client-render
 - [docs/WEB-ENGINE-UPLIFT.md](https://github.com/HarperZ9/gather/blob/main/docs/WEB-ENGINE-UPLIFT.md): the web-data engine roadmap and benchmarks.
 - [docs/ENTERPRISE-READINESS.md](https://github.com/HarperZ9/gather/blob/main/docs/ENTERPRISE-READINESS.md): context envelopes, action receipts, and host-neutral operation for unattended agents.
 - [docs/PILOT.md](https://github.com/HarperZ9/gather/blob/main/docs/PILOT.md): the accountable pilot evidence engine, its manifest boundary, and the private/shared evidence split.
-- [CHANGELOG.md](https://github.com/HarperZ9/gather/blob/main/CHANGELOG.md): version history. Current release: 2.3.0.
+- [CHANGELOG.md](https://github.com/HarperZ9/gather/blob/main/CHANGELOG.md): version history. Current release: 2.3.1.
 
 Peer projects: [crucible](https://github.com/HarperZ9/crucible) (judgment), [index](https://github.com/HarperZ9/index) (code maps), [forum](https://github.com/HarperZ9/forum) (orchestration), [telos](https://github.com/HarperZ9/telos) (the engine).
 
