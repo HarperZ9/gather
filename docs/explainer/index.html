@@ -175,7 +175,7 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
   </div>
   <ul class="uses">
     <li><b>Markdown with a receipt</b><code>gather extract</code> turns a page into Markdown and binds every block to its node path and content hash.</li>
-    <li><b>No ungrounded fields</b><code>verify_record</code> rejects a proposed value that appears nowhere on the fetched page, matched on word boundaries.</li>
+    <li><b>Grounded fields</b><code>verify_record</code> accepts a proposed value when it appears on the fetched page, matched on word boundaries, and rejects the rest.</li>
     <li><b>A corpus you can re-check</b>Bodies are stored by hash and deduplicated. <code>gather corpus verify</code> reports CORRUPT and MISSING and exits non-zero.</li>
     <li><b>Grants before reach</b>A run that would start a command, use the network or send a credential needs a grant you set at launch.</li>
   </ul>
@@ -195,7 +195,7 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
 
 <section class="block wrap" aria-labelledby="how">
   <h2 id="how">How it works, one step at a time</h2>
-  <p class="measure">Scroll, or use the step buttons. The panel follows a short local page and two notes files through gather's own CLI and Python API, with no network. Every hash, count and verdict is output from gather at commit bba8cce.</p>
+  <p class="measure">Scroll, or use the step buttons. The panel follows a short local page and two notes files through gather's own CLI and Python API, offline. Every hash, count and verdict is output from gather at commit bba8cce.</p>
   <div class="walk">
     <div class="stage-wrap">
       <div class="stage" aria-label="Animated diagram for the current step">
@@ -229,14 +229,14 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
       </div></li>
       <li class="step" tabindex="-1" data-scene="k2" data-state="s"><div class="card">
         <span class="num">03</span><h3>A proposed value must be on the page</h3>
-        <p>Suppose a model extracts a record from the page. <code>verify_record</code> checks every value against the fetched content and marks each field grounded or not.</p>
-        <p>Matching is on word boundaries, so a claimed <code>100</code> does not match inside <code>1000</code>. A year the page never states is rejected too. Pick each record in the panel.</p>
+        <p>Suppose a model extracts a record from the page. <code>verify_record</code> checks every value against the fetched content and marks each field grounded or ungrounded.</p>
+        <p>Matching is on word boundaries, so a claimed <code>100</code> has to stand as its own word; <code>1000</code> is a different word. A year absent from the page is rejected too. Pick each record in the panel.</p>
         <p class="src">Source: <a href="https://github.com/HarperZ9/gather/blob/bba8cce608f7c6155a9fd044f8b46d226d0aa04f/src/gather/schema_extract.py">src/gather/schema_extract.py</a>, <code>verify_record</code></p>
       </div></li>
       <li class="step" tabindex="-1" data-scene="k3" data-state="s"><div class="card">
         <span class="num">04</span><h3>Store by content hash</h3>
         <p>Any fetch command takes <code>--store DIR</code>. Gathering two notes files writes each body under its own SHA-256, in <code>objects/75/24e3e0...</code> and <code>objects/77/a65127...</code>, and records them in a catalog.</p>
-        <p>Run the same command again and nothing new is written: both bodies are already there under the same hashes.</p>
+        <p>Run the same command again and the store keeps the same two objects: both bodies are already there under the same hashes.</p>
         <p class="src">Source: README.md, "A durable local corpus"; <a href="https://github.com/HarperZ9/gather/blob/bba8cce608f7c6155a9fd044f8b46d226d0aa04f/src/gather/store.py">src/gather/store.py</a>, <a href="https://github.com/HarperZ9/gather/blob/bba8cce608f7c6155a9fd044f8b46d226d0aa04f/src/gather/corpus_cmd.py">src/gather/corpus_cmd.py</a></p>
       </div></li>
       <li class="step" tabindex="-1" data-scene="k4" data-state="s"><div class="card">
@@ -252,13 +252,13 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
       </div></li>
       <li class="step" tabindex="-1" data-scene="k6" data-state="s"><div class="card">
         <span class="num">07</span><h3>A tampered receipt breaks the digest</h3>
-        <p>The bundled demo parses one video into three items, metadata, transcript and a comment, each with a receipt that verifies. It seals them into a digest, then edits one receipt. The digest no longer verifies.</p>
+        <p>The bundled demo parses one video into three items, metadata, transcript and a comment, each with a receipt that verifies. It seals them into a digest, then edits one receipt, and the digest check prints <code>verifies: False  &lt;- caught</code>.</p>
         <p class="src">Source: <a href="https://github.com/HarperZ9/gather/blob/bba8cce608f7c6155a9fd044f8b46d226d0aa04f/examples/demo.py">examples/demo.py</a></p>
       </div></li>
       <li class="step" tabindex="-1" data-scene="k7" data-state="s"><div class="card">
         <span class="num">08</span><h3>A pilot run puts it together</h3>
-        <p><code>gather pilot</code> takes a closed list of sources through capture, extraction, grounding and storage, then writes a redacted report and a hash-chained receipt. A source whose extracted values are not on the fetched page is recorded as an error and nothing from it is stored.</p>
-        <p>A third party re-checks the bundle with no network. This step is described from the README and docs/PILOT.md; a pilot fetches live sources, so it was not run for this page.</p>
+        <p><code>gather pilot</code> takes a closed list of sources through capture, extraction, grounding and storage, then writes a redacted report and a hash-chained receipt. A source whose extracted values are absent from the fetched page is recorded as an error, and its items stay out of the corpus.</p>
+        <p>A third party re-checks the bundle offline with <code>gather pilot verify DIR</code>. A pilot fetches live sources, so this step follows the README and docs/PILOT.md.</p>
         <p class="src">Source: README.md, "How a pilot run works"; <a href="https://github.com/HarperZ9/gather/blob/bba8cce608f7c6155a9fd044f8b46d226d0aa04f/docs/PILOT.md">docs/PILOT.md</a></p>
       </div></li>
     </ol>
@@ -269,10 +269,10 @@ ol.walkthrough p{margin:0 0 .3rem;max-width:44rem}
   <h2 id="walkthrough">Walkthrough</h2>
   <p class="measure">Install it, run it once, then use the main feature. Each command below is real, and so is its output.</p>
   <ol class="walkthrough">
-    <li><h3>Install</h3><p>Install from a checkout to run the demo. Python 3.11 or newer; none of this needs the network.</p>
+    <li><h3>Install</h3><p>Install from a checkout to run the demo. Python 3.11 or newer; everything here runs offline.</p>
 <pre class="cmd"><code>$ git clone https://github.com/HarperZ9/gather && cd gather
 $ pip install -e .</code></pre></li>
-    <li><h3>First run: the demo</h3><p>The demo builds a sealed digest of three receipts, then tampers with one and shows the digest no longer verifies.</p>
+    <li><h3>First run: the demo</h3><p>The demo builds a sealed digest of three receipts, then tampers with one and checks the digest again.</p>
 <pre class="cmd"><code>$ python examples/demo.py
 <span class="out">witnessed digest: 3 receipts, seal 7da7dc456b11..., verified True
 
@@ -293,12 +293,12 @@ $ gather corpus verify ./corpus</code></pre></li>
 </section>
 
 <section class="block wrap" aria-labelledby="limits">
-  <h2 id="limits">What it does not do</h2>
+  <h2 id="limits">Scope</h2>
   <ul class="limits">
     <li>A grounded value is one that appears on the fetched page. That shows the page says it. Whether the page is right is a separate check.</li>
     <li>Grounding is a word-boundary text match. A value written differently on the page, such as a number with a thousands separator, may read as ungrounded.</li>
     <li>Browser rendering, OCR, audio transcription and fast parsing are optional. <code>gather caps</code> reports which ones your install has.</li>
-    <li>Corpus context selection is acquisition context. It makes no claim about truth, claim support or completeness.</li>
+    <li>Corpus context selection reports what was acquired and from where. Truth, claim support and completeness are separate checks.</li>
     <li>Video, Reddit and the scholarly APIs run under each service's terms and your own credentials.</li>
   </ul>
   <p class="src">Source: README.md at bba8cce, "Current status" and "Features"; src/gather/schema_extract.py</p>
@@ -307,10 +307,10 @@ $ gather corpus verify ./corpus</code></pre></li>
 <section class="block wrap recall" aria-labelledby="recall">
   <h2 id="recall">Check what stuck</h2>
   <p class="measure">Answer each one in your head before you open it.</p>
-  <details><summary>Why is a proposed copies value of 100 rejected when the page says 1000?</summary><p>Grounding matches whole words, so 100 is not found inside 1000.</p></details>
-  <details><summary>You run the same gather docs command twice with --store. What does the second run write?</summary><p>Nothing new. The bodies are stored under their own hashes, so both are deduplicated.</p></details>
-  <details><summary>What is the difference between CORRUPT and MISSING in corpus verify?</summary><p>CORRUPT means the stored bytes no longer hash to their address. MISSING means the body is gone. Both make the command exit 1.</p></details>
-  <details><summary>A pilot source's extracted fields are not on its fetched page. What is stored?</summary><p>Nothing from that source. It is recorded as an error.</p></details>
+  <details><summary>Why is a proposed copies value of 100 rejected when the page says 1000?</summary><p>Grounding matches whole words, and 1000 is a different word from 100.</p></details>
+  <details><summary>You run the same gather docs command twice with --store. What does the second run write?</summary><p>The same two objects. The bodies are stored under their own hashes, so the second run deduplicates both.</p></details>
+  <details><summary>What is the difference between CORRUPT and MISSING in corpus verify?</summary><p>CORRUPT means the stored bytes hash to a different address. MISSING means the body is gone. Both make the command exit 1.</p></details>
+  <details><summary>A pilot source's extracted fields are absent from its fetched page. What happens to it?</summary><p>It is recorded as an error, and its items stay out of the corpus.</p></details>
 </section>
 </main>
 <footer class="foot wrap">

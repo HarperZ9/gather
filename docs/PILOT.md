@@ -6,9 +6,8 @@ controlled-live capture, every captured item lands in a content-addressed
 corpus with a hash-chained witness, and the result is a redacted report and
 receipt bundle any third party re-verifies without private source material.
 
-Gather is a **retained** capability of Zain Dana Harper. This pilot makes no
-acquisition, customer, market-fit, source-truth, or external-availability
-claim.
+Gather is a **retained** capability of Zain Dana Harper. This page describes
+what the pilot command does and how to verify its output.
 
 ## Customer outcome
 
@@ -33,15 +32,15 @@ The showcase (`examples/pilot/showcase-offline.json`) exercises all three:
 
 - **Workstation**: the operator runs the pilot on their own machine against
   allowlisted local roots and controlled hosts. The showcase runs this way.
-- **Customer-hosted**: the pilot runs inside the customer's network; Gather
-  never sees private payloads, only the redacted receipts the customer chooses
-  to share.
+- **Customer-hosted**: the pilot runs inside the customer's network, and
+  private payloads stay there. Gather receives the redacted receipts the
+  customer chooses to share.
 - **Operator-managed** (manifest value `zentropy_managed`, kept for
   compatibility): Zain Dana Harper operates the pilot on a customer's behalf
   under a custody agreement; the same manifest and verification apply.
 
-In every deployment, a shared bundle carries only receipts, hashes, redacted
-refs, and verdicts. Raw private payloads stay in the local adapters.
+In every deployment, a shared bundle carries receipts, hashes, redacted refs
+and verdicts. Raw private payloads stay in the local adapters.
 
 ## Manifest safety boundary
 
@@ -73,17 +72,17 @@ manifest.json          pilot-receipt.json      report.json
 report.html            monitor-state.json      corpus/   history/
 ```
 
-`gather pilot verify DIR` re-derives every binding from local bytes only: the
+`gather pilot verify DIR` re-derives every binding from the local bytes: the
 manifest digest, the semantic report digest, the deterministic HTML, the
 receipt's byte bindings, every corpus body and run witness, the monitor
-ledger, and the history chain. No network path is opened. A tampered byte
-anywhere in the chain flips the verdict to `false`.
+ledger, and the history chain. It runs offline. A tampered byte anywhere in
+the chain flips the verdict to `false`.
 
 ## Private and shared evidence boundary
 
-- **Private** sources retain their mission/source id, adapter, visibility,
-  status, item count, and receipt digests, but never their target, body, or
-  extraction value.
+- **Private** sources keep their mission/source id, adapter, visibility,
+  status, item count, and receipt digests in the bundle. Their target, body and
+  extraction value stay local.
 - **Shared** bundles omit the corpus, monitor state, history, and normalized
   manifest entirely. A full bundle (which includes private evidence) requires
   explicit `--include-private-evidence` confirmation.
@@ -92,17 +91,14 @@ anywhere in the chain flips the verdict to `false`.
 
 Gather is retained by Zain Dana Harper. The pilot is the first shipped subproject
 of a larger SaaS roadmap (a FastAPI control plane, React application, billing,
-and deployment system). Those later subprojects are **not** shipped here; this
-document links to the roadmap without claiming they are available.
+and deployment system). The pilot command is what ships today; the rest of the
+roadmap is planned work.
 
-## Limitations and Does Not Prove
+## Scope
 
-The report's `limitations` and `does_not_prove` fields carry the honest
-boundaries. Summarized: the pilot does not build a multi-tenant hosted SaaS,
-does not add billing or accounts, does not crawl unrestricted domains, does not
-claim captured statements are true, and does not make browser navigation safe.
-It does not prove product-market fit, customer willingness to pay,
-comprehensive source coverage, legal sufficiency for regulated retention, the
-truth of source claims, the correctness of OCR/transcription/external
-metadata, the safety of unrestricted browser automation, or that any specific
-organization will partner, invest, advise, or purchase.
+The pilot is a single-operator command. It captures from the domains in its
+manifest and records what each source said, with a hash for every byte. A
+receipt shows what was captured and when. The truth of a captured statement,
+and the accuracy of OCR, transcription and outside metadata, are for the reader
+to check. Each report lists its own scope in its `limitations` and
+`does_not_prove` fields.
