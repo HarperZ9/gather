@@ -18,11 +18,10 @@ That gives you the `gather` command and the `gather` Python package. Python 3.11
 ## Why it exists
 
 Intake is where research quietly goes wrong: a quote gets mixed up with a
-summary, a scraped page changes under you, a model fills a field the page never
-said. gather's answer is a receipt on every operation, the source, the method,
-and a content hash, sealed so it can be re-checked later. You do not have to
-care about that to use the tool; it is simply always there when you need to
-prove where something came from.
+summary, a scraped page changes under you, a model fills a field with a value
+the page lacks. gather writes a receipt on every operation, with the source, the
+method and a content hash, sealed so it can be re-checked later. When you need
+to show where something came from, the receipt is already there.
 
 ## Core concepts
 
@@ -30,19 +29,19 @@ prove where something came from.
   record: source, ref, method, fetch time, and a sha256 of the content.
 - **Method.** How the content was obtained: `http-get` for a static page,
   `browser-extract` when JavaScript ran, `ocr` for a scan, `transcribe` for
-  audio, `compiled` or `synthesized` for derived text. A quote and an inference
-  are never confused.
+  audio, `compiled` or `synthesized` for derived text. The method tells a quote
+  from an inference.
 - **Source adapter.** Each source is a small adapter behind one shape:
   `fetch(target) -> list[Item]`. Network access, external tools, and
-  credentials live inside adapters and nowhere else.
+  credentials live inside adapters.
 - **Digest.** A run folds its items' receipts into one sealed digest.
-  Re-derive the seal and you can confirm nothing was altered.
+  Re-derive the seal to confirm every item is as it was sealed.
 - **Corpus.** A durable, content-addressed store (`--store DIR`). Bodies are
   deduped by hash; `gather corpus verify` re-hashes everything against its
   receipts.
 - **Capabilities.** Optional backends (`fast`, `browser`) register when
   installed. `gather caps` reports what your install can do; a missing
-  capability is reported honestly, never faked.
+  capability is listed as missing.
 
 ## Your first ten minutes
 
@@ -66,7 +65,7 @@ gather extract https://example.com      # Markdown receipt: per-block source pat
 `extract` returns a JSON record where every Markdown block is bound to the DOM
 node it came from (`html[1]/body[1]/p[1]`) and a sha256 of that block's content.
 
-**3. Run the offline demo.** No network, no external tools:
+**3. Run the offline demo.** It runs on local files with the core install:
 
 ```bash
 python examples/demo.py
@@ -124,8 +123,8 @@ Version 1.6.0 added a full web toolkit on top of the adapters:
 - `gather.track` (Python): fingerprint an element once, relocate it in a
   redesigned page, and get a typed MATCH, RELOCATED, DRIFT, or GONE verdict.
 - `gather.schema_extract` (Python): bind schema fields to source nodes;
-  `verify_record` rejects any LLM-proposed value not grounded in the fetched
-  content.
+  `verify_record` accepts an LLM-proposed value when it appears in the fetched
+  content and rejects the rest.
 - `gather.stream` (Python): streaming extraction that emits hash-chained
   partial-update commits as blocks complete in an HTML stream.
 - `gather.search` (Python): a pluggable search-provider seam that turns a query
@@ -136,8 +135,8 @@ The roadmap and benchmark notes are in [WEB-ENGINE-UPLIFT.md](WEB-ENGINE-UPLIFT.
 ## Scholarly sources
 
 `gather scholar` federates OpenAlex, Semantic Scholar, and Crossref in one
-query. Records are deduped by normalized DOI (a DOI is the only join key, never
-a fuzzy title match), every provider's contribution is kept, and `--edges`
+query. Records are deduped by normalized DOI (the DOI is the join key; titles are left
+out of matching), every provider's contribution is kept, and `--edges`
 captures citation links as first-class records sealed alongside the papers:
 
 ```bash
@@ -147,7 +146,7 @@ gather arxiv 2301.12345 --json
 
 ## MCP and automation
 
-`gather mcp` serves the engine over MCP stdio with the same core operator tools as the CLI: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.context`, and `gather.pilot`. `gather.run` accepts an inline config object or a config path, and `gather.context` can inspect stored corpus rows or export digest-guarded selected context, so an agent host does not need to stage extra files for those flows. `gather status --json` and
+`gather mcp` serves the engine over MCP stdio with the same core operator tools as the CLI: `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.context`, and `gather.pilot`. `gather.run` accepts an inline config object or a config path, and `gather.context` can inspect stored corpus rows or export digest-guarded selected context, so an agent host can run those flows without staging extra files. `gather status --json` and
 `gather doctor --json` emit machine-readable envelopes for health checks.
 [ENTERPRISE-READINESS.md](ENTERPRISE-READINESS.md) covers unattended operation.
 
