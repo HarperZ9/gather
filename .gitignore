@@ -1,5 +1,6 @@
 .env
 .env.*
+!.env.example
 CLAUDE.local.md
 .superpowers/
 .worktrees/
