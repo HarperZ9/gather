@@ -105,7 +105,8 @@ class VideoSource:
                  runner: Runner | None = None, sleep: Callable[[float], None] = time.sleep,
                  rand: Callable[[], float] = random.random, pacer: Pacer | None = None,
                  log: Callable[[str], None] | None = None,
-                 which: Callable[[str], str | None] = find_tool) -> None:
+                 which: Callable[[str], str | None] = find_tool,
+                 extractor_args: Sequence[str] = ()) -> None:
         if captions not in CAPTION_MODES:
             raise ValueError(f"captions must be one of {CAPTION_MODES}, got {captions!r}")
         self._clock = clock
@@ -121,6 +122,8 @@ class VideoSource:
         self._rand = rand
         self._pacer = pacer
         self._log = log or (lambda msg: print(msg, file=sys.stderr))
+        # yt-dlp --extractor-args values for the metadata call (a comment cap and sort, say)
+        self._extractor_args = tuple(extractor_args)
 
     @property
     def base_argv(self) -> list[str]:
@@ -216,6 +219,8 @@ class VideoSource:
         argv = self._base + ["--dump-single-json", "--skip-download", "--ignore-no-formats-error"]
         if self._with_comments and self._captions != "only":
             argv.append("--write-comments")
+        for value in self._extractor_args:
+            argv += ["--extractor-args", value]
         argv += ["--", target]  # end-of-options: a target starting with - cannot be read as a flag
         res = self._call(argv, "metadata", out, check=check_playability)
         if not res.ok:

@@ -93,7 +93,8 @@ def backoff_from_args(args, default: BackoffPolicy) -> BackoffPolicy:
 
 
 def video_source_from_args(args, *, with_comments: bool, default_backoff: BackoffPolicy | None = None,
-                           pacer: Pacer | None = None, runner: Runner | None = None) -> VideoSource:
+                           pacer: Pacer | None = None, runner: Runner | None = None,
+                           extractor_args: tuple[str, ...] = ()) -> VideoSource:
     from gather.video_source import DEFAULT_BACKOFF
     return VideoSource(
         yt_dlp=args.yt_dlp, with_comments=with_comments, timeout=args.timeout,
@@ -101,6 +102,7 @@ def video_source_from_args(args, *, with_comments: bool, default_backoff: Backof
         js_runtime=args.js_runtime, sleep_requests=args.sleep_requests,
         sleep_subtitles=args.sleep_subtitles,
         backoff=backoff_from_args(args, default_backoff or DEFAULT_BACKOFF), pacer=pacer, runner=runner,
+        extractor_args=extractor_args,
     )
 
 

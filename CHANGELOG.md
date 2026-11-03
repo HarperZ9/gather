@@ -5,6 +5,10 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- Add `gather video-bundle URL --out DIR`: one video as a bundle folder with its metadata and chapters (`gather.video/1`), the chosen caption track, a timestamped and a plain transcript, the comment tree with replies and like counts (`gather.video-thread/1`), a readable comment file without names, the balanced comment synthesis, `SOURCE.txt` and `SHA256SUMS`. `--max-comments N` (600 by default, sorted by top) and, with `--media`, the media file, a local research copy that is never uploaded. No format list or stream address is kept, because a stream address carries the viewer's IP address. The layout matches CMMNS's `cmmns media fetch --full`.
+- Add `gather comment-balance PATH` and `gather.comment_balance`: every comment in one category with its reason, groups of likely coordinated spam with their shared signals, substantive claims ranked with critique and support counts and comment ids, and the balance with counts. Excerpts are under 15 words and no commenter is named. Deterministic rules, so the item is `compiled`.
+- `VideoSource` takes `extractor_args`, passed to the metadata call as `--extractor-args`.
+
 ## 2.4.0 (2026-10-22)
 
 Gather's code is now licensed AGPL-3.0-only, and the README opens with what Gather does, a checked first run, a comparison with adjacent tools, and its limits. No behaviour changes.
