@@ -5,6 +5,10 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+## 2.5.0 (2026-11-03)
+
+A video can now be saved as one checkable bundle, media included when asked for, with a balanced reading of its comments.
+
 - Add `gather video-bundle URL --out DIR`: one video as a bundle folder with its metadata and chapters (`gather.video/1`), the chosen caption track, a timestamped and a plain transcript, the comment tree with replies and like counts (`gather.video-thread/1`), a readable comment file without names, the balanced comment synthesis, `SOURCE.txt` and `SHA256SUMS`. `--max-comments N` (600 by default, sorted by top) and, with `--media`, the media file, a local research copy that is never uploaded. No format list or stream address is kept, because a stream address carries the viewer's IP address. The layout matches CMMNS's `cmmns media fetch --full`.
 - Add `gather comment-balance PATH` and `gather.comment_balance`: every comment in one category with its reason, groups of likely coordinated spam with their shared signals, substantive claims ranked with critique and support counts and comment ids, and the balance with counts. Excerpts are under 15 words and no commenter is named. Deterministic rules, so the item is `compiled`.
 - `VideoSource` takes `extractor_args`, passed to the metadata call as `--extractor-args`.
