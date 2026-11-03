@@ -185,6 +185,67 @@ Exit codes for `gather channel`: `0` when every pending entry was attempted; `1`
 the pass ledger cannot be read, listing failed, or the pass stopped on throttling or a bot
 check; `2` on bad options, including a `--timeout` of 0 or less and a negative sleep.
 
+### One video as a bundle, with a balanced reading of its comments
+
+`gather video-bundle` saves one video as a folder you can hand to someone or check later:
+
+```bash
+gather video-bundle "https://www.youtube.com/watch?v=VIDEO" --out saves/VIDEO
+gather video-bundle "https://www.youtube.com/watch?v=VIDEO" --out saves/VIDEO --media
+```
+
+| File | What it holds |
+| --- | --- |
+| `<id>.video.json` | `gather.video/1`: title, channel, date, duration, counts, description, tags, chapters, where the captions came from, and the media file's name |
+| `<id>.<lang>.vtt` | the caption track Gather chose (manual before machine, original language before a translation) |
+| `<id>.transcript.txt` | one line per caption segment, `[HH:MM:SS] words`; machine captions keep each spoken line once |
+| `<id>.transcript.plain.txt` | the words alone, as paragraphs |
+| `<id>.thread.json` | `gather.video-thread/1`: the comments as a tree, each reply under its parent, with like counts; a reply whose parent was not read is marked `parent_missing` |
+| `<id>.comments.txt` | the same tree to read, `[likes] text`, without names |
+| `<id>.balance.json`, `<id>.balance.md` | the balanced synthesis below (skip it with `--no-balance`) |
+| `<id>.mp4` | the media file, only with `--media` |
+| `SOURCE.txt`, `SHA256SUMS` | where it came from and how, and a `sha256sum` line for every other file |
+
+It reads up to `--max-comments` comments (600 by default), sorted by top, with their
+replies. yt-dlp's format lists and stream addresses are left out of every file: a stream
+address carries the viewer's IP address. The media file is a local research copy: Gather
+never uploads, shares or publishes it. With `--media` it is downloaded from the saved
+info in one more yt-dlp call, merged to MP4 when ffmpeg is on PATH and taken as the best
+single file when it is not. The layout matches the bundle CMMNS writes with
+`cmmns media fetch --full`. Exit status: 0 when the bundle was written; 1 when the fetch
+failed, YouTube asked for a bot check, or `--media` was asked for and no file came; 2 on
+bad options.
+
+`gather comment-balance PATH` reads a bundle's thread file, a CMMNS `.thread.json`, or a
+yt-dlp info.json with comments, offline, and prints the synthesis as Markdown (`--json`
+for the record):
+
+- **Every comment in one category, with its reason**: substantive (an argument, a
+  question or a pointer), short reaction, about the person and not the argument
+  (including attacks on a person's associations), dismissal with no reason given,
+  promotion, likely coordinated spam, and the channel's own comments.
+- **Likely coordinated spam**: two or more promotional comments (testimony that names a
+  product with its author, praise for it, a call to act) that share two signals or a third
+  of their wording, and three or more comments with near-identical text. Each group lists
+  its shared signals and comment ids.
+- **Claims**: substantive comments grouped by shared vocabulary, ranked by comments and
+  likes, each with its critique, support, mixed and neutral counts, its comment ids, and
+  one excerpt under 15 words from its most-liked comment that attacks no one.
+- **Balance**: critique against support among substantive comments, questions and
+  pointers, and the share of likes that went to promotion.
+
+A reply keeps its parent and thread ids. A reply that opens by agreeing ("Exactly, ...")
+counts toward its parent's side. An argument marker outweighs an insult, so a harsh
+critique that gives a reason stays substantive. The synthesis never reads author fields
+and removes @mentions from excerpts, so it names no commenter. The rules are word
+patterns and use no model, so the result is a `compiled` item, never `synthesized`.
+Sarcasm and irony can be misread.
+
+On the 239 comments of one MLST interview (yW_ngvMFlYs, read 2026-11-03), it flagged the
+three book promotions a reader had found by hand as one coordinated group, set aside 8
+comments about the person and 4 bare dismissals, and counted 31 critique and 16 support
+among 154 substantive comments.
+
 ## Reddit
 
 `gather reddit` reads Reddit through its official Data API with your own app. Create a

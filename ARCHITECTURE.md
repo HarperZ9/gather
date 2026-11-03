@@ -32,6 +32,14 @@ way Gather starts a child program, with `--ignore-config` on every call. `gather
 a channel's tabs and drives one pass over every entry, and `gather.channel_ledger` keeps the
 per-pass resume ledger and the run summary.
 
+A video can also be saved as a bundle folder. `gather.video_bundle` holds the pure parts (timed
+caption segments, the comment tree, the readable comment file, the metadata record, SOURCE.txt and
+SHA256SUMS), `gather.video_bundle_run` writes a bundle from yt-dlp's info and drives the live calls
+through the same `VideoSource`, and `gather.video_bundle_cmd` is the CLI. The balanced comment
+synthesis is `gather.comment_signals` (one category, stance and evidence per comment, lexical and
+stance-neutral) and `gather.comment_balance` (coordinated-spam groups, claim clusters by tf-idf,
+the balance counts); `gather.comment_report` renders it and wraps it as a `compiled` item.
+
 ## The receipt: `Item` and `Provenance`
 
 Every `Item` carries a `Provenance` receipt (`gather.item`):
