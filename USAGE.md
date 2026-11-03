@@ -210,8 +210,10 @@ It reads up to `--max-comments` comments (600 by default), sorted by top, with t
 replies. yt-dlp's format lists and stream addresses are left out of every file: a stream
 address carries the viewer's IP address. The media file is a local research copy: Gather
 never uploads, shares or publishes it. With `--media` it is downloaded from the saved
-info in one more yt-dlp call, merged to MP4 when ffmpeg is on PATH and taken as the best
-single file when it is not. The layout matches the bundle CMMNS writes with
+info in one more yt-dlp call and merged to MP4 when ffmpeg is on PATH. Without ffmpeg,
+a file that holds both video and audio is taken when the site offers one; YouTube now
+offers none, so the best video and the best audio are kept as two files
+(`<id>.<format>.<ext>`), both hashed. The layout matches the bundle CMMNS writes with
 `cmmns media fetch --full`. Exit status: 0 when the bundle was written; 1 when the fetch
 failed, YouTube asked for a bot check, or `--media` was asked for and no file came; 2 on
 bad options.

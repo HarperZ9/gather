@@ -73,7 +73,7 @@ def test_the_bundle_holds_every_part_and_its_hashes_check(tmp_path):
     os.makedirs(out)
     open(os.path.join(out, "vid00000001.mp4"), "wb").write(b"not really a video")
     res = write_bundle(out, INFO, vtt=AUTO_VTT, caption={"lang": "en-orig", "kind": "auto", "from": "yt-dlp WebVTT"},
-                       media="vid00000001.mp4", fetched_at=1793750400.0)
+                       media=["vid00000001.mp4"], fetched_at=1793750400.0)
     names = set(os.listdir(out))
     for f in ("vid00000001.en-orig.vtt", "vid00000001.transcript.txt", "vid00000001.transcript.plain.txt", "vid00000001.thread.json",
               "vid00000001.comments.txt", "vid00000001.video.json", "vid00000001.balance.json", "vid00000001.balance.md",
@@ -108,8 +108,12 @@ class MediaFake(FakeYtDlp):
     def __call__(self, argv, timeout):
         if "--load-info-json" in argv and "-f" in argv:
             self.calls.append(list(argv))
-            out = argv[argv.index("-o") + 1].replace("%(id)s.%(ext)s", "vid00000001.mp4")
-            open(out, "wb").write(b"video bytes")
+            out = argv[argv.index("-o") + 1]
+            if "%(format_id)s" in out:  # no ffmpeg: video and audio as two files
+                for part in ("vid00000001.399.mp4", "vid00000001.251.webm"):
+                    open(out.replace("%(id)s.%(format_id)s.%(ext)s", part), "wb").write(b"bytes")
+            else:
+                open(out.replace("%(id)s.%(ext)s", "vid00000001.mp4"), "wb").write(b"video bytes")
             return CallResult(0, "", "")
         return super().__call__(argv, timeout)
 
@@ -130,7 +134,9 @@ def test_the_live_bundle_reads_comments_with_a_cap_and_skips_media_unless_asked(
     assert "vid00000001.transcript.txt" in res.files
 
 
-def test_the_media_file_is_saved_when_asked_and_listed_in_the_hashes(tmp_path):
+def test_the_media_file_is_saved_when_asked_and_listed_in_the_hashes(tmp_path, monkeypatch):
+    import gather.video_bundle_run as run
+    monkeypatch.setattr(run, "find_tool", lambda name: "/usr/bin/ffmpeg")
     fake = MediaFake({"vid00000001": video_info("vid00000001", comments=1)})
     res = fetch_bundle("https://www.youtube.com/watch?v=vid00000001", str(tmp_path / "b"), source(fake), media=True)
     assert res.media == "vid00000001.mp4"
@@ -144,3 +150,17 @@ def test_a_bot_check_stops_the_bundle_before_anything_is_written(tmp_path):
     assert not res.ok and "bot check" in res.error
     assert not (tmp_path / "b").exists()
     assert len(fake.calls) == 1
+
+
+def test_without_ffmpeg_video_and_audio_are_kept_as_two_files_and_both_hashed(tmp_path, monkeypatch):
+    import gather.video_bundle_run as run
+    monkeypatch.setattr(run, "find_tool", lambda name: None)
+    fake = MediaFake({"vid00000001": video_info("vid00000001", comments=1)})
+    res = fetch_bundle("https://www.youtube.com/watch?v=vid00000001", str(tmp_path / "b"), source(fake), media=True)
+    media_call = next(c for c in fake.calls if "-f" in c)
+    assert media_call[media_call.index("-f") + 1] == "b/bv*,ba" and "--merge-output-format" not in media_call
+    assert res.media == "vid00000001.251.webm, vid00000001.399.mp4"
+    sums = open(tmp_path / "b" / "SHA256SUMS", encoding="utf-8").read()
+    assert "*vid00000001.399.mp4" in sums and "*vid00000001.251.webm" in sums
+    rec = json.load(open(tmp_path / "b" / "vid00000001.video.json", encoding="utf-8"))
+    assert rec["media"]["files"] == ["vid00000001.251.webm", "vid00000001.399.mp4"]

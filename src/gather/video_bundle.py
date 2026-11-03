@@ -137,14 +137,14 @@ def comments_text(tree: list[dict]) -> str:
     return "\n".join(out) + ("\n" if out else "")
 
 
-def video_record(info: dict, *, caption: dict | None, segments: int, media: str | None, fetched_at: float) -> dict:
+def video_record(info: dict, *, caption: dict | None, segments: int, media: list[str] | None, fetched_at: float) -> dict:
     keys = ("id", "title", "channel", "channel_url", "uploader", "uploader_id", "upload_date", "duration", "view_count",
             "like_count", "comment_count", "description", "tags", "categories", "webpage_url", "live_status")
     rec = {"format": FORMAT, **{k: info.get(k) for k in keys}}
     rec["chapters"] = [{"start": c.get("start_time", 0), "at": clock(c.get("start_time", 0)), "title": c.get("title", "")}
                        for c in info.get("chapters") or []]
     rec["captions"] = {**caption, "segments": segments} if caption else None
-    rec["media"] = {"file": media, "note": MEDIA_NOTE} if media else None
+    rec["media"] = {"file": media[0], "files": list(media), "note": MEDIA_NOTE} if media else None
     rec["fetched_at"] = fetched_at
     return rec
 
