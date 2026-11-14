@@ -153,3 +153,47 @@ class Pacer:
         with self._lock:
             until = self._clock() + max(0.0, seconds)
             self._next = until if self._next is None else max(self._next, until)
+
+
+class HostLimiter:
+    """A polite rate limit by host: request starts to one host are at least ``spacing`` seconds
+    apart, and a request to a host not asked before starts at once. It waits only for the time
+    still owed since the last start to that host, so slow responses cost no extra sleep.
+    ``hold`` pushes one host's next start out after it answered with a throttle. Thread-safe:
+    each ``wait`` reserves its slot under a lock, then sleeps outside it."""
+
+    def __init__(self, spacing: float = 1.0, *, clock: Callable[[], float] = time.monotonic,
+                 sleep: Callable[[float], None] = time.sleep) -> None:
+        if spacing < 0:
+            raise ValueError("host spacing must be >= 0")
+        self.spacing = spacing
+        self._clock = clock
+        self._sleep = sleep
+        self._next: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def host_of(url: str) -> str:
+        """The lower-case host of ``url``; a bare host name is returned as given."""
+        from urllib.parse import urlsplit
+
+        return (urlsplit(url).hostname or url).lower() if "//" in url else url.lower()
+
+    def wait(self, url: str) -> float:
+        """Block until this request to ``url``'s host may start; returns the seconds waited."""
+        host = self.host_of(url)
+        with self._lock:
+            now = self._clock()
+            start = max(now, self._next.get(host, now))
+            self._next[host] = start + self.spacing
+        delay = start - now
+        if delay > 0:
+            self._sleep(delay)
+        return delay
+
+    def hold(self, url: str, seconds: float) -> None:
+        """Delay the next start to ``url``'s host until at least ``seconds`` from now."""
+        host = self.host_of(url)
+        with self._lock:
+            until = self._clock() + max(0.0, seconds)
+            self._next[host] = max(self._next.get(host, until), until)

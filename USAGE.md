@@ -192,6 +192,7 @@ check; `2` on bad options, including a `--timeout` of 0 or less and a negative s
 ```bash
 gather video-bundle "https://www.youtube.com/watch?v=VIDEO" --out saves/VIDEO
 gather video-bundle "https://www.youtube.com/watch?v=VIDEO" --out saves/VIDEO --media
+gather video-bundle "https://www.youtube.com/watch?v=VIDEO" --out saves/VIDEO --fast --max-comments 300
 ```
 
 | File | What it holds |
@@ -203,6 +204,7 @@ gather video-bundle "https://www.youtube.com/watch?v=VIDEO" --out saves/VIDEO --
 | `<id>.thread.json` | `gather.video-thread/1`: the comments as a tree, each reply under its parent, with like counts; a reply whose parent was not read is marked `parent_missing` |
 | `<id>.comments.txt` | the same tree to read, `[likes] text`, without names |
 | `<id>.balance.json`, `<id>.balance.md` | the balanced synthesis below (skip it with `--no-balance`) |
+| `<id>.frames-NN.jpg`, `<id>.frames.tsv` | contact sheets of frames across the whole video, and a table of each frame's time, sheet and place (skip them with `--no-frames`) |
 | `<id>.mp4` | the media file, only with `--media` |
 | `SOURCE.txt`, `SHA256SUMS` | where it came from and how, and a `sha256sum` line for every other file |
 
@@ -217,6 +219,46 @@ offers none, so the best video and the best audio are kept as two files
 `cmmns media fetch --full`. Exit status: 0 when the bundle was written; 1 when the fetch
 failed, YouTube asked for a bot check, or `--media` was asked for and no file came; 2 on
 bad options.
+
+**Frames across the video.** The bundle holds contact sheets of frames from the whole video,
+and no video file is downloaded for them. A video site publishes a preview storyboard for
+the scrub bar: sprite images that each hold a grid of thumbnails taken at a fixed interval.
+yt-dlp lists them in the info Gather already has, so the frames cost a few small image
+requests. Gather takes the level with the largest thumbnails, chooses 24 to 96 frames evenly
+across the duration, and writes them 6 to a row and 24 to a sheet with the time printed on
+each (`<id>.frames-01.jpg` and so on, about 2000 pixels wide). `<id>.frames.tsv` lists every
+frame: its time in seconds and as `HH:MM:SS`, its sheet, row and column, its pixel box on the
+sheet, and its number in the storyboard. A long video takes fewer frames, so no video costs
+more than 24 sprite images, read 1 second apart.
+
+Storyboard thumbnails are small: 320 by 180 pixels at best on YouTube. They show what is on
+screen and when; they are too small to read fine print. `<id>.video.json` records their real
+size under `frames` (`frame_px`), with the count, the interval between storyboard frames and
+the sheet names. A video with no storyboard records `"frames": "none offered"`. Cutting the
+sheets needs Pillow, an optional extra: `pip install "gather-engine[frames]"`. Without it the
+record says the sheets were not cut. `--no-frames` skips the stage. A sprite image that is
+refused (any answer but 200) ends the stage there with no retry; the sheets hold the frames
+that arrived and the record says `partial`.
+
+**`--fast`.** By default yt-dlp reads every reply under each comment, one more request per
+thread, and a fixed `--sleep-requests` waits before every request. On a 234-second video
+with 3-second sleeps that came to 162 seconds, about 90% of it sleep, and the 300 comments
+were 3 top-level comments and 297 replies. `--fast` changes three things:
+
+- yt-dlp's requests stay at least 1 second apart (`--sleep-requests 1`; a larger value you
+  pass is kept, and the sprite images use the same spacing by host);
+- replies get a tenth of `--max-comments`, at most 5 to a thread, so most of the budget goes
+  to top-level comments, sorted by top (`--max-replies N` sets the reply budget yourself);
+- the caption track and the storyboard are read while the same yt-dlp call is still reading
+  comments. yt-dlp writes its info to a file as soon as the page is read, so there is still
+  one extraction per video.
+
+The same video took 37 seconds with `--fast`, frame sheets included, and 270 of its 300
+comments were top-level. `--json` prints `timings`: seconds to the metadata, for the whole
+extraction call, for captions, for the sprite images, and for writing. A rate limit is
+retried with the same bounded backoff as before, and a bot check stops the bundle. The one
+caption request comes from a second yt-dlp process, so it is not spaced against the comment
+requests of the first.
 
 `gather comment-balance PATH` reads a bundle's thread file, a CMMNS `.thread.json`, or a
 yt-dlp info.json with comments, offline, and prints the synthesis as Markdown (`--json`

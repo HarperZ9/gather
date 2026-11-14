@@ -35,7 +35,11 @@ per-pass resume ledger and the run summary.
 A video can also be saved as a bundle folder. `gather.video_bundle` holds the pure parts (timed
 caption segments, the comment tree, the readable comment file, the metadata record, SOURCE.txt and
 SHA256SUMS), `gather.video_bundle_run` writes a bundle from yt-dlp's info and drives the live calls
-through the same `VideoSource`, and `gather.video_bundle_cmd` is the CLI. The balanced comment
+through the same `VideoSource`, and `gather.video_bundle_cmd` is the CLI. Frames come from the site's
+preview storyboard with no video download: `gather.storyboard` reads the levels from yt-dlp's info and
+plans an even spread of frames, `gather.video_frames` fetches the sprite images through `gather.fetch`
+under `gather.pacing.HostLimiter`, and `gather.frame_sheets` cuts the contact sheets (Pillow, the
+optional `frames` extra). The balanced comment
 synthesis is `gather.comment_signals` (one category, stance and evidence per comment, lexical and
 stance-neutral) and `gather.comment_balance` (coordinated-spam groups, claim clusters by tf-idf,
 the balance counts); `gather.comment_report` renders it and wraps it as a `compiled` item.

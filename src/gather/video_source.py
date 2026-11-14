@@ -212,11 +212,15 @@ class VideoSource:
                       f"stopped there and will not ask again")
         return result.value
 
-    def _extract(self, target: str, out: VideoOutcome) -> dict | None:
+    def _extract(self, target: str, out: VideoOutcome, early_path: str | None = None) -> dict | None:
         # --ignore-no-formats-error keeps the metadata and caption tracks of a video whose formats
         # are missing; check_playability fails the call again when the reason was a bot check, a
         # session rate limit, or a private, removed, blocked or upcoming video
         argv = self._base + ["--dump-single-json", "--skip-download", "--ignore-no-formats-error"]
+        if early_path:
+            # yt-dlp writes the info here as soon as the page is read, before it reads comments,
+            # so a caller can start on captions and frames while this same call goes on
+            argv += ["--print-to-file", "pre_process:%()j", early_path]
         if self._with_comments and self._captions != "only":
             argv.append("--write-comments")
         for value in self._extractor_args:
