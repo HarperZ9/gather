@@ -5,6 +5,11 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- Add `gather saves FOLDER --out DIR`: a folder of posts and pages saved by the CMMNS browser extension (`daylight.sidecar/1` Markdown sidecars, their JSON sidecars and media files) becomes `items`, `entities` and `media` tables as CSV and JSON Lines, with a `manifest.json` (`gather.saves-tables/1`) that holds row counts, table hashes and per-file problems. Fixed rules only: no model call, no network call, no subprocess. The same folder gives byte-identical output on every run. The language column is a rule over Unicode scripts and stop words, entities are regular expressions, and a media field that cannot be read is empty.
+- Add `gather saves --probe FILE` and `gather.media_probe`: container from magic bytes, size, picture size, duration, sample rate and channels for PNG, JPEG, GIF, WebP, MP4, MOV, M4A, WebM, Matroska, WAV, FLAC, Ogg and MP3, read with the standard library by seeking. `--no-media-hash` skips the media SHA-256.
+- Add `gather decompose FILE --out DIR` and `gather rebuild DIR --out FILE`: one local file becomes a tree (`gather.decompose-tree/1`) with one record per part (kind, offset, length, SHA-256, parameters, handler), and the tree rebuilds the file byte for byte with every node checked. The handler is chosen from the file's bytes. Structural handlers: ZIP (entries decoded into nested trees within recorded depth and size limits; entry names never become paths), PNG, WAV, JSON, text and the CMMNS Markdown sidecar with its JSON companion. Bytes no handler understands stay as raw ranges, so every file rebuilds exactly.
+- `gather decompose` also writes a content level, kept apart from the structure: `components.csv` and `components.jsonl` plus tables. For PCM WAV: sample peak, RMS, crest factor, DC offset, integrated loudness (ITU-R BS.1770, gated), and tempo, key, spectrum and decay estimates. For PNG: a palette table. For text, Markdown and HTML: headings and references. Compressed media and tool-dependent components get a row that says why they did not run.
+
 ## 2.5.0 (2026-11-03)
 
 A video can now be saved as one checkable bundle, media included when asked for, with a balanced reading of its comments.

@@ -185,6 +185,24 @@ gather docs ./research-notes --scope "rubik,group theory"
 gather corpus verify ./corpus                  # re-hash every stored body; non-zero exit on corruption
 ```
 
+Turn a folder of posts saved by the CMMNS browser extension into tables, offline and by fixed rules:
+
+```bash
+gather saves ./saves --out ./saves-tables      # items, entities and media as CSV and JSON Lines
+gather saves --probe ./clip.mp4                # container, size, duration and audio fields of one file
+```
+
+The same folder gives byte-identical tables on every run. The language column is a rule and the entities are regular expressions; [USAGE.md](https://github.com/HarperZ9/gather/blob/main/USAGE.md#saved-posts-as-tables) lists the columns and the limits.
+
+Take any local file apart into a tree of its parts, then rebuild it byte for byte:
+
+```bash
+gather decompose ./clip.wav --out ./clip-tree     # tree.json, parts/, and measurement tables
+gather rebuild ./clip-tree --out ./clip-again.wav # same SHA-256, every node checked
+```
+
+ZIP, PNG, WAV, JSON, text and CMMNS saves get structural handlers; every other file is kept as one byte range and still rebuilds exactly. PCM WAV files also get loudness (BS.1770), tempo, key, spectrum and decay estimates. [USAGE.md](https://github.com/HarperZ9/gather/blob/main/USAGE.md#take-a-file-apart-and-put-it-back) lists the record, the handlers and the limits.
+
 Offline demo, no install of extra tools, nothing downloaded:
 
 ```bash

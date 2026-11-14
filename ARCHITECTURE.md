@@ -40,6 +40,20 @@ synthesis is `gather.comment_signals` (one category, stance and evidence per com
 stance-neutral) and `gather.comment_balance` (coordinated-spam groups, claim clusters by tf-idf,
 the balance counts); `gather.comment_report` renders it and wraps it as a `compiled` item.
 
+A folder of CMMNS saves becomes tables through `gather.saves_tables` (the sorted walk and the
+row rules), `gather.saves_sidecar` (the `daylight.sidecar/1` reader), `gather.saves_entities` and
+`gather.saves_lang` (regular expressions and the language rule), `gather.media_probe` with its
+per-container readers, and `gather.saves_write` (CSV, JSON Lines and the manifest as bytes).
+`gather.saves_cmd` is the CLI. None of these modules opens a socket or starts a child program.
+
+`gather decompose` is `gather.decompose_run` (the front door: handlers picked from the bytes, the
+tree written), `gather.decompose_tree` (the node record, byte sources, the cover rule that keeps
+every byte), `gather.decompose_binary`, `gather.decompose_zip` and `gather.decompose_text` (the
+structural handlers) and `gather.decompose_rebuild` (the rebuild and the per-node check). The
+content level is `gather.decompose_content` with `gather.decompose_pcm` (PCM reading, level and
+BS.1770 loudness), `gather.decompose_dsp` (tempo, key, spectrum, decay), `gather.decompose_image`
+(PNG palette) and `gather.decompose_document`. `gather.decompose_cmd` is the CLI.
+
 ## The receipt: `Item` and `Provenance`
 
 Every `Item` carries a `Provenance` receipt (`gather.item`):
