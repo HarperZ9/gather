@@ -100,5 +100,7 @@ def frames_line(rec: dict | str | None) -> str:
     if not isinstance(rec, dict):
         return f"frames: {rec or 'not requested'}"
     w, h = rec["frame_px"]
-    return (f"{rec['count']} frames on {len(rec['sheets'])} contact sheets from the {SOURCE} "
-            f"({w}x{h} pixel thumbnails)" + ("" if rec["status"] == "ok" else f", partial: {rec['error'] or 'frames missing'}"))
+    sheets = len(rec["sheets"])
+    short = "" if rec["status"] == "ok" else f", partial: {rec['error'] or str(rec['missing']) + ' frames could not be cut'}"
+    return (f"{rec['count']} frames on {sheets} contact sheet{'' if sheets == 1 else 's'} from the {SOURCE} "
+            f"({w}x{h} pixel thumbnails){short}")

@@ -29,11 +29,11 @@ def colour(index):
     return (index * 37 % 256, index * 91 % 256, index * 53 % 256)
 
 
-def sprite(fragment, rows=3, columns=3, frames=9):
+def sprite(fragment, rows=3, columns=3, frames=9, w=W):
     """A sprite image whose every thumbnail is one flat colour named by its frame number."""
-    img = Image.new("RGB", (columns * W, rows * H), (0, 0, 0))
+    img = Image.new("RGB", (columns * w, rows * H), (0, 0, 0))
     for k in range(frames):
-        img.paste(colour(fragment * rows * columns + k), (k % columns * W, k // columns * H, k % columns * W + W, k // columns * H + H))
+        img.paste(colour(fragment * 9 + k), (k % columns * w, k // columns * H, k % columns * w + w, k // columns * H + H))
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue()
@@ -100,6 +100,24 @@ def test_the_cut_puts_each_frame_in_its_cell_with_its_time_in_the_table(tmp_path
         assert all(abs(a - b) <= 12 for a, b in zip(got_px, colour(int(row[9])))), (row, got_px)
         label = sheet.getpixel((int(row[5]) + 2, int(row[6]) + 178))
         assert max(label) < 40, "the time is printed on a dark box at the foot of the frame"
+
+
+def test_a_sprite_narrower_than_its_declared_size_and_a_short_last_sprite_still_give_every_frame(tmp_path):
+    """YouTube declares 318 pixel thumbnails for a 951 pixel row of three, and the last sprite
+    image holds only the frames that are left."""
+    doc = {"duration": 13, "formats": [board(fragments=2, last=4)]}
+
+    def narrow(url):
+        n = int(url.split("/M")[1].split(".")[0])
+        return 200, sprite(n, w=W - 1) if n == 0 else sprite(n, rows=2, columns=3, frames=4, w=W - 1)
+
+    rec = frame_record(str(tmp_path), "vid", fetch_frames(doc, fetcher=narrow, limiter=no_wait()))
+    assert rec["status"] == "ok" and rec["count"] == 13 and rec["missing"] == 0
+    rows = [ln.split("\t") for ln in open(tmp_path / "vid.frames.tsv", encoding="utf-8").read().splitlines()][1:]
+    sheet = Image.open(tmp_path / "vid.frames-01.jpg")
+    for row in (rows[2], rows[8], rows[12]):
+        got_px = sheet.getpixel((int(row[5]) + 160, int(row[6]) + 60))
+        assert all(abs(a - b) <= 12 for a, b in zip(got_px, colour(int(row[9])))), (row, got_px)
 
 
 def test_the_bundle_record_says_what_the_frames_are_and_hashes_the_sheets(tmp_path):

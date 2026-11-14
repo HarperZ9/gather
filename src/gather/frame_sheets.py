@@ -74,11 +74,15 @@ def _cut(sprites: dict, frame: Frame, level: Level, blobs: dict[int, bytes]):
         except (OSError, ValueError):
             sprites[frame.fragment] = None
     sprite = sprites[frame.fragment]
-    box = (frame.column * level.width, frame.row * level.height,
-           (frame.column + 1) * level.width, (frame.row + 1) * level.height)
-    if sprite is None or box[2] > sprite.width or box[3] > sprite.height:
+    if sprite is None:
         return None
-    return sprite.crop(box)
+    # the declared thumbnail size is rounded (318 wide for a 951 pixel row of three), so the
+    # cell is measured on the image itself; the last sprite image can hold fewer rows and columns
+    columns, rows = max(1, round(sprite.width / level.width)), max(1, round(sprite.height / level.height))
+    if frame.column >= columns or frame.row >= rows:
+        return None
+    w, h = sprite.width / columns, sprite.height / rows
+    return sprite.crop((round(frame.column * w), round(frame.row * h), round((frame.column + 1) * w), round((frame.row + 1) * h)))
 
 
 def write_sheets(out_dir: str, vid: str, level: Level, plan: list[Frame], blobs: dict[int, bytes]) -> dict:
