@@ -248,6 +248,99 @@ three book promotions a reader had found by hand as one coordinated group, set a
 comments about the person and 4 bare dismissals, and counted 31 critique and 16 support
 among 154 substantive comments.
 
+## Saved posts as tables
+
+`gather saves` reads a folder of posts and pages saved by the CMMNS browser extension and writes
+data tables. It works by fixed rules: no model call, no network call, no subprocess. The same
+folder gives byte-identical files on every run, on any machine, whatever the file times are.
+
+```bash
+gather saves ./saves --out ./saves-tables
+gather saves ./saves --out ./saves-tables --no-media-hash   # skip hashing the media files
+gather saves --probe ./saves/x/clip.mp4                     # one media row as JSON, for any local file
+```
+
+The folder is read recursively in sorted order. An item is a Markdown file whose front matter says
+`format: "daylight.sidecar/1"`. Other Markdown files are skipped and counted. When `<stem>.json`
+sits beside `<stem>.md`, its values win over the front matter and the body. The item's own text
+is the JSON sidecar's `text`, or else the first run of `>` lines after the `# ` heading; quoted
+parent posts and comments are not the item's text. The `--out` folder is skipped during the
+walk, so it can sit inside the input folder. `--out` cannot be the input folder itself.
+
+| File | Rows |
+| --- | --- |
+| `items.csv`, `items.jsonl` | one per sidecar, sorted by site, id, path |
+| `entities.csv`, `entities.jsonl` | one per item, entity type and value, sorted by item id, sidecar path, type, value |
+| `media.csv`, `media.jsonl` | one per media file on disk, sorted by path |
+| `manifest.json` | `gather.saves-tables/1`: item count, skipped Markdown count, per-file problems, and each table's row count and SHA-256 |
+
+CSV files are UTF-8 without a BOM, with `\n` line endings and minimal quoting. JSON Lines files
+keep the column order; counts are numbers and an empty media field is `null`. Paths are POSIX
+style and relative to the input folder. The manifest holds no time, host name or absolute path.
+
+`items` columns, in order:
+
+| Column | Rule |
+| --- | --- |
+| `id` | `<site>:<post id>`. The post id is the first match in the post address of `/status/<digits>`, `/comments/<id>`, `/post/<id>`, `v=<id>`, `youtu.be/<id>`, `/shorts/<id>`, `/p/`, `/reel/`, `/reels/` or `/tv/<id>`, `/video/<digits>`. With no match it is `h-` plus the first 16 hex digits of the SHA-256 of the post, page or media address, or of the sidecar path when there is no address. Two saves of one post share an id and stay as two rows. An empty site reads `unknown` in the id |
+| `site`, `adapter`, `kind` | from the sidecars, as written. Without an adapter value: `legacy:<site>` |
+| `author`, `handle` | from the sidecars, as written |
+| `posted_time`, `saved_time`, `title` | from the sidecars, as written |
+| `text_length` | Unicode code points in the item text |
+| `links`, `link_list` | count and space-joined list of addresses, in order of first appearance: the item text first, then the sidecar's link list |
+| `media_count`, `media_kinds` | the listed files that exist on disk, and their kinds (`image`, `video`, `audio`, `other`) joined by `+` |
+| `media_file` | the sidecar's value. Without one: `saved` when a listed file exists, else `not saved (no media file listed)` for kind `media`, else empty |
+| `language` | the sidecar's `lang` when it is a well formed tag (primary subtag only), else the language rule below |
+| `post_url`, `page_url` | from the sidecars |
+| `sidecar_path`, `json_path`, `thread_path` | the Markdown sidecar, the JSON sidecar and the thread file, when present |
+| `file_paths`, `missing_files` | listed files that exist, joined by `;`, and the count of listed files that do not |
+| `content_hash` | SHA-256 of the item text after NFC, LF line endings and trailing whitespace stripped per line |
+| `sidecar_sha256` | SHA-256 of the Markdown sidecar's bytes |
+
+`entities` columns: `item_id`, `sidecar_path`, `type`, `value`, `normalized`, `count`. Entities are
+read from the title and the item text. Rows are deduplicated per item by type and normalized
+form; `value` is the first form seen and `count` is the number of occurrences.
+
+| Type | Matches | Normalized |
+| --- | --- | --- |
+| `url` | `http` and `https` addresses | scheme and host in lower case, trailing punctuation removed |
+| `doi` | `10.<4 to 9 digits>/...`, bare or inside a doi.org link | lower case |
+| `arxiv` | `2301.12345` or `2301.12345v2` after `arXiv:` or inside an arxiv.org abs or pdf link; old style `hep-th/9901001` after `arXiv:` | as written |
+| `handle` | `@name`, `u/name`, `r/name`; never an email address | lower case |
+| `hashtag` | `#tag` with at least one letter | lower case |
+| `date` | `YYYY-MM-DD`, `D Month YYYY`, `Month D, YYYY` with English month names; impossible dates are rejected | `YYYY-MM-DD` |
+| `quantity` | a number with a percent sign, a currency symbol or code before or after, a unit (km, m, cm, mm, kg, g, mg, s, ms, Hz, kHz, MHz, GHz, W, kW, MW, V, A, K, degrees C and F, GB, MB, TB, kB, bps, fps, px and a few more), or `thousand`, `million`, `billion`, `trillion` | `<number> <unit>`, thousands separators removed |
+
+`media` columns: `path`, `item_id`, `listed`, `kind`, `container`, `bytes`, `width`, `height`,
+`duration_seconds`, `sample_rate`, `channels`, `sha256`. A file listed by a sidecar carries that
+item's id (the first item in table order when several list it). A media file that no sidecar
+lists has an empty `item_id` and `listed` is `false`. `container` comes from the file's first
+bytes, never from its extension: `jpeg`, `png`, `gif`, `webp`, `mp4`, `mov`, `webm`, `matroska`,
+`wav`, `mp3`, `ogg`, `flac`, `m4a` or `unknown`. `kind` follows the container, or the extension
+when the container is unknown. The other fields are read from the container's own headers with
+the standard library. Large files are read by seeking and hashed by streaming.
+
+Limits:
+
+- The language column is a rule, not a classifier. It counts Unicode scripts (kana gives `ja`,
+  Hangul `ko`, Han without kana `zh`, Cyrillic `ru` or `uk` by their distinguishing letters, and
+  `ar`, `he`, `hi`, `el`, `th`) and, for Latin script, stop-word hits for `en`, `es`, `fr`, `de`,
+  `pt` and `it` with at least 3 hits and a margin of 2. Everything else is `und`, including short
+  text and Cyrillic text with none of the distinguishing letters. It will be wrong on some text.
+- Entities are regular expressions. They miss entities written in other forms and they
+  over-match: `5 A` reads as five amperes whatever the sentence meant.
+- A media field that cannot be read is empty, never guessed. Ogg duration is always empty. MP3
+  duration is filled only from a Xing, Info or VBRI frame count. An Opus file reports the input
+  sample rate written in its header. A damaged file gets empty fields and a line under
+  `problems` in the manifest.
+- A listed file name that points outside the input folder is not read; it is counted as missing
+  and recorded as a problem.
+- Nothing is fetched. Addresses in the saves are text, and no file in the folder is executed.
+
+Exit status: `0` when the tables were written or the file was probed, with per-file problems
+listed in the manifest; `2` on bad options, an input that is not a folder, or a file that cannot
+be read.
+
 ## Reddit
 
 `gather reddit` reads Reddit through its official Data API with your own app. Create a

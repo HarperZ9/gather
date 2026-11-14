@@ -185,6 +185,15 @@ gather docs ./research-notes --scope "rubik,group theory"
 gather corpus verify ./corpus                  # re-hash every stored body; non-zero exit on corruption
 ```
 
+Turn a folder of posts saved by the CMMNS browser extension into tables, offline and by fixed rules:
+
+```bash
+gather saves ./saves --out ./saves-tables      # items, entities and media as CSV and JSON Lines
+gather saves --probe ./clip.mp4                # container, size, duration and audio fields of one file
+```
+
+The same folder gives byte-identical tables on every run. The language column is a rule and the entities are regular expressions; [USAGE.md](https://github.com/HarperZ9/gather/blob/main/USAGE.md#saved-posts-as-tables) lists the columns and the limits.
+
 Offline demo, no install of extra tools, nothing downloaded:
 
 ```bash

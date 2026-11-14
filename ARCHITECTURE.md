@@ -40,6 +40,12 @@ synthesis is `gather.comment_signals` (one category, stance and evidence per com
 stance-neutral) and `gather.comment_balance` (coordinated-spam groups, claim clusters by tf-idf,
 the balance counts); `gather.comment_report` renders it and wraps it as a `compiled` item.
 
+A folder of CMMNS saves becomes tables through `gather.saves_tables` (the sorted walk and the
+row rules), `gather.saves_sidecar` (the `daylight.sidecar/1` reader), `gather.saves_entities` and
+`gather.saves_lang` (regular expressions and the language rule), `gather.media_probe` with its
+per-container readers, and `gather.saves_write` (CSV, JSON Lines and the manifest as bytes).
+`gather.saves_cmd` is the CLI. None of these modules opens a socket or starts a child program.
+
 ## The receipt: `Item` and `Provenance`
 
 Every `Item` carries a `Provenance` receipt (`gather.item`):

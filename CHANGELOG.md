@@ -5,6 +5,9 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- Add `gather saves FOLDER --out DIR`: a folder of posts and pages saved by the CMMNS browser extension (`daylight.sidecar/1` Markdown sidecars, their JSON sidecars and media files) becomes `items`, `entities` and `media` tables as CSV and JSON Lines, with a `manifest.json` (`gather.saves-tables/1`) that holds row counts, table hashes and per-file problems. Fixed rules only: no model call, no network call, no subprocess. The same folder gives byte-identical output on every run. The language column is a rule over Unicode scripts and stop words, entities are regular expressions, and a media field that cannot be read is empty.
+- Add `gather saves --probe FILE` and `gather.media_probe`: container from magic bytes, size, picture size, duration, sample rate and channels for PNG, JPEG, GIF, WebP, MP4, MOV, M4A, WebM, Matroska, WAV, FLAC, Ogg and MP3, read with the standard library by seeking. `--no-media-hash` skips the media SHA-256.
+
 ## 2.5.0 (2026-11-03)
 
 A video can now be saved as one checkable bundle, media included when asked for, with a balanced reading of its comments.
