@@ -341,6 +341,131 @@ Exit status: `0` when the tables were written or the file was probed, with per-f
 listed in the manifest; `2` on bad options, an input that is not a folder, or a file that cannot
 be read.
 
+## Take a file apart and put it back
+
+`gather decompose` takes one local file apart into a tree of its parts. `gather rebuild` puts the
+file back together from that tree, byte for byte, and checks every part on the way. Both work by
+fixed rules with the standard library: no model, no network, no child process. The file is data.
+It is hashed first and nothing in it is executed.
+
+```bash
+gather decompose ./clip.wav --out ./clip-tree
+gather rebuild ./clip-tree --out ./clip-again.wav     # same bytes, same SHA-256
+gather rebuild ./clip-tree --verify                   # check every node, write nothing
+gather decompose ./archive.zip --out ./tree --no-content   # the structural tree only
+```
+
+`--out` must be an empty or new folder. It receives `tree.json` (`gather.decompose-tree/1`),
+`parts/` (the bytes of every leaf over 32 bytes, each file named by its SHA-256) and the content
+tables described below. An archive entry's name is recorded in the tree and is never used as an
+output path.
+
+### The structural level
+
+The handler is chosen from the file's first bytes, never from its extension. Every node in the
+tree has the same record:
+
+| Field | Meaning |
+| --- | --- |
+| `kind` | what the part is: `png-chunk`, `riff-chunk`, `pcm-frames`, `zip-entry`, `line`, `json-string`, `raw`, and so on |
+| `offset`, `length` | where the part sits in its parent |
+| `sha256` | hash of the part's bytes |
+| `params` | what the handler read from it: a chunk type, a CRC and whether it matches, a sample rate, a unit size and count, a line ending, an entry name |
+| `produced_by` | handler name and version, such as `png/1` |
+| `children`, or `hex`, or `blob` | the parts inside it, or its bytes: inline hex up to 32 bytes, else the name of a file under `parts/` |
+| `derived` | on a ZIP entry only: the entry's decoded bytes, decomposed by the same rules. The rebuild never reads it |
+
+Children cover their parent with no gap and no overlap. Bytes a handler does not understand are
+kept as `raw` nodes and listed under `unparsed` in `tree.json`, so nothing is lost and every tree
+built so far says `rebuild: exact`. A handler that cannot read a file is listed under `declined`
+with its reason, and the next handler is tried; the raw handler always works.
+
+| Handler | Parts |
+| --- | --- |
+| `zip/1` | each entry's local header (fixed fields, name, extra), compressed bytes and data descriptor; the central directory headers; the end record. Compressed bytes are kept as they are and never recompressed. Stored and deflated entries are also decoded into `derived` |
+| `png/1` | the signature, then each chunk as length, type, data and CRC, with the IHDR fields and a CRC check |
+| `wav/1` | the RIFF header fields, then each chunk as id, size, data and pad byte. The data chunk is `pcm-frames` with the frame size and count |
+| `json/1` | a byte order mark, then every token in order: whitespace, punctuation, strings, numbers and literals, each with its bracket depth |
+| `text/1` | a byte order mark, then every line with its own line ending (`lf`, `crlf`, `cr` or `none`) |
+| `cmmns-sidecar/1` | a `daylight.sidecar/1` Markdown save: front matter lines with their keys, then body blocks (heading, quote, list, paragraph, blank) of lines. A `<stem>.json` beside it is decomposed too and recorded under `companions`; `gather rebuild --companion NAME` rebuilds it |
+| `raw/1` | the whole file as one byte range |
+
+Limits are written into every tree: nesting depth 4, 64 MiB per decoded entry, 256 MiB decoded in
+total, 20000 line or token nodes per file (the rest of the file stays one `raw` node) and 16 MiB
+for text handlers. An entry past a limit is kept in the tree and not decoded, with the reason in
+its `derived.status`. ZIP64 archives and encrypted entries are not decoded yet; a ZIP64 archive
+falls back to the raw handler.
+
+`gather rebuild` exits `0` when the rebuilt bytes match the original SHA-256 and every node passes,
+`1` when any node fails (each is printed with its path in the tree, such as `root/3/2`), and `2`
+on bad options or a tree that cannot be read. `tree.json` is read as untrusted data: a blob name
+must be 64 hex digits.
+
+Planned handlers and what each needs: MP4 and MOV (sample tables, to reach frames), MP3 (frame
+walk and ID3 tags), JPEG (marker segments, with entropy-coded scans as ranges), PDF (object table
+and stream filters), executables in PE, ELF and Mach-O form (headers, section tables, sections as
+ranges), tar and gzip (gzip needs the deflate stream kept as a range and the decoded member as
+derived), SQLite (pages and b-tree cells), Office documents (the ZIP handler plus XML tokens) and
+fonts (the sfnt table directory). Until then these files get the raw handler, which still
+rebuilds exactly.
+
+### The content level
+
+Measurements and estimates are kept apart from the structure. `components.csv` and
+`components.jsonl` list every component, and the same rows sit under `content` in `tree.json`.
+
+| Column | Meaning |
+| --- | --- |
+| `kind` | `audio`, `speech`, `video`, `image` or `document` |
+| `component` | what was measured, such as `integrated loudness` or `palette` |
+| `path` | the table that holds it, empty when the component did not run |
+| `produced_by` | the method in plain words |
+| `tool`, `tool_version` | `gather` and its version, or the local tool a component needs |
+| `deterministic` | `yes`, `yes (fixed rules, rounded to 6 significant digits)`, or `no` with the reason |
+| `status` | `ok`, `not run (tool not installed)`, `not run (reason)` or `planned` |
+| `sha256` | hash of the table at `path` |
+
+What runs now:
+
+| Input | Tables | Method |
+| --- | --- | --- |
+| any recognised media file | `container.csv` | container, size, picture size, duration, sample rate and channels from the headers |
+| PCM WAV, 8, 16, 24 or 32-bit integer, one or two channels | `audio_measurements.csv`, `audio_spectrum.csv` | see the list below |
+| PNG, 8-bit, not interlaced, colour types 0, 2, 3 and 6, up to 2,000,000 pixels | `image_palette.csv` | each pixel's red, green and blue cut to their top 4 bits, bins counted, the top 8 listed |
+| UTF-8 text, Markdown and HTML | `document_facts.csv`, `document_headings.csv`, `document_references.csv` | text length, `#` or `h1` to `h6` headings, and the entity rules from `gather saves` |
+
+Audio measurements read the first 30 seconds of the file, and each row says so:
+
+- Sample peak, RMS level and crest factor in dB relative to full scale, and DC offset.
+- Integrated loudness in LUFS by ITU-R BS.1770: K-weighting derived for the file's sample rate,
+  400 ms blocks with 75 percent overlap, the absolute gate at -70 LUFS and the relative gate. A
+  full-scale 997 Hz sine in one channel reads -3.01 LUFS in the tests. True peak, short-term
+  loudness and loudness range are not computed.
+- Tempo estimate: the strongest autocorrelation lag of a 5 ms onset envelope between 60 and 200
+  BPM. It can land on half or double the tempo a listener would tap.
+- Key estimate: a Goertzel chroma over MIDI notes 36 to 83, matched to the 24 Krumhansl and
+  Schmuckler profiles, with the correlation beside it. A low correlation means no clear key.
+- Spectrum summary: energy per octave band from 31.25 Hz to 16 kHz in dB relative to the total,
+  and the spectral centroid, from up to 16 windows of 4096 samples.
+- Decay time estimate: a Schroeder backward integration of the tail after the loudest frame, with
+  a line fit from -5 to -25 dB scaled to 60 dB. This is an estimate from programme material, not
+  a room measurement, and it is empty when the tail does not fall 25 dB.
+
+Limits:
+
+- Compressed audio and video (MP3, M4A, FLAC, Ogg, MP4, WebM) and JPEG, GIF and WebP pixels need
+  a decoder that the standard library does not have. Their measurement rows read
+  `not run (needs a local decoder; none in the standard library)`.
+- Stems, a timed transcript and text inside images need local tools (the engine's remastering
+  package, a speech-to-text program, a text recognition program). This version only detects them:
+  the row reads `not run (tool not installed)`, or `planned` when the tool is present. No call is
+  made, and model output would be marked `deterministic: no`.
+- Shot boundaries, keyframes and colour per shot are listed for video and not run.
+- Figures are rounded to 6 significant digits so the tables are the same bytes on a second run.
+  The arithmetic uses double precision and the platform's math library, so the last digits of an
+  unrounded value could differ between platforms; the rounding is there to absorb that.
+- `gather saves --decompose` (the stage run for every media file in a folder of saves) is planned.
+
 ## Reddit
 
 `gather reddit` reads Reddit through its official Data API with your own app. Create a

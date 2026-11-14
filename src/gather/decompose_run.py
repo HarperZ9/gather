@@ -14,6 +14,7 @@ import os
 import struct
 
 from gather.decompose_binary import PNG_SIGNATURE, build_png, build_raw, build_wav
+from gather.decompose_content import content_stage
 from gather.decompose_text import build_json, build_sidecar, build_text, load_text
 from gather.decompose_tree import (
     TREE_FORMAT,
@@ -90,8 +91,8 @@ def write_tree(out: str, doc: dict) -> None:
         f.write((json.dumps(doc, indent=1, ensure_ascii=False) + "\n").encode("utf-8"))
 
 
-def decompose_file(path: str, out: str, limits: Limits | None = None) -> dict:
-    """Write the tree for ``path`` into ``out`` and return it.
+def decompose_file(path: str, out: str, limits: Limits | None = None, content: bool = True) -> dict:
+    """Write the tree for ``path`` into ``out`` and return it. ``content`` adds the measurement tables.
 
     Raises ValueError when ``path`` is not a file or ``out`` already holds files, and OSError
     when the file cannot be read.
@@ -109,5 +110,7 @@ def decompose_file(path: str, out: str, limits: Limits | None = None) -> dict:
            "limits": ctx.limits.record(), **tree}
     if doc["handler"] == "cmmns-sidecar/1":
         doc["companions"] = _companion(ctx, path)
+    if content:
+        doc["content"] = content_stage(path, out)
     write_tree(out, doc)
     return doc

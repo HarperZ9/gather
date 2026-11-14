@@ -19,6 +19,7 @@ def add_decompose_parsers(sub) -> None:
     d = sub.add_parser("decompose", help="take one local file apart into a tree of its parts, offline, by fixed rules")
     d.add_argument("file", help="a local file; it is read as data and never executed")
     d.add_argument("--out", required=True, metavar="DIR", help="an empty or new folder for tree.json and parts/")
+    d.add_argument("--no-content", action="store_true", help="write the structural tree only, no measurement tables")
     d.add_argument("--json", action="store_true", help="print the summary as JSON")
     d.set_defaults(func=cmd_decompose)
 
@@ -36,7 +37,7 @@ def summary(doc: dict) -> dict:
     return {"format": doc["format"], "source": doc["source"], "handler": doc["handler"], "declined": doc["declined"],
             "rebuild": doc["rebuild"], "unparsed_bytes": sum(r["length"] for r in doc["unparsed"]),
             "companions": [c["name"] for c in doc.get("companions", [])],
-            "content": len(doc.get("content", []))}
+            "content": {row["component"]: row["status"] for row in doc.get("content", [])}}
 
 
 def cmd_decompose(args) -> int:
@@ -44,7 +45,7 @@ def cmd_decompose(args) -> int:
     from gather.localpath import require_local
 
     try:
-        doc = decompose_file(require_local(args.file, label="file"), args.out)
+        doc = decompose_file(require_local(args.file, label="file"), args.out, content=not args.no_content)
     except (OSError, ValueError) as exc:
         print(f"decompose: {exc}", file=sys.stderr)
         return 2
@@ -53,7 +54,8 @@ def cmd_decompose(args) -> int:
         print(json.dumps(facts, indent=2))
     else:
         print(f"decompose: {facts['source']['name']} ({facts['source']['bytes']} bytes) by {facts['handler']}; "
-              f"rebuild {facts['rebuild']}; {facts['unparsed_bytes']} bytes kept as raw ranges; tree in {args.out}")
+              f"rebuild {facts['rebuild']}; {facts['unparsed_bytes']} bytes kept as raw ranges; "
+              f"{len(facts['content'])} content components; tree in {args.out}")
     return 0
 
 

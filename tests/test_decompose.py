@@ -85,7 +85,7 @@ def test_decompose_then_rebuild_gives_the_same_bytes(tmp_path, name):
     report = rebuild(str(tmp_path / "tree"), str(tmp_path / "rebuilt.bin"))
     assert report == {"ok": True, "bytes": len(data), "sha256": sha(data), "expected_sha256": sha(data), "problems": []}
     assert (tmp_path / "rebuilt.bin").read_bytes() == data
-    assert sorted(os.listdir(tmp_path / "tree")) == ["parts", "tree.json"]
+    assert {"parts", "tree.json", "components.csv", "components.jsonl"} <= set(os.listdir(tmp_path / "tree"))
     assert all(n["produced_by"] == handler for n in nodes(doc["root"]))
 
 
