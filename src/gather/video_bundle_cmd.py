@@ -14,6 +14,7 @@ file was asked for and not saved; 2 on bad options or an unreadable file.
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 
@@ -28,6 +29,15 @@ def add_bundle_parsers(sub) -> None:
     p.add_argument("--max-comments", type=int, default=600, metavar="N", help="comments to read, sorted by top (0 for none)")
     p.add_argument("--no-balance", action="store_true", help="skip the balanced comment synthesis")
     p.add_argument("--json", action="store_true", help="print the result as JSON")
+    p.add_argument("--fast", action="store_true",
+                   help="read captions and frames while the comments are still being read, keep requests "
+                        "1 s apart, and cap replies so the comment budget goes to top-level comments")
+    p.add_argument("--frames", action=argparse.BooleanOptionalAction, default=True,
+                   help="contact sheets of frames across the video, cut from the site's preview storyboard "
+                        "(no video download; needs Pillow)")
+    p.add_argument("--max-replies", type=int, default=None, metavar="N",
+                   help="replies to read in all, at most 5 to a thread (default: every reply, or a tenth of "
+                        "--max-comments with --fast)")
     add_ytdlp_options(p)
     p.set_defaults(func=cmd_video_bundle)
 
@@ -71,28 +81,52 @@ def cmd_comment_balance(args) -> int:
     return 0
 
 
+FAST_SPACING = 1.0
+REPLIES_PER_THREAD = 5
+
+
+def comment_args(max_comments: int, max_replies: int | None, *, fast: bool) -> str:
+    """The yt-dlp extractor arguments for the comment read: sorted by top (the order the site
+    serves first, so it costs no extra request) and capped at ``max_comments``. Every thread
+    with replies costs one more request, so ``fast`` gives replies a tenth of the budget, at
+    most ``REPLIES_PER_THREAD`` to a thread, and the rest goes to top-level comments."""
+    if max_replies is None and not fast:
+        return f"youtube:max_comments={max_comments},all,all,all;comment_sort=top"
+    replies = max_comments // 10 if max_replies is None else max_replies
+    return f"youtube:max_comments={max_comments},all,{replies},{min(replies, REPLIES_PER_THREAD)};comment_sort=top"
+
+
 def cmd_video_bundle(args) -> int:
+    from gather.pacing import HostLimiter
     from gather.video_bundle_run import fetch_bundle
     from gather.video_cmd import video_source_from_args
 
     if args.max_comments < 0:
         print("video-bundle: --max-comments must be 0 or more", file=sys.stderr)
         return 2
-    extra = (f"youtube:max_comments={args.max_comments},all,all,all;comment_sort=top",) if args.max_comments else ()
+    if args.max_replies is not None and args.max_replies < 0:
+        print("video-bundle: --max-replies must be 0 or more", file=sys.stderr)
+        return 2
+    if args.fast:  # yt-dlp's own requests stay at least 1 s apart; a larger --sleep-requests is kept
+        args.sleep_requests = max(FAST_SPACING, args.sleep_requests or 0.0)
+    extra = (comment_args(args.max_comments, args.max_replies, fast=args.fast),) if args.max_comments else ()
     try:
         src = video_source_from_args(args, with_comments=args.max_comments > 0, extractor_args=extra)
     except ValueError as exc:
         print(f"video-bundle: {exc}", file=sys.stderr)
         return 2
-    res = fetch_bundle(args.url, args.out, src, media=args.media, with_balance=not args.no_balance)
+    res = fetch_bundle(args.url, args.out, src, media=args.media, with_balance=not args.no_balance, fast=args.fast,
+                       frames=args.frames, limiter=HostLimiter(max(FAST_SPACING, args.sleep_requests or 0.0)))
     report = {"ok": res.ok, "out": res.out_dir, "video": res.video_id, "files": res.files, "caption": res.caption,
-              "comments": res.comments, "media": res.media, "media_error": res.media_error, "error": res.error,
-              "balance": (res.balance or {}).get("balance", {}).get("sentence")}
+              "comments": res.comments, "frames": res.frames, "media": res.media, "media_error": res.media_error,
+              "error": res.error, "balance": (res.balance or {}).get("balance", {}).get("sentence"),
+              "timings": res.timings}
     if args.json:
         print(json.dumps(report, indent=2))
     elif res.ok:
         print(f"bundle {res.video_id}: {len(res.files)} files in {res.out_dir}; captions {res.caption}; {res.comments} comments; "
               f"media {res.media or ('not saved: ' + res.media_error if res.media_error else 'not asked for')}")
+        print(res.frames)
         if report["balance"]:
             print(f"balance: {report['balance']}")
     else:

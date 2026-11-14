@@ -11,6 +11,8 @@ and an optional media file already in the folder, it writes
 - ``<id>.thread.json`` (``gather.video-thread/1``): the comment tree, each reply under its parent,
   with like counts; and ``<id>.comments.txt``, the same tree to read, without names;
 - with ``balance``, ``<id>.balance.json`` and ``<id>.balance.md`` (``gather.comment_balance``);
+- with frames, ``<id>.frames-NN.jpg`` contact sheets and ``<id>.frames.tsv`` (``gather.video_frames``),
+  cut from the site's preview storyboard, so no video file is read;
 - ``SOURCE.txt`` and ``SHA256SUMS`` (``sha256sum`` lines over every other file).
 
 The layout matches the bundle CMMNS writes (``cmmns media fetch --full``). The media file is a
@@ -137,7 +139,8 @@ def comments_text(tree: list[dict]) -> str:
     return "\n".join(out) + ("\n" if out else "")
 
 
-def video_record(info: dict, *, caption: dict | None, segments: int, media: list[str] | None, fetched_at: float) -> dict:
+def video_record(info: dict, *, caption: dict | None, segments: int, media: list[str] | None, fetched_at: float,
+                 frames: dict | str | None = None) -> dict:
     keys = ("id", "title", "channel", "channel_url", "uploader", "uploader_id", "upload_date", "duration", "view_count",
             "like_count", "comment_count", "description", "tags", "categories", "webpage_url", "live_status")
     rec = {"format": FORMAT, **{k: info.get(k) for k in keys}}
@@ -145,6 +148,8 @@ def video_record(info: dict, *, caption: dict | None, segments: int, media: list
                        for c in info.get("chapters") or []]
     rec["captions"] = {**caption, "segments": segments} if caption else None
     rec["media"] = {"file": media[0], "files": list(media), "note": MEDIA_NOTE} if media else None
+    # the contact sheets and their real thumbnail size, or one line that says why there are none
+    rec["frames"] = frames if frames is not None else "not requested"
     rec["fetched_at"] = fetched_at
     return rec
 
