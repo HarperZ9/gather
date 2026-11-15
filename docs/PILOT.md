@@ -48,9 +48,10 @@ replaced two format 1 values, mode `zentropy_managed` and custodian `zentropy`,
 with `provider_managed` and `provider`. Gather still reads a format 1 manifest,
 prints a deprecation line for each difference, and writes only format 2.
 `gather pilot migrate-manifest <manifest.json>` shows the change and `--write`
-applies it. An evidence root sealed in format 1 still verifies; one that holds
-either old value is closed to `refresh`, and a new capture starts from the
-migrated manifest in a new output directory.
+applies it. The format change leaves the verification of an evidence root
+sealed in format 1 as it was. A root that holds either old value is closed to
+`refresh`, and a new capture starts from the migrated manifest in a new output
+directory.
 
 In every deployment, a shared bundle carries receipts, hashes, redacted refs
 and verdicts. Raw private payloads stay in the local adapters.

@@ -51,6 +51,20 @@ def files_of(root: Path) -> dict[str, bytes]:
     return {item.relative_to(root).as_posix(): item.read_bytes() for item in root.rglob("*") if item.is_file()}
 
 
+def sealed_root(tmp_path: Path, name: str, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Copy an evidence root that Gather 2.6.0 wrote, as it sat on disk.
+
+    Git does not carry the empty ``history`` directory a first run leaves, so it
+    is made again here. Verification requires the report's ``gather_version`` to
+    equal the running version, so the version is held at the one that sealed it.
+    """
+    root = tmp_path / "root"
+    shutil.copytree(FIXTURES / name, root)
+    (root / "history").mkdir(exist_ok=True)
+    monkeypatch.setattr("gather.pilot_report.__version__", "2.6.0")
+    return root
+
+
 def test_format_one_values_are_read_as_format_two_with_deprecations(tmp_path: Path) -> None:
     path = write_manifest(tmp_path, PILOT_MANIFEST_SCHEMA_V1, OLD_MODE, OLD_CUSTODIAN)
     with pytest.warns(DeprecationWarning) as caught:
@@ -199,9 +213,10 @@ def test_recorded_manifest_values_must_match_their_own_format() -> None:
     assert _valid_normalized_manifest({**stored, "schema": PILOT_MANIFEST_SCHEMA, "deployment": NEW})
 
 
-def test_a_root_sealed_by_2_6_0_with_old_values_verifies_and_is_not_extended(tmp_path: Path) -> None:
-    root = tmp_path / "root"
-    shutil.copytree(FIXTURES / "pilot-root-format1-retired", root)
+def test_a_root_sealed_by_2_6_0_with_old_values_verifies_and_is_not_extended(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = sealed_root(tmp_path, "pilot-root-format1-retired", monkeypatch)
     before = files_of(root)
 
     assert verify_pilot(root).ok
@@ -212,9 +227,10 @@ def test_a_root_sealed_by_2_6_0_with_old_values_verifies_and_is_not_extended(tmp
     assert verify_pilot(root).ok
 
 
-def test_a_root_sealed_by_2_6_0_with_unchanged_values_refreshes_in_its_own_format(tmp_path: Path) -> None:
-    root = tmp_path / "root"
-    shutil.copytree(FIXTURES / "pilot-root-format1-plain", root)
+def test_a_root_sealed_by_2_6_0_with_unchanged_values_refreshes_in_its_own_format(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = sealed_root(tmp_path, "pilot-root-format1-plain", monkeypatch)
     manifest_before = (root / "manifest.json").read_bytes()
     assert verify_pilot(root).ok
 

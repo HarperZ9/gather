@@ -8,7 +8,7 @@ built behind a feature branch and reviewed before merge.
 - Pilot manifest format 2 (`gather.pilot-manifest/2`) names custody with role words. `deployment.mode` is `workstation`, `customer_hosted` or `provider_managed`, and `deployment.custodian` is `customer`, `provider` or `shared`. Format 1 spelled the provider two other ways; those values are read and mapped, and never written.
 - A format 1 manifest still runs. Each difference is listed on `PilotManifest.deprecations`, raised as a `DeprecationWarning` and printed by `gather pilot run`. The normalized manifest, its digest and the report are written in format 2, so the same format 1 file has a different manifest digest than it had under 2.6.0.
 - New command `gather pilot migrate-manifest <manifest.json>`: a dry run that prints each change; `--write` validates the result and rewrites the file in one step. A manifest with a value outside its format is refused and left as it was.
-- An evidence root sealed in format 1 still verifies. `refresh` continues such a root in its own format, and refuses one that holds either replaced value: a new capture starts from the migrated manifest in a new output directory.
+- The format change leaves the verification of an evidence root sealed in format 1 as it was (a root verifies under the Gather version that wrote its report, as before). `refresh` continues such a root in its own format, and refuses one that holds either replaced value: a new capture starts from the migrated manifest in a new output directory.
 - A value from the other format is refused in both directions (a format 2 manifest with a format 1 spelling, and the reverse).
 
 ## 2.6.0 (2026-11-14)
