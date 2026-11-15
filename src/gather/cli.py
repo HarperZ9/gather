@@ -24,6 +24,7 @@ from gather.flagship import cmd_demo, cmd_doctor, cmd_status
 from gather.mcp import serve as serve_mcp
 from gather.pilot_commands import (
     cmd_pilot_bundle,
+    cmd_pilot_migrate_manifest,
     cmd_pilot_refresh,
     cmd_pilot_run,
     cmd_pilot_verify,
@@ -275,6 +276,13 @@ def build_parser() -> argparse.ArgumentParser:
                               help="confirm a full bundle that carries the private artifact root")
     pilot_bundle.add_argument("--json", action="store_true", help="emit the bundle receipt as JSON")
     pilot_bundle.set_defaults(func=cmd_pilot_bundle)
+
+    pilot_migrate = pilot_sub.add_parser(
+        "migrate-manifest", help="show, or with --write apply, the format 2 migration of a manifest")
+    pilot_migrate.add_argument("manifest", help="path to a pilot manifest JSON file")
+    pilot_migrate.add_argument("--write", action="store_true", help="rewrite the file (default is a dry run)")
+    pilot_migrate.add_argument("--json", action="store_true", help="emit the migration as JSON")
+    pilot_migrate.set_defaults(func=cmd_pilot_migrate_manifest)
 
     return parser
 

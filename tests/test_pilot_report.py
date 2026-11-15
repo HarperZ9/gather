@@ -36,7 +36,7 @@ def _manifest(tmp_path: Path, *, target: str = "fixtures/secret-plan.txt") -> Pi
     (fixtures / "secret-plan.txt").write_text("private body", encoding="utf-8")
     return validate_pilot_manifest(
         {
-            "schema": "gather.pilot-manifest/1",
+            "schema": "gather.pilot-manifest/2",
             "pilot_id": "pilot-one",
             "title": "Evidence pilot",
             "mode": "offline",
@@ -204,7 +204,7 @@ def _monitored_manifest(tmp_path: Path) -> PilotManifest:
     (fixtures / "source.html").write_text("<h1>Evidence</h1>", encoding="utf-8")
     return validate_pilot_manifest(
         {
-            "schema": "gather.pilot-manifest/1",
+            "schema": "gather.pilot-manifest/2",
             "pilot_id": "monitor-one",
             "title": "Monitored pilot",
             "mode": "offline",
@@ -670,7 +670,7 @@ def test_verify_pilot_accounts_for_scholar_receipt_only_edges(
     (fixtures / "scholar.json").write_text("{}", encoding="utf-8")
     manifest = validate_pilot_manifest(
         {
-            "schema": "gather.pilot-manifest/1",
+            "schema": "gather.pilot-manifest/2",
             "pilot_id": "scholar-one",
             "title": "Scholar pilot",
             "mode": "offline",

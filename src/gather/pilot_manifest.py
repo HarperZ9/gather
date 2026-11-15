@@ -10,12 +10,22 @@ import ipaddress
 import json
 import re
 import urllib.parse
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
 from gather.localpath import check_links, require_portable
+from gather.pilot_custody import (
+    MIGRATE_HINT,
+    PILOT_MANIFEST_SCHEMA,
+    PILOT_MANIFEST_SCHEMA_V1,
+    READABLE_MANIFEST_SCHEMAS,
+    read_deployment,
+    recorded_deployment_valid,
+    uses_retired_value,
+)
 from gather.schema_extract import Field
 
 ADAPTERS = (
@@ -24,7 +34,6 @@ ADAPTERS = (
 )
 NETWORK_ADAPTERS = ("web", "feed", "arxiv", "scholar", "video", "api", "browser")
 MONITOR_ADAPTERS = ("web", "feed", "api")
-PILOT_MANIFEST_SCHEMA = "gather.pilot-manifest/1"
 
 PROVIDER_HOSTS = {
     "arxiv": ("export.arxiv.org",),
@@ -104,6 +113,7 @@ class PilotManifest:
     policy: PilotPolicy
     missions: tuple[PilotMission, ...]
     base_dir: Path
+    deprecations: tuple[str, ...] = ()
 
 
 def _mapping(value: object, label: str) -> Mapping[str, object]:
@@ -371,12 +381,34 @@ def _source(data: Mapping[str, object], mode: str, policy: PilotPolicy, base_dir
     )
 
 
-def validate_pilot_manifest(data: Mapping[str, object], base_dir: Path) -> PilotManifest:
-    """Validate an untrusted manifest without fetching targets or reading secrets."""
+def _recorded_deployment(schema: str, mode: str, custodian: str) -> PilotDeployment:
+    """Custody of a manifest stored in an evidence root, kept in the root's own format."""
+    if schema == PILOT_MANIFEST_SCHEMA_V1 and uses_retired_value(mode, custodian):
+        raise ValueError(
+            "this evidence root was sealed in manifest format 1 with a retired custody value; "
+            "it still verifies, and a new capture needs a migrated manifest and a new output "
+            f"directory ({MIGRATE_HINT})"
+        )
+    if not recorded_deployment_valid(schema, mode, custodian):
+        read_deployment(schema, mode, custodian)
+        raise ValueError("deployment values do not belong to the manifest format")
+    return PilotDeployment(mode, custodian)
+
+
+def validate_pilot_manifest(
+    data: Mapping[str, object], base_dir: Path, *, recorded: bool = False,
+) -> PilotManifest:
+    """Validate an untrusted manifest without fetching targets or reading secrets.
+
+    An authored manifest in format 1 is read as format 2, with each difference
+    listed on ``deprecations``. ``recorded`` is for the normalized manifest
+    inside an existing evidence root, which continues in the format it was
+    sealed in so its receipts keep matching.
+    """
     data = _mapping(data, "manifest")
     _closed(data, {"schema", "pilot_id", "title", "mode", "deployment", "policy", "missions"}, "manifest")
     schema = _string(data, "schema", "manifest")
-    if schema != PILOT_MANIFEST_SCHEMA:
+    if schema not in READABLE_MANIFEST_SCHEMAS:
         raise ValueError(f"manifest.schema must be {PILOT_MANIFEST_SCHEMA}")
     pilot_id = _slug(_string(data, "pilot_id", "manifest"), "manifest.pilot_id")
     title = _string(data, "title", "manifest")
@@ -385,11 +417,17 @@ def validate_pilot_manifest(data: Mapping[str, object], base_dir: Path) -> Pilot
         raise ValueError("manifest.mode must be offline or live")
     deployment_data = _mapping(data.get("deployment"), "deployment")
     _closed(deployment_data, {"mode", "custodian"}, "deployment")
-    deployment = PilotDeployment(_string(deployment_data, "mode", "deployment"), _string(deployment_data, "custodian", "deployment"))
-    if deployment.mode not in {"workstation", "customer_hosted", "zentropy_managed"}:
-        raise ValueError("deployment.mode must be workstation, customer_hosted, or zentropy_managed")
-    if deployment.custodian not in {"customer", "zentropy", "shared"}:
-        raise ValueError("deployment.custodian must be customer, zentropy, or shared")
+    raw_mode = _string(deployment_data, "mode", "deployment")
+    raw_custodian = _string(deployment_data, "custodian", "deployment")
+    deprecations: tuple[str, ...] = ()
+    if recorded:
+        deployment = _recorded_deployment(schema, raw_mode, raw_custodian)
+    else:
+        current_mode, current_custodian, deprecations = read_deployment(schema, raw_mode, raw_custodian)
+        deployment = PilotDeployment(current_mode, current_custodian)
+        schema = PILOT_MANIFEST_SCHEMA
+        for note in deprecations:
+            warnings.warn(f"{note}; {MIGRATE_HINT}", DeprecationWarning, stacklevel=2)
     resolved_base = Path(base_dir).resolve(strict=True)
     policy, roots = _policy(_mapping(data.get("policy"), "policy"), resolved_base)
     missions: list[PilotMission] = []
@@ -414,7 +452,9 @@ def validate_pilot_manifest(data: Mapping[str, object], base_dir: Path) -> Pilot
         missions.append(PilotMission(mission_id, _string(mission_data, "title", "mission"), tuple(sources)))
     if not missions:
         raise ValueError("manifest.missions must not be empty")
-    return PilotManifest(schema, pilot_id, title, mode, deployment, policy, tuple(missions), resolved_base)
+    return PilotManifest(
+        schema, pilot_id, title, mode, deployment, policy, tuple(missions), resolved_base, deprecations,
+    )
 
 
 def _field_payload(field: Field) -> dict[str, object]:
@@ -476,11 +516,11 @@ def manifest_digest(manifest: PilotManifest) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def load_pilot_manifest(path: str | Path) -> PilotManifest:
+def load_pilot_manifest(path: str | Path, *, recorded: bool = False) -> PilotManifest:
     """Load a JSON manifest using the manifest file's parent as its local root."""
     manifest_path = Path(path)
     try:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
         raise ValueError("invalid pilot manifest JSON") from error
-    return validate_pilot_manifest(_mapping(data, "manifest"), manifest_path.parent)
+    return validate_pilot_manifest(_mapping(data, "manifest"), manifest_path.parent, recorded=recorded)

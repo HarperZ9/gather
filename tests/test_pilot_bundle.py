@@ -27,7 +27,7 @@ def _root(tmp_path: Path) -> tuple[Path, object]:
     (fixtures / "portfolio.html").write_text(HTML, encoding="utf-8")
     manifest = validate_pilot_manifest(
         {
-            "schema": "gather.pilot-manifest/1",
+            "schema": "gather.pilot-manifest/2",
             "pilot_id": "bundle-showcase",
             "title": "Bundle showcase",
             "mode": "offline",

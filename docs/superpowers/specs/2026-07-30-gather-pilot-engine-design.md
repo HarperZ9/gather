@@ -126,7 +126,7 @@ Required top-level fields:
 ```json
 {
   "schema": "gather.pilot-manifest/1",
-  "pilot_id": "zentropy-representative-showcase",
+  "pilot_id": "representative-showcase",
   "title": "Gather representative research operations pilot",
   "mode": "offline",
   "deployment": {
@@ -140,8 +140,8 @@ Required top-level fields:
 
 The closed deployment shape has:
 
-- `mode`: exactly `workstation`, `customer_hosted`, or `zentropy_managed`;
-- `custodian`: exactly `customer`, `zentropy`, or `shared`.
+- `mode`: exactly `workstation`, `customer_hosted`, or `provider_managed` (renamed in manifest format 2, 2026-11-15; see `docs/PILOT.md`);
+- `custodian`: exactly `customer`, `provider`, or `shared` (renamed in manifest format 2, 2026-11-15).
 
 Deployment metadata records where the pilot ran and who controls the artifact
 root. It grants no storage access and contains no hostname, credential, account

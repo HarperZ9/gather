@@ -25,7 +25,7 @@ def _build_pilot_root(tmp_path: Path) -> Path:
     (fixtures / "secret-plan.txt").write_text("private body", encoding="utf-8")
     manifest = validate_pilot_manifest(
         {
-            "schema": "gather.pilot-manifest/1",
+            "schema": "gather.pilot-manifest/2",
             "pilot_id": "pilot-one",
             "title": "Evidence pilot",
             "mode": "offline",

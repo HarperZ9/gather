@@ -19,6 +19,7 @@ from gather.pilot import (
     verify_pilot,
 )
 from gather.pilot_bundle import create_pilot_bundle, verify_pilot_bundle
+from gather.pilot_custody import MIGRATE_HINT, migrate_manifest_file
 from gather.pilot_manifest import (
     PilotManifest,
     load_pilot_manifest,
@@ -56,6 +57,8 @@ def cmd_pilot_run(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         print(f"manifest refused: {_short(str(exc))}", file=sys.stderr)
         return 2
+    for note in manifest.deprecations:
+        print(f"deprecated: {note}; {MIGRATE_HINT}", file=sys.stderr)
     try:
         result = run_pilot(manifest, Path(args.output))
     except PilotRefusal as exc:
@@ -128,6 +131,26 @@ def cmd_pilot_bundle(args: argparse.Namespace) -> int:
             },
             as_json,
         )
+    return 0
+
+
+def cmd_pilot_migrate_manifest(args: argparse.Namespace) -> int:
+    """Dry run by default: print each change. ``--write`` rewrites the file."""
+    as_json = bool(getattr(args, "json", False))
+    try:
+        migration = migrate_manifest_file(args.manifest, write=bool(args.write))
+    except (OSError, ValueError) as exc:
+        print(f"manifest refused: {_short(str(exc))}", file=sys.stderr)
+        return 2
+    if as_json:
+        _emit({"action": "migrate-manifest", **migration.to_dict()}, as_json)
+        return 0
+    if not migration.changes:
+        print("nothing to do: the manifest is already format 2")
+        return 0
+    for field, old, new in migration.changes:
+        print(f"{field}: {old} -> {new}")
+    print("written" if migration.written else "dry run: nothing written; add --write to apply")
     return 0
 
 

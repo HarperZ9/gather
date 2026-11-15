@@ -286,7 +286,7 @@ def test_the_operator_cli_run_keeps_running_its_own_config(tmp_path, capsys):
 
 def _live_manifest(adapter, target, options=None, credentials=()):
     return {
-        "schema": "gather.pilot-manifest/1", "pilot_id": "grant-probe", "title": "Grant probe",
+        "schema": "gather.pilot-manifest/2", "pilot_id": "grant-probe", "title": "Grant probe",
         "mode": "live", "deployment": {"mode": "workstation", "custodian": "customer"},
         "policy": {"allowed_hosts": ["example.org", "api.example.com"],
                    "trusted_browser_hosts": ["example.org"], "allowed_local_roots": [],
@@ -357,9 +357,9 @@ def test_refresh_checks_the_manifest_it_actually_captures_from(tmp_path, monkeyp
 
     seen = []
 
-    def counting_load(path):
+    def counting_load(path, **kwargs):
         seen.append(str(path))
-        return load_pilot_manifest(path)
+        return load_pilot_manifest(path, **kwargs)
 
     monkeypatch.setattr("gather.pilot_manifest.load_pilot_manifest", counting_load)
     monkeypatch.setattr(pilot_mod, "verify_pilot", lambda root: type("V", (), {"ok": True})())

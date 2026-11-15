@@ -1161,7 +1161,7 @@ Use:
 ```json
 {
   "schema": "gather.pilot-manifest/1",
-  "pilot_id": "zentropy-representative-showcase",
+  "pilot_id": "representative-showcase",
   "title": "Gather representative research operations pilot",
   "mode": "offline",
   "deployment": {"mode": "workstation", "custodian": "customer"},

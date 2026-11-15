@@ -35,9 +35,23 @@ The showcase (`examples/pilot/showcase-offline.json`) exercises all three:
 - **Customer-hosted**: the pilot runs inside the customer's network, and
   private payloads stay there. Gather receives the redacted receipts the
   customer chooses to share.
-- **Operator-managed** (manifest value `zentropy_managed`, kept for
-  compatibility): Zain Dana Harper operates the pilot on a customer's behalf
-  under a custody agreement; the same manifest and verification apply.
+- **Provider-managed** (manifest value `provider_managed`): the provider,
+  Zain Dana Harper, runs the pilot on a customer's behalf under a custody
+  agreement; the same manifest and verification apply.
+
+The manifest names the deployment in `deployment.mode` (`workstation`,
+`customer_hosted` or `provider_managed`) and who holds the evidence in
+`deployment.custodian` (`customer`, `provider` or `shared`).
+
+Compatibility note, 2026-11-15: manifest format 2 (`gather.pilot-manifest/2`)
+replaced two format 1 values, mode `zentropy_managed` and custodian `zentropy`,
+with `provider_managed` and `provider`. Gather still reads a format 1 manifest,
+prints a deprecation line for each difference, and writes only format 2.
+`gather pilot migrate-manifest <manifest.json>` shows the change and `--write`
+applies it. The format change leaves the verification of an evidence root
+sealed in format 1 as it was. A root that holds either old value is closed to
+`refresh`, and a new capture starts from the migrated manifest in a new output
+directory.
 
 In every deployment, a shared bundle carries receipts, hashes, redacted refs
 and verdicts. Raw private payloads stay in the local adapters.

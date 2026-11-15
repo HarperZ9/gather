@@ -33,7 +33,7 @@ def showcase_manifest(tmp_path: Path) -> object:
     (fixtures / "portfolio-v2.html").write_text(HTML_V2, encoding="utf-8")
     return validate_pilot_manifest(
         {
-            "schema": "gather.pilot-manifest/1",
+            "schema": "gather.pilot-manifest/2",
             "pilot_id": "showcase-refresh",
             "title": "Refresh showcase",
             "mode": "offline",

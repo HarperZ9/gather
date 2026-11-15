@@ -728,7 +728,10 @@ def refresh_pilot(
     if not verify_pilot(root).ok:
         raise PilotRefusal("pilot root does not verify; refusing refresh")
 
-    manifest = load_pilot_manifest(root / "manifest.json")
+    try:
+        manifest = load_pilot_manifest(root / "manifest.json", recorded=True)
+    except ValueError as error:
+        raise PilotRefusal(str(error)) from error
     if authorize is not None:
         authorize(manifest)
     corpus = Corpus(str(root / "corpus"))
