@@ -1,5 +1,5 @@
 {
-  "schema": "gather.pilot-manifest/1",
+  "schema": "gather.pilot-manifest/2",
   "pilot_id": "zain-dana-harper-representative-showcase-live-template",
   "title": "Gather representative research operations pilot (controlled-live template)",
   "mode": "live",

@@ -74,7 +74,7 @@ def load_fixture_manifest(
     if adapter in {"web", "browser"}:
         source["extraction"] = {"fields": {"title": {"selector": "title"}}}
     manifest_data = {
-        "schema": "gather.pilot-manifest/1",
+        "schema": "gather.pilot-manifest/2",
         "pilot_id": "pilot-one",
         "title": "Offline pilot",
         "mode": mode,

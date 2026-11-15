@@ -63,7 +63,7 @@ def test_the_mcp_docs_tool_reads_a_com0_file(tmp_path):
 
 def _manifest(target):
     return {
-        "schema": "gather.pilot-manifest/1", "pilot_id": "p", "title": "t", "mode": "offline",
+        "schema": "gather.pilot-manifest/2", "pilot_id": "p", "title": "t", "mode": "offline",
         "deployment": {"mode": "workstation", "custodian": "customer"},
         "policy": {"allowed_hosts": [], "trusted_browser_hosts": [], "allowed_local_roots": ["fixtures"],
                    "enabled_adapters": ["docs"], "credentials": [], "report_private_content": False},

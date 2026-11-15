@@ -13,3 +13,4 @@ examples/pilot/fixtures/** text eol=lf
 # Digest manifests (*.sha256) are read by sha256sum -c. A CRLF checkout puts a
 # carriage return on every path, so the check fails on files nobody edited.
 *.sha256 -text
+tests/fixtures/pilot-root-format1-*/** -text

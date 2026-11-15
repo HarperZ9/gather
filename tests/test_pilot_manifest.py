@@ -20,7 +20,7 @@ def valid_manifest(tmp_path: Path) -> dict[str, object]:
     fixtures.mkdir(exist_ok=True)
     (fixtures / "source.html").write_text("<h1>offline</h1>", encoding="utf-8")
     return {
-        "schema": "gather.pilot-manifest/1",
+        "schema": "gather.pilot-manifest/2",
         "pilot_id": "pilot-one",
         "title": "Offline pilot",
         "mode": "offline",

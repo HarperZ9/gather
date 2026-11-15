@@ -56,7 +56,7 @@ def two_source_manifest(tmp_path: Path, *, required_second: bool) -> PilotManife
     (fixtures / "source.txt").write_text("fixture", encoding="utf-8")
     return validate_pilot_manifest(
         {
-            "schema": "gather.pilot-manifest/1",
+            "schema": "gather.pilot-manifest/2",
             "pilot_id": "pilot-one",
             "title": "Pilot",
             "mode": "offline",

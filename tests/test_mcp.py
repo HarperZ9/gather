@@ -116,7 +116,7 @@ import socket  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 _PILOT_MANIFEST = {
-    "schema": "gather.pilot-manifest/1",
+    "schema": "gather.pilot-manifest/2",
     "pilot_id": "mcp-parity",
     "title": "MCP parity pilot",
     "mode": "offline",

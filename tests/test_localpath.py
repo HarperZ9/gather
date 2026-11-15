@@ -268,7 +268,7 @@ def test_the_refusal_payload_is_structured_and_names_the_argument():
 
 def _manifest(root="fixtures", target="fixtures/a.md"):
     return {
-        "schema": "gather.pilot-manifest/1", "pilot_id": "p", "title": "t", "mode": "offline",
+        "schema": "gather.pilot-manifest/2", "pilot_id": "p", "title": "t", "mode": "offline",
         "deployment": {"mode": "workstation", "custodian": "customer"},
         "policy": {"allowed_hosts": [], "trusted_browser_hosts": [], "allowed_local_roots": [root],
                    "enabled_adapters": ["docs"], "credentials": [], "report_private_content": False},

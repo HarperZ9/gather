@@ -27,7 +27,7 @@ def _showcase(tmp_path: Path) -> Path:
     fixtures.mkdir(exist_ok=True)
     (fixtures / "portfolio.html").write_text(HTML, encoding="utf-8")
     manifest = {
-        "schema": "gather.pilot-manifest/1",
+        "schema": "gather.pilot-manifest/2",
         "pilot_id": "cli-showcase",
         "title": "CLI showcase",
         "mode": "offline",

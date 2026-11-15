@@ -15,12 +15,12 @@ from typing import TYPE_CHECKING, cast
 from gather import __version__
 from gather.digest import digest_of_receipts
 from gather.monitor import VERDICTS, verify_ledger
+from gather.pilot_custody import READABLE_MANIFEST_SCHEMAS, recorded_deployment_valid
 from gather.pilot_manifest import (
     ADAPTER_OPTIONS,
     ADAPTERS,
     MONITOR_ADAPTERS,
     NETWORK_ADAPTERS,
-    PILOT_MANIFEST_SCHEMA,
     PROVIDER_HOSTS,
 )
 from gather.run import RunRecord, verify_record
@@ -644,7 +644,7 @@ def _valid_normalized_manifest(manifest: Mapping[str, object]) -> bool:
     ):
         return False
     if (
-        manifest.get("schema") != PILOT_MANIFEST_SCHEMA
+        manifest.get("schema") not in READABLE_MANIFEST_SCHEMAS
         or not isinstance(manifest.get("pilot_id"), str)
         or _SLUG.fullmatch(cast(str, manifest.get("pilot_id"))) is None
         or not _nonempty_string(manifest.get("title"))
@@ -655,9 +655,9 @@ def _valid_normalized_manifest(manifest: Mapping[str, object]) -> bool:
     if (
         not isinstance(deployment, Mapping)
         or set(deployment) != {"mode", "custodian"}
-        or deployment.get("mode")
-        not in {"workstation", "customer_hosted", "zentropy_managed"}
-        or deployment.get("custodian") not in {"customer", "zentropy", "shared"}
+        or not recorded_deployment_valid(
+            manifest.get("schema"), deployment.get("mode"), deployment.get("custodian"),
+        )
     ):
         return False
     policy = manifest.get("policy")
