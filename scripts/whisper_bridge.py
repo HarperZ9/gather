@@ -1,22 +1,28 @@
 """Whisper-CLI-compatible bridge for `gather transcribe`, over the installed faster_whisper.
 
-Bridge, not ours: faster_whisper 1.2.1 (SYSTRAN) with the large-v3 weights at
-E:/hf-cache/hub/models--Systran--faster-whisper-large-v3. Our replacement is planned in
-mission-control/2026-11-14-video-parse/OWN-SPEECH-PLAN.md.
+A bridge, not ours: faster_whisper 1.2.1 (SYSTRAN) with the large-v3 weights. Gather's own
+speech path is planned to replace it.
 
 Settings are fixed so results repeat: beam 5, temperature 0, no previous-text conditioning,
 the built-in voice filter on. Accepts the arguments Gather passes:
     <audio> --model NAME --output_format txt --output_dir DIR
-Run with D:/venvs/voice/Scripts/python.exe; point GATHER_WHISPER at whisper_bridge.cmd.
+
+Configuration, all by environment (no machine-specific defaults):
+    GATHER_WHISPER_PYTHON  a Python with faster_whisper installed (used by whisper_bridge.cmd)
+    GATHER_WHISPER_CACHE   the model cache holding the converted weights (offline: no download)
+    GATHER_FFMPEG          an ffmpeg binary for decoding (default: ffmpeg on PATH)
+    GATHER_WHISPER_DEVICE  cpu (default, int8) or cuda
+Then point GATHER_WHISPER at whisper_bridge.cmd, and let those names through Gather's child
+environment allowlist:
+    GATHER_CHILD_ENV=GATHER_WHISPER_PYTHON,GATHER_WHISPER_CACHE,GATHER_FFMPEG,GATHER_WHISPER_DEVICE
 """
 import argparse
 import os
 import sys
 
 MODELS = {"large-v3": "Systran/faster-whisper-large-v3"}
-CACHE = os.environ.get("GATHER_WHISPER_CACHE", "E:/hf-cache/hub")
-FFMPEG = ("C:/Users/Zain/AppData/Local/Programs/Python/Python312/Lib/site-packages/"
-          "imageio_ffmpeg/binaries/ffmpeg-win-x86_64-v7.1.exe")
+CACHE = os.environ.get("GATHER_WHISPER_CACHE")
+FFMPEG = os.environ.get("GATHER_FFMPEG", "ffmpeg")
 
 
 def main(argv):
@@ -35,13 +41,16 @@ def main(argv):
     from faster_whisper import WhisperModel
     # Decode with the installed ffmpeg binary: the venv's PyAV is a version faster_whisper's own
     # decoder cannot call. 16 kHz mono float32, which is what the model consumes.
-    ffmpeg = os.environ.get("GATHER_FFMPEG", FFMPEG)
-    raw = subprocess.run([ffmpeg, "-v", "error", "-i", a.audio, "-f", "f32le", "-ac", "1",
-                          "-ar", "16000", "-"], capture_output=True, check=True).stdout
-    audio = np.frombuffer(raw, dtype=np.float32)
+    ffmpeg = FFMPEG
+    out = os.path.join(a.output_dir, os.path.splitext(os.path.basename(a.audio))[0] + ".txt")
+    proc = subprocess.run([ffmpeg, "-v", "error", "-i", a.audio, "-vn", "-f", "f32le", "-ac", "1",
+                           "-ar", "16000", "-"], capture_output=True)
+    audio = np.frombuffer(proc.stdout, dtype=np.float32)
     if audio.size == 0:
-        sys.stderr.write("no audio stream decoded\n")
-        return 3
+        # A video with no sound track is a result, not a failure: record it as such.
+        with open(out, "w", encoding="utf-8") as f:
+            f.write("[no audio stream]\n")
+        return 0
     name = MODELS.get(a.model, MODELS["large-v3"])  # one pinned model, whatever Gather asks for
     # CPU int8 by default: the GPU path needs cublas64_12.dll, which this venv does not ship.
     model = WhisperModel(name, device=a.device, compute_type="int8" if a.device == "cpu" else "default",
