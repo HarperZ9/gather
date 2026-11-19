@@ -184,7 +184,11 @@ def cmd_ocr(args) -> int:
 
 def cmd_transcribe(args) -> int:
     from gather.transcribe import TranscribeSource
-    return _fetch_and_emit(lambda: TranscribeSource(model=args.model).fetch(args.path), args,
+    timeout = getattr(args, "timeout", 600.0)
+    if not timeout > 0:
+        print("transcribe failed: --timeout must be above 0", file=sys.stderr)
+        return 2
+    return _fetch_and_emit(lambda: TranscribeSource(model=args.model, timeout=timeout).fetch(args.path), args,
                            fail="transcribe failed")
 
 

@@ -5,6 +5,10 @@ built behind a feature branch and reviewed before merge.
 
 ## Unreleased
 
+- `gather transcribe --timeout S` sets how long the transcription tool may run (default 600 s, as
+  before). On 2026-11-18 the large-v3 bridge on CPU took 7 to 18 minutes for each of four films of
+  16 to 21 minutes, so the fixed 600 s limit would have stopped all four.
+
 - Pilot manifest format 2 (`gather.pilot-manifest/2`) names custody with role words. `deployment.mode` is `workstation`, `customer_hosted` or `provider_managed`, and `deployment.custodian` is `customer`, `provider` or `shared`. Format 1 spelled the provider two other ways; those values are read and mapped, and never written.
 - A format 1 manifest still runs. Each difference is listed on `PilotManifest.deprecations`, raised as a `DeprecationWarning` and printed by `gather pilot run`. The normalized manifest, its digest and the report are written in format 2, so the same format 1 file has a different manifest digest than it had under 2.6.0.
 - New command `gather pilot migrate-manifest <manifest.json>`: a dry run that prints each change; `--write` validates the result and rewrites the file in one step. A manifest with a value outside its format is refused and left as it was.
