@@ -193,6 +193,9 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe = sub.add_parser("transcribe", help="transcribe a local audio file via whisper (needs whisper on PATH)")
     transcribe.add_argument("path")
     transcribe.add_argument("--model", default="base", help="whisper model name")
+    transcribe.add_argument("--timeout", type=float, default=600.0, metavar="S",
+                            help="seconds the transcription tool may run (default 600; a large model on CPU "
+                                 "needs about 0.5 s per second of audio)")
     _add_common(transcribe)
     transcribe.set_defaults(func=cmd_transcribe)
 

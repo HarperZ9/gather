@@ -55,3 +55,20 @@ def test_transcribe_item_is_a_machine_transcript():
 def test_transcribe_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         TranscribeSource().fetch(str(tmp_path / "nope.mp3"))
+
+
+def test_transcribe_cli_passes_timeout(monkeypatch, tmp_path):
+    from gather import transcribe as tr
+    from gather.cli import main
+    seen = {}
+
+    def fake_fetch(self, target):
+        seen["timeout"] = self._timeout
+        return [transcribe_item("a.wav", "words", fetched_at=1.0, ref=target)]
+
+    monkeypatch.setattr(tr.TranscribeSource, "fetch", fake_fetch)
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"RIFF")
+    assert main(["transcribe", str(audio), "--timeout", "3600", "--json"]) == 0
+    assert seen["timeout"] == 3600.0
+    assert main(["transcribe", str(audio), "--timeout", "0"]) == 2
