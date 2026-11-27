@@ -76,7 +76,7 @@ party can check without trusting the run that made it.
 <p align="center"><img src="https://raw.githubusercontent.com/HarperZ9/gather/main/docs/art/pilot-pipeline.svg" alt="Eight stages from a validated manifest to a network-free re-check: manifest, capture, extract, ground, store, receipt, report, re-check. A source whose extracted values are not found on the fetched page is dropped before anything is stored. The re-check reports match, corrupt or missing." width="100%"></p>
 
 The edge worth reading twice is the one that leaves the pipeline. Every value
-the extractor proposes has to be found on the page that was actually fetched,
+the extractor proposes has to be found on the fetched page,
 matched on word boundaries so `100` does not match inside `1000`. A source that
 fails that check is recorded as an error and nothing from it is stored, so a
 fabricated field cannot reach the corpus by being plausible.
@@ -93,13 +93,13 @@ fabricated field cannot reach the corpus by being plausible.
 - **Filter ledgers.** `--scope TERMS --ledger DIR` writes one row per dropped item with its reason code, plus the input, so `gather ledger verify` can recompute every count.
 - **A video as one checkable bundle, with frames.** `gather video-bundle <url> --out DIR` saves the metadata and chapters, the caption track and transcripts, the comment tree, a balanced comment synthesis, and contact sheets of 24 to 96 frames across the whole video with the time printed on each. The frames come from the site's preview storyboard, so no video file is downloaded; they are small (320 by 180 pixels at best on YouTube) and the bundle records their real size. `--fast` reads captions and frames while the comments are still being read and keeps requests 1 second apart: a 234-second video that took 162 seconds with 3-second sleeps took 37 seconds. Frame sheets need the optional `frames` extra (Pillow). See [USAGE.md](https://github.com/HarperZ9/gather/blob/main/USAGE.md).
 - **Channel and playlist intake.** `gather channel <url> --store DIR` lists a channel's videos, shorts, and streams tabs (or one playlist) and gathers every entry with bounded concurrency, resumable from a per-pass ledger. Metadata and comments run as one pass and captions as another (`--no-captions`, `--captions-only`), with polite pacing, bounded backoff on HTTP 429 and session rate limits, a stop at the first bot check (never retried or answered), one caption track per video, and a run summary that counts every outcome by reason.
-- **Scholarly-graph federation.** `gather scholar` queries OpenAlex, Semantic Scholar, and Crossref in one call, dedupes results by normalized DOI (never a fuzzy title match), and can capture citation edges as first-class records with `--edges`.
+- **Scholarly-graph federation.** `gather scholar` queries OpenAlex, Semantic Scholar, and Crossref in one call, dedupes results by normalized DOI (never a fuzzy title match), and can capture citation edges as standalone records with `--edges`.
 - **A durable local corpus.** Any fetch command takes `--store DIR`: bodies are content-addressed and deduped by hash, new writes preserve exact UTF-8 source bytes, and `gather corpus list|verify|digest|runs|search|stats|prune|availability|context` inspects, re-checks, and queries what you stored.
-- **Readable context selection.** `gather corpus context DIR` shows bounded, re-hashed source/comment excerpts with row refs and missing/corrupt/unsafe/oversized-body reasons; `--select ROW_REF[:START[:LIMIT]] --expect-digest SHA256` exports a private context payload with a deterministic selection digest, refusing stale digests and selected text over budget. Python callers that already hold a retained corpus root fd/HANDLE can pass a same-process `CorpusRootDescriptor` so Gather does not reopen the root path. On Linux/WSL filesystems where retained directory fds cannot supply stable confined reads, currently including WSL Windows-drive 9p/v9fs mounts, Gather refuses opened corpus, descendant directory, and catalog/body file descriptors before reading corpus metadata or bodies. This is acquisition context, not a truth, claim-support, completeness, caller workspace-parent, or secret-free verdict.
+- **Readable context selection.** `gather corpus context DIR` shows bounded, re-hashed source/comment excerpts with row refs and missing/corrupt/unsafe/oversized-body reasons; `--select ROW_REF[:START[:LIMIT]] --expect-digest SHA256` exports a private context payload with a deterministic selection digest, refusing stale digests and selected text over budget. Python callers that already hold a retained corpus root fd/HANDLE can pass a same-process `CorpusRootDescriptor` so Gather does not reopen the root path. On Linux/WSL filesystems where retained directory fds cannot supply stable confined reads, currently including WSL Windows-drive 9p/v9fs mounts, Gather refuses opened corpus, descendant directory, and catalog/body file descriptors before reading corpus metadata or bodies. This output supplies acquisition context only; it makes zero claim about truth, completeness, or secret-free status.
 - **Multi-source runs.** `gather run config.json` orchestrates many sources, a scope filter, and optional synthesis into one recorded session kept in the corpus history.
 - **Accountable pilot evidence engine.** `gather pilot run|refresh|verify|bundle` drives a closed manifest through a source-isolated capture into a content-addressed corpus, writes a redacted report and a hash-chained receipt, monitors sources for change (NEW/CHANGED/UNCHANGED with archived history), and packages deterministic shared or full bundles any third party re-verifies offline. See [docs/PILOT.md](https://github.com/HarperZ9/gather/blob/main/docs/PILOT.md).
 - **Three surfaces, one engine.** The full CLI, an MCP stdio server (`gather mcp`, tools `gather.status`, `gather.doctor`, `gather.docs`, `gather.arxiv`, `gather.federation`, `gather.run`, `gather.context`, `gather.pilot`), and a plain Python API.
-- **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering. `gather caps` reports what your install can actually do; a missing capability is reported as such, never faked.
+- **Zero-dependency core, opt-in speed.** The core is pure standard library. `gather-engine[fast]` adds lxml parsing (roughly 2x on large documents in our own informal timing, unpublished), `[browser]` adds Playwright JS rendering. `gather caps` reports what your install supports; any missing capability is reported explicitly and never faked.
 
 ## See it work, step by step
 
@@ -274,7 +274,7 @@ d = digest(items)          # a sealed digest over every item's receipt
 assert verify_digest(d)    # re-derive the seal; False if anything was altered
 ```
 
-The same seams the CLI uses are importable: `gather.extract`, `gather.crawl`, `gather.track`, `gather.schema_extract`, `gather.stream`, `gather.search`, `gather.store`, `gather.run`, `gather.context`, and the source adapters. `gather.context.CorpusRootDescriptor` is a Python-only same-process handoff for hosts that already retained and identity-bound a corpus root descriptor; CLI and MCP continue to accept corpus directory strings. Linux/WSL mounts that cannot preserve retained directory authority for confined child opens are rejected fail-closed on each opened corpus, descendant directory, or catalog/body file descriptor rather than read by pathname fallback. [ARCHITECTURE.md](https://github.com/HarperZ9/gather/blob/main/ARCHITECTURE.md) maps the modules and seams.
+The same seams the CLI uses are importable: `gather.extract`, `gather.crawl`, `gather.track`, `gather.schema_extract`, `gather.stream`, `gather.search`, `gather.store`, `gather.run`, `gather.context`, and the source adapters. `gather.context.CorpusRootDescriptor` is a Python-only same-process handoff for hosts that already retained and identity-bound a corpus root descriptor; CLI and MCP continue to accept corpus directory strings. Linux/WSL mounts that cannot preserve retained directory authority for confined child opens are rejected fail-closed on each opened corpus, descendant directory, or catalog/body file descriptor with zero pathname fallback. [ARCHITECTURE.md](https://github.com/HarperZ9/gather/blob/main/ARCHITECTURE.md) maps the modules and seams.
 
 ## Security notes
 
@@ -301,7 +301,7 @@ Research breaks when sources become a blur. One rule sits underneath all of it: 
 This tool is one tool in a family that holds a single belief steady across
 every surface: knowledge open to anyone who can attain the means; acceptance
 decided by external checks, never reputation; every result re-runnable;
-honest nulls first-class; ownership earned by comprehension; learning woven
+honest nulls on equal footing; ownership earned by comprehension; learning woven
 into the work. The full text lives in [CREDO.md](https://github.com/HarperZ9/gather/blob/main/CREDO.md).
 The long form of this belief: [The Unbundling](https://github.com/HarperZ9/flywheel/blob/main/docs/essays/2026-07-13-the-unbundling.md).
 
@@ -325,7 +325,7 @@ python -m mypy
 
 Keep the README, package metadata, and examples aligned with current behavior before opening a PR.
 
----
+
 
 Built by **[Zain Dana Harper](https://harperz9.github.io)** in Seattle: evidence-first tools that leave a re-checkable artifact behind. The full workbench is at [Project Telos](https://harperz9.github.io).
 
