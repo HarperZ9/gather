@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+type: software
+title: "gather"
+abstract: "Collects and deconstructs research material (web pages, papers, APIs, PDFs, audio, video) into a local corpus with source hashes."
+version: "2.6.0"
+date-released: 2026-11-27
+authors:
+  - family-names: "Harper"
+    given-names: "Zain Dana"
+    orcid: "https://orcid.org/0009-0001-7175-5393"
+repository-code: "https://github.com/HarperZ9/gather"
+url: "https://harperz9.github.io"
+license: AGPL-3.0-only
+license-url: "https://github.com/HarperZ9/gather/blob/main/LICENSE"
+keywords:
+  - agpl
+  - information-retrieval
+  - local-first
+  - mcp
+  - mcp-server
+  - open-science
+  - provenance
+  - python
+  - reproducibility
+  - research-tool
