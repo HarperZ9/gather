@@ -13,6 +13,8 @@ Gather is for researchers, journalists and developers who feed sources to a pers
 
 Python 3.11 or newer. Version 2.6.0 is on PyPI as `gather-engine`.
 
+mcp-name: io.github.harperz9/gather
+
 ```bash
 pip install gather-engine
 gather --version                      # gather 2.6.0
